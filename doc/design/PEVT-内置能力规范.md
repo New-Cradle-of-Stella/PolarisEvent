@@ -147,6 +147,8 @@ C:\Users\Administrator\Documents\polarisDocs\事件技术文档-LLM 可读版.md
 | --- | --- | --- | --- |
 | `camera.shake` | `amplitude : float, duration : int, frequency : float` | Awaitable | `QU_HANDSHAKE`、`QU_VIB` 的规范化形式。 |
 | `camera.oscillate` | `axis : string, amplitude : float, duration : int, frequency : float` | Awaitable | `QU_SINH`、`QU_SINV` |
+| `camera.move` | `targetId : string, x : float, y : float, zoom : float, frames : int, easing : string` | Awaitable, Stateful, Contextual | 无直接原版对应；原版靠镜头跟随目标与固定偏移拼出，这里规范化为一个能力。 |
+| `camera.reset` | `frames : int` | Awaitable, Stateful, Reversible | 恢复事件开始前保存的镜头状态。 |
 | `postEffect.set` | `effectId : string, enabled : bool, frames : int` | Awaitable, Stateful | `PE` |
 | `postEffect.pulse` | `effectId : string, fadeFrames : int, holdFrames : int` | Awaitable | `PE_FADEINOUT` |
 | `screen.spotlight.set` | `targetId : string, enabled : bool, style : string` | Stateful, Contextual | `DARKSPOT`、`DARKSPOT_DEACTIVATE` |
@@ -157,7 +159,10 @@ C:\Users\Administrator\Documents\polarisDocs\事件技术文档-LLM 可读版.md
 | --- | --- | --- | --- |
 | `audio.preload` | `audioId : string, kind : string` | Awaitable, Cacheable | `LOAD_SND`、`LOAD_BGM` |
 | `sound.play` | `soundId : string, volume : float, pitch : float` | Immediate, Cacheable | 语义参考 `SND`；实现不支持的参数应在 API 签名中省略，不应静默忽略。 |
+| `audio.ambience.play` | `trackId : string, volume : float, fadeFrames : int` | Awaitable, Stateful, Cacheable | 循环环境声；原版没有独立命令，由 BGM 通道兼用。 |
+| `audio.ambience.stop` | `fadeFrames : int` | Awaitable, Stateful | 停止当前环境声。 |
 | `music.replace` | `musicId : string, fadeFrames : int, releasePrevious : bool` | Awaitable, Stateful | `REPLACE_BGM` |
+| `music.stop` | `fadeFrames : int` | Awaitable, Stateful | 渐止并释放当前 BGM；与只保留播放位置的 `music.pause` 语义不同。 |
 | `music.pause` | `fadeFrames : int` | Awaitable, Stateful | `STOP_BGM` |
 | `music.resume` | `fadeFrames : int` | Awaitable, Stateful | `START_BGM` |
 | `music.volumeScale.set` | `scale : float` | Stateful, Reversible | 语义参考 `HALF_BGM`；PolarisEvent 的 C# 实现可以提供完整的受控范围。 |
@@ -179,6 +184,7 @@ C:\Users\Administrator\Documents\polarisDocs\事件技术文档-LLM 可读版.md
 | `ui.alert.show` | `textId : string, style : string` | Awaitable | `UIALERT`、专用警告可映射到预设。 |
 | `ui.title.show` | `textId : string, x : float, y : float` | Awaitable, Stateful | `TITLECALL`、`TITLE_POS_SHIFT` |
 | `ui.title.hide` | `immediate : bool` | Awaitable, Stateful | `TITLECALL_HIDE` |
+| `ui.tutorial.show` | `tutorialId : string` | Awaitable, Stateful | 显示已登记的教程内容；原版由各自专用入口触发。 |
 | `ui.tutorial.remove` | `tutorialId : string` | Stateful | `TUTO_REMOVE`、`TUTO_REMOVE_ALL` |
 | `input.capability.set` | `capability : string, enabled : bool` | Stateful, Reversible | `ALLOW/DENY_SKIP`、`FASTTRAVEL`、`MSGLOG`、`EVENTHANDLE`。 |
 | `input.key.setEnabled` | `key : string, enabled : bool` | Stateful, Reversible | `ALLOW_EVENTHANDLE_KEY`、`DENY_EVENTHANDLE_KEY` |
@@ -232,6 +238,7 @@ MoveScript 的当前目标选择、`#<npc>`、引号和路线文本不应暴露�
 | `state.flag.get` | `bool` | 读取已登记作用域中的布尔状态。 |
 | `state.counter.get` | `int` | 读取已登记作用域中的整数状态。 |
 | `inventory.item.count` | `int` | 查询指定物品数量。 |
+| `inventory.currency.get` | `int` | 查询当前货币数量。 |
 | `ability.skill.isOwned` | `bool` | 查询技能所有权。 |
 | `ability.magic.isOwned` | `bool` | 查询魔法所有权。 |
 | `quest.status.get` | `int` | 返回规范化任务状态。 |

@@ -1,0 +1,252 @@
+using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using Polaris.Pevt.Actors;
+using Polaris.Pevt.Flow;
+using Polaris.Pevt.Loading;
+
+namespace Polaris.Pevt.Registration
+{
+    /// <summary>`/event` 空间中的一个候选定义。同一 ID 可以有多个候选，由冲突规则决定谁生效。</summary>
+    public sealed class PevtEventCandidate
+    {
+        public string EventId { get; }
+
+        public PevtProgramDefinition Definition { get; }
+
+        public string Owner { get; }
+
+        public string DisplayName { get; }
+
+        public string SourcePath { get; }
+
+        public string ContentHash { get; }
+
+        /// <summary>注册顺序，从 0 开始递增。用于让同一次启动内的胜出者稳定。</summary>
+        public int SequenceNumber { get; }
+
+        internal PevtEventCandidate(
+            string eventId,
+            PevtProgramDefinition definition,
+            string owner,
+            string displayName,
+            string sourcePath,
+            string contentHash,
+            int sequenceNumber)
+        {
+            EventId = eventId;
+            Definition = definition;
+            Owner = owner ?? string.Empty;
+            DisplayName = displayName ?? string.Empty;
+            SourcePath = sourcePath ?? string.Empty;
+            ContentHash = contentHash ?? string.Empty;
+            SequenceNumber = sequenceNumber;
+        }
+
+        /// <summary>事件在 `/event` 内存虚拟空间中的路径。它不是磁盘路径，也不是 `.cmd` 目录。</summary>
+        public string VirtualPath => PevtEventRegistry.GetVirtualPath(EventId);
+
+        public override string ToString() => $"{VirtualPath} ({Owner}:{SourcePath})";
+    }
+
+    /// <summary>
+    /// 一条事件 ID 冲突记录。跨程序集重复是致命冲突；同程序集重复只是警告，后注册覆盖先注册
+    /// （PEVT-嵌入注册与ID冲突规范.md 第 6 节）。两种情况都必须同时列出两个项目相对源路径。
+    /// </summary>
+    public sealed class PevtEventConflict
+    {
+        public string EventId { get; }
+
+        /// <summary>true 表示同一程序集内重复，按警告处理；false 表示跨程序集致命冲突。</summary>
+        public bool IsSameOwner { get; }
+
+        public PevtEventCandidate Retained { get; }
+
+        public PevtEventCandidate Ignored { get; }
+
+        internal PevtEventConflict(string eventId, bool isSameOwner, PevtEventCandidate retained, PevtEventCandidate ignored)
+        {
+            EventId = eventId;
+            IsSameOwner = isSameOwner;
+            Retained = retained;
+            Ignored = ignored;
+        }
+
+        public string Describe() =>
+            IsSameOwner
+                ? $"事件 ID `{EventId}` 在 `{Retained.Owner}` 内重复：`{Ignored.SourcePath}` 覆盖了先前的 `{Retained.SourcePath}`。"
+                : $"事件 ID `{EventId}` 被多个模组注册：保留 `{Retained.DisplayName}`（{Retained.Owner}）的 `{Retained.SourcePath}`（哈希 {Retained.ContentHash}），"
+                  + $"忽略 `{Ignored.DisplayName}`（{Ignored.Owner}）的 `{Ignored.SourcePath}`（哈希 {Ignored.ContentHash}）。"
+                  + "两个模组都是责任方，请修改其中一个 `.pevt` 的 `id`。";
+
+        public override string ToString() => Describe();
+    }
+
+    /// <summary>一个嵌入包没有进入 `/event` 的原因。保留来源信息与具体诊断，不降级为原版 EV。</summary>
+    public sealed class PevtEventLoadFailure
+    {
+        public string Owner { get; }
+
+        public string DeclaredId { get; }
+
+        public string SourcePath { get; }
+
+        public PevtEmbeddedLoadResult Result { get; }
+
+        internal PevtEventLoadFailure(string owner, PevtEmbeddedLoadResult result)
+        {
+            Owner = owner ?? string.Empty;
+            DeclaredId = result.Source.DeclaredId;
+            SourcePath = result.Source.SourcePath;
+            Result = result;
+        }
+
+        public override string ToString() => $"{Owner}:{SourcePath} -> {Result.Failure}";
+    }
+
+    /// <summary>
+    /// `/event` 运行时虚拟事件空间。由 PolarisEvent 在内存中管理，不是原版 `StreamingAssets/evt`、
+    /// 不是 `.cmd` 目录，也不是磁盘缓存。
+    ///
+    /// 注册通过 <see cref="PevtRegistryScanner"/> 完成；本类型只负责保存候选、按冲突规则派生生效集合，
+    /// 并支持按 owner 卸载。卸载后会重新派生——原本因冲突被忽略的定义可以重新生效。
+    /// </summary>
+    public sealed class PevtEventRegistry
+    {
+        private readonly List<PevtEventCandidate> _candidates = new List<PevtEventCandidate>();
+        private readonly List<PevtEventLoadFailure> _failures = new List<PevtEventLoadFailure>();
+        private Dictionary<string, PevtEventCandidate> _active = new Dictionary<string, PevtEventCandidate>(StringComparer.Ordinal);
+        private List<PevtEventConflict> _conflicts = new List<PevtEventConflict>();
+        private int _nextSequence;
+
+        /// <summary>事件在虚拟空间中的路径。ID 区分大小写，索引使用序数比较。</summary>
+        public static string GetVirtualPath(string eventId) => "/event/" + eventId + ".pevt";
+
+        public bool IsSealed { get; private set; }
+
+        /// <summary>当前生效的事件，按事件 ID 索引。</summary>
+        public IReadOnlyCollection<PevtEventCandidate> ActiveEvents => new ReadOnlyCollection<PevtEventCandidate>(new List<PevtEventCandidate>(_active.Values));
+
+        public IReadOnlyList<PevtEventCandidate> Candidates => new ReadOnlyCollection<PevtEventCandidate>(_candidates);
+
+        public IReadOnlyList<PevtEventConflict> Conflicts => new ReadOnlyCollection<PevtEventConflict>(_conflicts);
+
+        public IReadOnlyList<PevtEventLoadFailure> Failures => new ReadOnlyCollection<PevtEventLoadFailure>(_failures);
+
+        /// <summary>跨程序集致命冲突。它们不阻止先注册者生效，但必须作为致命报告上报。</summary>
+        public IReadOnlyList<PevtEventConflict> FatalConflicts
+        {
+            get
+            {
+                var result = new List<PevtEventConflict>();
+                foreach (PevtEventConflict conflict in _conflicts)
+                {
+                    if (!conflict.IsSameOwner)
+                        result.Add(conflict);
+                }
+
+                return new ReadOnlyCollection<PevtEventConflict>(result);
+            }
+        }
+
+        /// <summary><c>callevt "ID"</c> 在真正执行时查询这里。</summary>
+        public bool TryGet(string eventId, out PevtEventCandidate candidate) =>
+            _active.TryGetValue(eventId ?? string.Empty, out candidate);
+
+        public bool Contains(string eventId) => TryGet(eventId, out _);
+
+        internal void AddFailure(string owner, PevtEmbeddedLoadResult result) =>
+            _failures.Add(new PevtEventLoadFailure(owner, result));
+
+        internal PevtEventCandidate AddCandidate(
+            string owner,
+            string displayName,
+            PevtEmbeddedSource source,
+            PevtProgramDefinition definition)
+        {
+            var candidate = new PevtEventCandidate(
+                definition.EventId, definition, owner, displayName,
+                source.SourcePath, source.ContentHash, _nextSequence++);
+            _candidates.Add(candidate);
+            return candidate;
+        }
+
+        /// <summary>扫描结束时封闭注册并派生生效集合。返回本次汇总出的全部冲突。</summary>
+        public IReadOnlyList<PevtEventConflict> Seal()
+        {
+            IsSealed = true;
+            Rebuild();
+            return Conflicts;
+        }
+
+        /// <summary>
+        /// 扫描封闭之后新加入的注册。规范要求这种情况"立即单独上报"，因此本方法只返回本次新增的冲突，
+        /// 不重复报告 Seal 时已经汇总过的那些。
+        /// </summary>
+        public IReadOnlyList<PevtEventConflict> RegisterLate(
+            string owner,
+            string displayName,
+            PevtEmbeddedSource source,
+            PevtProgramDefinition definition)
+        {
+            if (!IsSealed)
+                throw new InvalidOperationException("注册表尚未 Seal，应使用扫描器的正常注册路径。");
+
+            int before = _conflicts.Count;
+            AddCandidate(owner, displayName, source, definition);
+            Rebuild();
+
+            var added = new List<PevtEventConflict>();
+            for (int i = before; i < _conflicts.Count; i++)
+                added.Add(_conflicts[i]);
+            return new ReadOnlyCollection<PevtEventConflict>(added);
+        }
+
+        /// <summary>撤销某个 owner 的全部注册，并重新派生。原本被它挤掉的定义可以重新生效。</summary>
+        public int Unload(string owner)
+        {
+            string key = owner ?? string.Empty;
+            int removed = _candidates.RemoveAll(candidate => string.Equals(candidate.Owner, key, StringComparison.Ordinal));
+            _failures.RemoveAll(failure => string.Equals(failure.Owner, key, StringComparison.Ordinal));
+            if (removed > 0)
+                Rebuild();
+            return removed;
+        }
+
+        /// <summary>
+        /// 按注册顺序派生生效集合：
+        /// 同一 ID 下第一个出现的 owner 胜出（跨程序集冲突时先注册者临时保留，使结果稳定）；
+        /// 该 owner 内部的重复由后注册者覆盖先注册者，并记为警告级冲突。
+        /// </summary>
+        private void Rebuild()
+        {
+            var active = new Dictionary<string, PevtEventCandidate>(StringComparer.Ordinal);
+            var winningOwner = new Dictionary<string, string>(StringComparer.Ordinal);
+            var conflicts = new List<PevtEventConflict>();
+
+            foreach (PevtEventCandidate candidate in _candidates)
+            {
+                if (!active.TryGetValue(candidate.EventId, out PevtEventCandidate current))
+                {
+                    active[candidate.EventId] = candidate;
+                    winningOwner[candidate.EventId] = candidate.Owner;
+                    continue;
+                }
+
+                if (string.Equals(winningOwner[candidate.EventId], candidate.Owner, StringComparison.Ordinal))
+                {
+                    // 同程序集重复：记录警告，后注册覆盖先注册，两个源路径都要出现在报告里。
+                    conflicts.Add(new PevtEventConflict(candidate.EventId, true, current, candidate));
+                    active[candidate.EventId] = candidate;
+                    continue;
+                }
+
+                // 跨程序集重复：致命冲突，保留先注册者。不因两份内容哈希相同而豁免。
+                conflicts.Add(new PevtEventConflict(candidate.EventId, false, current, candidate));
+            }
+
+            _active = active;
+            _conflicts = conflicts;
+        }
+    }
+}

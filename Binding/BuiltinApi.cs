@@ -4,16 +4,26 @@ using System.Linq;
 
 namespace Polaris.Pevt.Binding
 {
-    /// <summary>11.2 节 API 签名里的一个形参：名称 + 后置类型。</summary>
+    /// <summary>11.2 节 API 签名里的一个形参：名称 + 后置类型，外加可选的参数域。</summary>
     public sealed class BuiltinParameter
     {
         public string Name { get; }
         public PevtType Type { get; }
 
-        public BuiltinParameter(string name, PevtType type)
+        /// <summary>
+        /// 形参的取值语义（人物 ID、appearance、anchor 等）。null 表示没有额外约束。
+        /// 参数域只影响补全与提示，不参与重载选择——重载仍然只按参数数量和普通类型区分。
+        /// </summary>
+        public ParameterDomain Domain { get; }
+
+        public BuiltinParameter(string name, PevtType type, ParameterDomain domain = null)
         {
+            if (domain != null && domain.UnderlyingType != type)
+                throw new ArgumentException($"参数域 `{domain.Name}` 依附于 {domain.UnderlyingType.DisplayName()}，与形参类型 {type.DisplayName()} 不符。", nameof(domain));
+
             Name = name;
             Type = type;
+            Domain = domain;
         }
     }
 

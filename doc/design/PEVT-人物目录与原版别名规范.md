@@ -69,6 +69,38 @@ PEVT 对外只使用可读、稳定的人物 ID，不把原版 CMD 的 `n`、`a`
 - `Appearance` 是可读外观名到 PXLS pose/frame 的数据映射，不执行表达式，也不能调用 C#。
 - 未登记 appearance 时，普通 PEVT 不得退回接受原版 `a_3/a0__...` 组合串；确需原串只能使用 `$raw cmd`。
 
+### 3.1 视觉元素属性契约
+
+`.pactor` 的全部数据都写在属性里；元素正文与 CDATA 一律拒绝，避免混入脚本或 CMD 文本。读取器只接受下表列出的属性，其余属性一律 `PEVT9101`。
+
+| 元素 | 允许属性 |
+| --- | --- |
+| `ActorCatalog` | `Version`、`Namespace`、`BuiltIn` |
+| `Actor` | `Id`、`DisplayName`、`DisplayKey`、`Voice`、`Color`、`Icon`、`DefaultPortrait`、`LegacyPerson` |
+| `WorldSprite` | `Provider`、`Asset`、`Resource`、`Lifetime` |
+| `Portrait` | `Id`、`Provider`、`Asset`、`Resource`、`Lifetime`、`LegacyPerson` |
+| `UiPortrait` | `Id`、`Provider`、`Asset`、`Resource`、`Lifetime` |
+| `Appearance` | `Id`、`Portrait`、`Pose`、`Frame` |
+| `Anchor` | `Id`、`X`、`Y`、`EnterX`、`EnterY` |
+
+资源属性按 provider 二选一，两者同时出现或都不出现都是 `PEVT9110`：
+
+- `game-pxls` 只写 `Asset`，值是第 5 节 `GamePxlsId` 的 Bundle 逻辑路径，例如 `EvImg/__ev_n.pxls`。只接受由 `/` 分隔的相对路径段，拒绝绝对路径、盘符和 `..`。
+- `polaris-res` 只写 `Resource`，值是至少两段的点分静态字段路径，例如 `MyMod.Resources.IrisPortraitPxls`。拒绝方法调用、泛型和索引语法。
+
+`Lifetime` 可省略，只能是 `event` 或 `static`，默认 `event`：
+
+- `event`：随事件借用，事件结束、替换或异常时释放。
+- `static`：常驻资源，事件结束时不撤销借用。原版把 `__ev_n` 一类常驻立绘一直保留在内存中，与随事件加载释放的配角立绘清理边界不同，因此在目录里显式记录，不由运行时猜测。
+
+`Actor.Icon` 没有自己的 `Provider` 属性，其提供者由目录来源决定：内置目录借用原版资源名（如 `IconNoel0`），自定义目录引用 `MImage` 静态字段。
+
+局部 ID（`Actor.Id` 与 portrait / ui-portrait / appearance / anchor 的 `Id`）统一规则：以小写 ASCII 字母开头，其余为小写字母、数字、`-` 或 `_`，不以 `-` 结尾；违反时 `PEVT9105`。
+
+`WorldSprite` 每个人物最多一个且没有 `Id` 属性，在模型中固定使用局部 ID `default`；重复声明 `PEVT9112`。
+
+`Anchor` 的 `X`、`Y` 必填，`EnterX`/`EnterY` 必须同时声明或同时省略；四个值都必须是有限十进制数，`NaN`、`Infinity` 与溢出为无穷的字面量都是 `PEVT9116`。
+
 ## 4. 视觉提供者
 
 `Provider` 第一版只有两类：
@@ -186,9 +218,9 @@ internal sealed class IrisActorRegistrar : IPevtActorRegistrar
 - 人物目录卸载时，仍有事件引用该目录则先停止这些事件，再撤销人物注册。
 - 任何来源的 PXLS 未 Ready 时都以 `PevtResourceWait` 等待，不阻塞 Unity 主线程。
 
-## 11. 阶段 11 预留静态诊断
+## 11. 人物目录静态诊断
 
-人物目录实现时一次性把以下编号加入权威静态诊断表和 Core `DiagnosticCatalog`，此前不提前修改已固化的阶段 2 目录：
+以下编号已经加入权威静态诊断表和 Core `DiagnosticCatalog`（功能阶段 B）。`PEVT9101`–`PEVT9116` 由共享的 `.pactor` 读取器发射；`PEVT9111`、`PEVT9117`、`PEVT9118` 由共享的资源字段绑定判定发射，取决于调用方能否解析到目标字段：
 
 | 编号 | 名称 | 含义 |
 | --- | --- | --- |

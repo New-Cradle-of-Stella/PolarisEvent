@@ -14,7 +14,7 @@
 | `PEVT6xxx` | 变量（保留） |
 | `PEVT7xxx` | 内置语句、自定义事件块、异步、事件间调用与动态执行 |
 | `PEVT8xxx` | 原始调用 |
-| `PEVT9xxx` | 加载器与静态分析器内部错误 |
+| `PEVT9xxx` | 加载器与静态分析器内部错误；`PEVT91xx` 为 `.pactor` 人物目录 |
 
 ## 词法与文件结构
 
@@ -303,6 +303,48 @@
 | 编号 | 名称 | 级别 | 触发条件 |
 | --- | --- | --- | --- |
 | `PEVT9001` | `InternalStaticAnalysisError` | Error | PEVT 加载、解析或静态分析发生内部异常，且错误不由合法的源语法诊断覆盖。 |
+
+## 人物目录（`.pactor`）
+
+本组编号由 `PEVT-人物目录与原版别名规范.md` 第 11 节分配，工具侧与游戏侧共用同一读取器，因此对同一 `.pactor` 必须得到相同结果。
+
+| 编号 | 名称 | 级别 | 触发条件 |
+| --- | --- | --- | --- |
+| `PEVT9101` | `InvalidActorCatalogXml` | Error | XML、根元素或命名空间非法。 |
+| `PEVT9102` | `UnsupportedActorCatalogVersion` | Error | Version 不支持。 |
+| `PEVT9103` | `InvalidActorNamespace` | Error | 目录 namespace 非法。 |
+| `PEVT9104` | `ReservedActorNamespace` | Error | 外部目录使用 `aic` 或 BuiltIn。 |
+| `PEVT9105` | `InvalidActorId` | Error | 人物局部 ID 非法。 |
+| `PEVT9106` | `DuplicateActorId` | Error | 同目录或同项目最终人物 ID 重复。 |
+| `PEVT9107` | `MissingActorDisplayName` | Error | DisplayName/DisplayKey 均缺失。 |
+| `PEVT9108` | `InvalidActorColor` | Error | 颜色格式非法。 |
+| `PEVT9109` | `InvalidActorProvider` | Error | provider 未登记或来源无权使用。 |
+| `PEVT9110` | `InvalidActorResourceReference` | Error | PolarisRes 字段引用非法。 |
+| `PEVT9111` | `ActorResourceTypeMismatch` | Error | 字段资源类型与视觉类型不符。 |
+| `PEVT9112` | `DuplicateActorVisualId` | Error | 同分类 visual/anchor ID 重复。 |
+| `PEVT9113` | `MissingDefaultPortrait` | Error | 默认 portrait 缺失或引用不存在。 |
+| `PEVT9114` | `UnknownActorVisualReference` | Error | appearance 引用不存在或 pose/frame 不完整。 |
+| `PEVT9115` | `ForbiddenLegacyActorAlias` | Error | 外部目录在 Actor 或 Portrait 声明 LegacyPerson。 |
+| `PEVT9116` | `InvalidActorAnchor` | Error | anchor 坐标非法或不完整。 |
+| `PEVT9117` | `ActorResourceFieldNotBindable` | Error | 字段特性、static 或可见性不满足自动绑定。 |
+| `PEVT9118` | `ActorCatalogSourceUnavailable` | Warning | 编辑器暂时无法读取字段或预览。 |
+
+## 嵌入载荷加载
+
+`PEVT-嵌入注册与ID冲突规范.md` 第 5 与第 8 节规定了嵌入包的加载顺序与完整性限制，但没有预先分配编号。本组按本表 `PEVT9xxx`（加载器与静态分析器）分区新增，用于把"载荷损坏"与"源码本身有语法错误"区分开：任一条命中时该事件都不进入 `/event`，也不尝试降级为原版 EV。
+
+| 编号 | 名称 | 级别 | 触发条件 |
+| --- | --- | --- | --- |
+| `PEVT9201` | `UnsupportedEmbeddedFormatVersion` | Error | 嵌入包格式版本不受支持；不根据载荷内容猜测格式。 |
+| `PEVT9202` | `UnsupportedEmbeddedCompression` | Error | 嵌入包声明的压缩算法不是受支持的算法。 |
+| `PEVT9203` | `EmbeddedPayloadTooLarge` | Error | Base64 载荷长度或声明的未压缩长度超过配置上限。 |
+| `PEVT9204` | `InvalidEmbeddedPayloadEncoding` | Error | 嵌入包载荷不是合法 Base64。 |
+| `PEVT9205` | `CorruptedEmbeddedPayload` | Error | GZip 数据损坏或被截断，或解压结果超过不信任包内声明的硬上限。 |
+| `PEVT9206` | `EmbeddedLengthMismatch` | Error | 解压后的字节数与声明的未压缩长度不一致。 |
+| `PEVT9207` | `EmbeddedContentHashMismatch` | Error | 解压后的 UTF-8 字节 SHA-256 与声明的内容哈希不一致。 |
+| `PEVT9208` | `InvalidEmbeddedSourceEncoding` | Error | 解压后的字节不是合法 UTF-8 源文本。 |
+| `PEVT9209` | `EmbeddedDeclaredIdMismatch` | Error | 源码 `id` 与嵌入包 `DeclaredId` 不完全一致。 |
+| `PEVT9210` | `InvalidEmbeddedSourcePath` | Error | `SourcePath` 为空、包含盘符或根路径、或包含 `..` 段，不是项目相对路径。 |
 
 ## 编号稳定性
 

@@ -223,6 +223,36 @@ namespace Polaris.Pevt.Diagnostics
             new DiagnosticDescriptor("PEVT8017", "InvalidRawDelimiterEscape", DiagnosticSeverity.Error, "原始内容试图转义结束分隔符，但没有使用规定的 `\\'''` 形式。"),
 
             new DiagnosticDescriptor("PEVT9001", "InternalStaticAnalysisError", DiagnosticSeverity.Error, "PEVT 加载、解析或静态分析发生内部异常，且错误不由合法的源语法诊断覆盖。"),
+
+            new DiagnosticDescriptor("PEVT9101", "InvalidActorCatalogXml", DiagnosticSeverity.Error, "XML、根元素或命名空间非法。"),
+            new DiagnosticDescriptor("PEVT9102", "UnsupportedActorCatalogVersion", DiagnosticSeverity.Error, "Version 不支持。"),
+            new DiagnosticDescriptor("PEVT9103", "InvalidActorNamespace", DiagnosticSeverity.Error, "目录 namespace 非法。"),
+            new DiagnosticDescriptor("PEVT9104", "ReservedActorNamespace", DiagnosticSeverity.Error, "外部目录使用 `aic` 或 BuiltIn。"),
+            new DiagnosticDescriptor("PEVT9105", "InvalidActorId", DiagnosticSeverity.Error, "人物局部 ID 非法。"),
+            new DiagnosticDescriptor("PEVT9106", "DuplicateActorId", DiagnosticSeverity.Error, "同目录或同项目最终人物 ID 重复。"),
+            new DiagnosticDescriptor("PEVT9107", "MissingActorDisplayName", DiagnosticSeverity.Error, "DisplayName/DisplayKey 均缺失。"),
+            new DiagnosticDescriptor("PEVT9108", "InvalidActorColor", DiagnosticSeverity.Error, "颜色格式非法。"),
+            new DiagnosticDescriptor("PEVT9109", "InvalidActorProvider", DiagnosticSeverity.Error, "provider 未登记或来源无权使用。"),
+            new DiagnosticDescriptor("PEVT9110", "InvalidActorResourceReference", DiagnosticSeverity.Error, "PolarisRes 字段引用非法。"),
+            new DiagnosticDescriptor("PEVT9111", "ActorResourceTypeMismatch", DiagnosticSeverity.Error, "字段资源类型与视觉类型不符。"),
+            new DiagnosticDescriptor("PEVT9112", "DuplicateActorVisualId", DiagnosticSeverity.Error, "同分类 visual/anchor ID 重复。"),
+            new DiagnosticDescriptor("PEVT9113", "MissingDefaultPortrait", DiagnosticSeverity.Error, "默认 portrait 缺失或引用不存在。"),
+            new DiagnosticDescriptor("PEVT9114", "UnknownActorVisualReference", DiagnosticSeverity.Error, "appearance 引用不存在或 pose/frame 不完整。"),
+            new DiagnosticDescriptor("PEVT9115", "ForbiddenLegacyActorAlias", DiagnosticSeverity.Error, "外部目录在 Actor 或 Portrait 声明 LegacyPerson。"),
+            new DiagnosticDescriptor("PEVT9116", "InvalidActorAnchor", DiagnosticSeverity.Error, "anchor 坐标非法或不完整。"),
+            new DiagnosticDescriptor("PEVT9117", "ActorResourceFieldNotBindable", DiagnosticSeverity.Error, "字段特性、static 或可见性不满足自动绑定。"),
+            new DiagnosticDescriptor("PEVT9118", "ActorCatalogSourceUnavailable", DiagnosticSeverity.Warning, "编辑器暂时无法读取字段或预览。"),
+
+            new DiagnosticDescriptor("PEVT9201", "UnsupportedEmbeddedFormatVersion", DiagnosticSeverity.Error, "嵌入包格式版本不受支持；不根据载荷内容猜测格式。"),
+            new DiagnosticDescriptor("PEVT9202", "UnsupportedEmbeddedCompression", DiagnosticSeverity.Error, "嵌入包声明的压缩算法不是受支持的算法。"),
+            new DiagnosticDescriptor("PEVT9203", "EmbeddedPayloadTooLarge", DiagnosticSeverity.Error, "Base64 载荷长度或声明的未压缩长度超过配置上限。"),
+            new DiagnosticDescriptor("PEVT9204", "InvalidEmbeddedPayloadEncoding", DiagnosticSeverity.Error, "嵌入包载荷不是合法 Base64。"),
+            new DiagnosticDescriptor("PEVT9205", "CorruptedEmbeddedPayload", DiagnosticSeverity.Error, "GZip 数据损坏或被截断，或解压结果超过不信任包内声明的硬上限。"),
+            new DiagnosticDescriptor("PEVT9206", "EmbeddedLengthMismatch", DiagnosticSeverity.Error, "解压后的字节数与声明的未压缩长度不一致。"),
+            new DiagnosticDescriptor("PEVT9207", "EmbeddedContentHashMismatch", DiagnosticSeverity.Error, "解压后的 UTF-8 字节 SHA-256 与声明的内容哈希不一致。"),
+            new DiagnosticDescriptor("PEVT9208", "InvalidEmbeddedSourceEncoding", DiagnosticSeverity.Error, "解压后的字节不是合法 UTF-8 源文本。"),
+            new DiagnosticDescriptor("PEVT9209", "EmbeddedDeclaredIdMismatch", DiagnosticSeverity.Error, "源码 `id` 与嵌入包 `DeclaredId` 不完全一致。"),
+            new DiagnosticDescriptor("PEVT9210", "InvalidEmbeddedSourcePath", DiagnosticSeverity.Error, "`SourcePath` 为空、包含盘符或根路径、或包含 `..` 段，不是项目相对路径。"),
         };
 
         public static IReadOnlyList<DiagnosticDescriptor> All { get; } = Array.AsReadOnly(Entries);
