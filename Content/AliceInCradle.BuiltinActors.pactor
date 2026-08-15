@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ActorCatalog xmlns="urn:polaris:pevt:actors:v1"
+              Version="1"
+              Namespace="aic"
+              BuiltIn="true">
+  <Actor Id="narrator" DisplayName="＊" LegacyPerson="_" />
+
+  <Actor Id="noel" DisplayKey="Talker_Noel" Voice="talk_noel" Color="#DCCAE7" Icon="IconNoel0" DefaultPortrait="default">
+    <WorldSprite Provider="game-pxls" Asset="PxlNoel/noel.pxls" />
+    <Portrait Id="default" Provider="game-pxls" Asset="EvImg/__ev_n.pxls" LegacyPerson="n" Lifetime="static" />
+    <Portrait Id="bass" Provider="game-pxls" Asset="EvImg/__ev_n_bass.pxls" LegacyPerson="nb" Lifetime="event" />
+    <Portrait Id="epbench" Provider="game-pxls" Asset="EvImg/__ev_n_epbench.pxls" LegacyPerson="nb2" Lifetime="event" />
+  </Actor>
+  <Actor Id="laevi" DisplayKey="Talker_Laevi" Voice="talk_levi" Color="#C692F7" Icon="IconLaevi" DefaultPortrait="default">
+    <WorldSprite Provider="game-pxls" Asset="MapChars/sub_v.pxls" />
+    <Portrait Id="default" Provider="game-pxls" Asset="EvImg/__ev_v.pxls" LegacyPerson="v" Lifetime="event" />
+  </Actor>
+  <Actor Id="primula" DisplayKey="Talker_Primula" Voice="talk_m1" Color="#E7AD96" Icon="IconPrimula" DefaultPortrait="default">
+    <WorldSprite Provider="game-pxls" Asset="MapChars/sub_p.pxls" />
+    <Portrait Id="default" Provider="game-pxls" Asset="EvImg/__ev_p.pxls" LegacyPerson="p" Lifetime="event" />
+  </Actor>
+  <Actor Id="ixia" DisplayKey="Talker_Ixia" Voice="talk_ixia" Color="#B7FABF" Icon="IconIxia" DefaultPortrait="default">
+    <WorldSprite Provider="game-pxls" Asset="MapChars/sub_i.pxls" />
+    <Portrait Id="default" Provider="game-pxls" Asset="EvImg/__ev_i.pxls" LegacyPerson="i" Lifetime="event" />
+  </Actor>
+  <Actor Id="nightingale" DisplayKey="Talker_Nightingale" Voice="talk_nightingale" Color="#A5AFE0" Icon="IconNightingale" DefaultPortrait="default">
+    <WorldSprite Provider="game-pxls" Asset="MapChars/sub_t.pxls" />
+    <Portrait Id="default" Provider="game-pxls" Asset="EvImg/__ev_t.pxls" LegacyPerson="t" Lifetime="event" />
+  </Actor>
+  <Actor Id="tilde" DisplayKey="Talker_Tilde" Voice="talk_tilde" Color="#DAD1CA" Icon="IconTilde" DefaultPortrait="default">
+    <WorldSprite Provider="game-pxls" Asset="MapChars/sub_d.pxls" />
+    <Portrait Id="default" Provider="game-pxls" Asset="EvImg/__ev_d.pxls" LegacyPerson="d" Lifetime="event" />
+  </Actor>
+  <Actor Id="alma" DisplayKey="Talker_Alma" Voice="talk_alma" Color="#FFC9DE" Icon="IconAlma" DefaultPortrait="default">
+    <WorldSprite Provider="game-pxls" Asset="MapChars/sub_l.pxls" />
+    <Portrait Id="default" Provider="game-pxls" Asset="EvImg/__ev_l.pxls" LegacyPerson="l" Lifetime="event" />
+  </Actor>
+  <Actor Id="noel-father" DisplayKey="Talker_NoelDad" Voice="talk_nodad" Color="#C4B8BC" Icon="IconDelfini" DefaultPortrait="default">
+    <Portrait Id="default" Provider="game-pxls" Asset="EvImg/__ev_f.pxls" LegacyPerson="f" Lifetime="event" />
+  </Actor>
+  <Actor Id="mepha" DisplayKey="Talker_Mepha" Voice="talk_mob_w3" Color="#9EA3B1" Icon="IconMepha" DefaultPortrait="default">
+    <Portrait Id="default" Provider="game-pxls" Asset="EvImg/__ev_g.pxls" LegacyPerson="g" Lifetime="event" />
+  </Actor>
+  <Actor Id="ostrea" DisplayKey="Talker_Ostrea" Voice="talk_mob_m2" Color="#FFD9C0" Icon="IconOstrea" DefaultPortrait="default">
+    <WorldSprite Provider="game-pxls" Asset="MapChars/sub_s.pxls" />
+    <Portrait Id="default" Provider="game-pxls" Asset="EvImg/__ev_s.pxls" LegacyPerson="s" Lifetime="event" />
+  </Actor>
+  <Actor Id="walross" DisplayKey="Talker_Walross" Voice="talk_mob_m1" Color="#B1A8BE" Icon="IconWalross" DefaultPortrait="default">
+    <WorldSprite Provider="game-pxls" Asset="MapChars/sub_w.pxls" />
+    <Portrait Id="default" Provider="game-pxls" Asset="EvImg/__ev_w.pxls" LegacyPerson="w" Lifetime="event" />
+  </Actor>
+  <Actor Id="barten" DisplayKey="Talker_Barten" Voice="talk_barten" Color="#FF8686" Icon="IconBarten" DefaultPortrait="default">
+    <WorldSprite Provider="game-pxls" Asset="MapChars/sub_barten_npc.pxls" />
+    <Portrait Id="default" Provider="game-pxls" Asset="EvImg/__ev_bt.pxls" LegacyPerson="bt" Lifetime="event" />
+  </Actor>
+  <Actor Id="tigrina" DisplayKey="Talker_Tigrina" Voice="talk_soala" Color="#E1FC8A" Icon="IconTigrina" DefaultPortrait="default">
+    <WorldSprite Provider="game-pxls" Asset="MapChars/sub_so.pxls" />
+    <Portrait Id="default" Provider="game-pxls" Asset="EvImg/__ev_so.pxls" LegacyPerson="so" Lifetime="event" />
+  </Actor>
+  <Actor Id="alice" DisplayKey="Talker_Alice" Voice="talk_alice" Color="#B7C3FC" Icon="IconAlice" DefaultPortrait="default">
+    <WorldSprite Provider="game-pxls" Asset="MapChars/sub_a.pxls" />
+    <Portrait Id="default" Provider="game-pxls" Asset="EvImg/__ev_a.pxls" LegacyPerson="a" Lifetime="event" />
+  </Actor>
+  <Actor Id="first-human" DisplayKey="Talker_FirstHuman" Voice="talk_barten" Color="#C67F8A" Icon="IconFirst" DefaultPortrait="default">
+    <WorldSprite Provider="game-pxls" Asset="MapChars/sub_firstman_npc.pxls" />
+    <Portrait Id="default" Provider="game-pxls" Asset="EvImg/__ev_fh.pxls" LegacyPerson="fh" Lifetime="event" />
+  </Actor>
+</ActorCatalog>

@@ -1,0 +1,98 @@
+{
+  "stage": "11",
+  "title": "人物目录模型、XML 读取与诊断",
+  "allowedPaths": [
+    "Polaris/PolarisEvent/Actors/**",
+    "Polaris/PolarisEvent/Diagnostics/**",
+    "Polaris/tests/PolarisEvent.Tests/Actors/**",
+    "Polaris/tests/PolarisEvent.Tests/Diagnostics/**",
+    "Polaris/doc/design/PEVT-静态诊断表.md"
+  ],
+  "requirements": [
+    {
+      "id": "11-R01",
+      "text": "实现阶段11接手说明列出的深不可变人物目录和值对象",
+      "spec": ["阶段11接手说明#5", "人物目录规范"],
+      "artifact": "ActorCatalog/ActorDefinition/visual/appearance/anchor 模型",
+      "positiveCases": ["纯对话人物", "完整 game-pxls/polaris-res 人物"],
+      "negativeCases": ["构造输入集合别名攻击"],
+      "forbiddenSubstitutes": ["字典只读包装可变集合", "引用 Unity/游戏类型"]
+    },
+    {
+      "id": "11-R02",
+      "text": "实现禁用 DTD/实体且不访问资源或磁盘绝对路径的严格 XML reader",
+      "spec": ["阶段11接手说明#6"],
+      "artifact": "ActorCatalogReader 与只读结果",
+      "positiveCases": ["v1 命名空间有效 XML"],
+      "negativeCases": ["DTD", "外部实体", "未知权威元素/属性", "绝对路径"],
+      "forbiddenSubstitutes": ["XmlDocument 默认设置", "解析时加载程序集或 Bundle"]
+    },
+    {
+      "id": "11-R03",
+      "text": "宿主来源而非 XML 自身决定 BuiltIn 信任",
+      "spec": ["阶段11接手说明#信任不能来自XML"],
+      "artifact": "ActorCatalogReadOptions.IsTrustedBuiltInSource",
+      "positiveCases": ["受信任内置 aic/game-pxls/LegacyPerson"],
+      "negativeCases": ["外部伪造 BuiltIn=true"],
+      "forbiddenSubstitutes": ["直接信任 XML BuiltIn 属性"]
+    },
+    {
+      "id": "11-R04",
+      "text": "校验 namespace、局部 ID、显示名、颜色、视觉引用、appearance 和有限 anchor",
+      "spec": ["阶段11接手说明#6", "PEVT9102-9116"],
+      "artifact": "确定性模型验证",
+      "positiveCases": ["合法边界颜色和有限坐标"],
+      "negativeCases": ["重复 ID", "缺显示名", "坏引用", "NaN/Infinity"],
+      "forbiddenSubstitutes": ["留给运行时发现", "使用当前文化解析数字"]
+    },
+    {
+      "id": "11-R05",
+      "text": "XML 用户错误返回带源码位置的诊断结果而非未处理异常",
+      "spec": ["阶段11接手说明#6"],
+      "artifact": "ActorCatalogReadResult 与 IXmlLineInfo 映射",
+      "positiveCases": ["合法结果零 Error"],
+      "negativeCases": ["多处 XML/模型错误一次返回"],
+      "forbiddenSubstitutes": ["普通格式错误抛异常", "所有诊断定位到 0:0"]
+    },
+    {
+      "id": "11-R06",
+      "text": "双目标纯前端依赖边界保持干净",
+      "spec": ["阶段11接手说明#2", "G9"],
+      "artifact": "netstandard2.0/2.1 共享 Actors 前端",
+      "positiveCases": ["两个目标构建"],
+      "negativeCases": ["Unity/BepInEx/游戏/PolarisRes/VS SDK 引用扫描"],
+      "forbiddenSubstitutes": ["只让 netstandard2.1 编译", "在共享模型引用游戏类型"]
+    }
+  ],
+  "diagnosticOwnership": [
+    { "id": "PEVT9101", "ownerStage": "11", "mustEmitNow": true },
+    { "id": "PEVT9102", "ownerStage": "11", "mustEmitNow": true },
+    { "id": "PEVT9103", "ownerStage": "11", "mustEmitNow": true },
+    { "id": "PEVT9104", "ownerStage": "11", "mustEmitNow": true },
+    { "id": "PEVT9105", "ownerStage": "11", "mustEmitNow": true },
+    { "id": "PEVT9106", "ownerStage": "11", "mustEmitNow": true },
+    { "id": "PEVT9107", "ownerStage": "11", "mustEmitNow": true },
+    { "id": "PEVT9108", "ownerStage": "11", "mustEmitNow": true },
+    { "id": "PEVT9109", "ownerStage": "11", "mustEmitNow": true },
+    { "id": "PEVT9110", "ownerStage": "11", "mustEmitNow": true },
+    { "id": "PEVT9111", "ownerStage": "18", "mustEmitNow": false },
+    { "id": "PEVT9112", "ownerStage": "11", "mustEmitNow": true },
+    { "id": "PEVT9113", "ownerStage": "11", "mustEmitNow": true },
+    { "id": "PEVT9114", "ownerStage": "11", "mustEmitNow": true },
+    { "id": "PEVT9115", "ownerStage": "11", "mustEmitNow": true },
+    { "id": "PEVT9116", "ownerStage": "11", "mustEmitNow": true },
+    { "id": "PEVT9117", "ownerStage": "18", "mustEmitNow": false },
+    { "id": "PEVT9118", "ownerStage": "18", "mustEmitNow": false }
+  ],
+  "publicArtifacts": [
+    { "path": "Polaris/PolarisEvent/Actors/ActorCatalog.cs", "symbols": ["class ActorCatalog"] },
+    { "path": "Polaris/PolarisEvent/Actors/ActorCatalogReader.cs", "symbols": ["class ActorCatalogReader", "XmlReaderSettings"] },
+    { "path": "Polaris/PolarisEvent/Actors/ActorCatalogReadResult.cs", "symbols": ["class ActorCatalogReadResult", "Diagnostics"] }
+  ],
+  "deferred": [
+    { "id": "PEVT9111", "ownerStage": "18", "reason": "实际 PolarisRes 字段类型扫描属于工具生成器" },
+    { "id": "PEVT9117", "ownerStage": "18", "reason": "字段特性、static、可见性检查属于工具生成器" },
+    { "id": "PEVT9118", "ownerStage": "18", "reason": "编辑器资源源可用性属于工具阶段" }
+  ],
+  "allowedDeferredMarkers": ["阶段 18", "PEVT9111", "PEVT9117", "PEVT9118"]
+}

@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>netstandard2.0;netstandard2.1</TargetFrameworks>
+    <AssemblyName>PolarisEvent</AssemblyName>
+    <RootNamespace>Polaris.Event</RootNamespace>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+
+  <!-- 游戏运行时目标作为 Core 组件加载；netstandard2.0 目标是供 PolarisTools 使用的纯 PEVT 前端。 -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.1'">
+    <ProjectReference Include="$(MSBuildThisFileDirectory)..\PolarisCore\PolarisCore.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+    <Compile Remove="PolarisEventComponent.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Content\**\*" />
+    <Compile Remove="tests\**\*.cs" />
+  </ItemGroup>
+</Project>

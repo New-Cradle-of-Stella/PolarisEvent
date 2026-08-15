@@ -1,0 +1,10 @@
+<Project>
+
+  <!--
+    PolarisEvent's netstandard2.0 PEVT frontend has no game/Unity/BepInEx dependency.
+    An empty Directory.Build.props here stops MSBuild's directory walk before
+    it reaches ..\Directory.Build.props, so this project never inherits the parent's
+    AicGameDir/AicManagedDir check.
+  -->
+
+</Project>

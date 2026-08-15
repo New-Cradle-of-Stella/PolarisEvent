@@ -1,0 +1,112 @@
+{
+  "stage": "10B",
+  "title": "常量值、绑定节点与类型语义补正",
+  "allowedPaths": [
+    "Polaris/PolarisEvent/Binding/**",
+    "Polaris/tests/PolarisEvent.Tests/Binding/**"
+  ],
+  "requirements": [
+    {
+      "id": "10B-R01",
+      "text": "建立独立于 SyntaxNode 的深不可变 Bound 节点层",
+      "spec": ["阶段10B", "阶段8"],
+      "artifact": "BoundNode/BoundExpression/BoundStatement",
+      "positiveCases": ["每个成功表达式产生非 Error Bound 节点"],
+      "negativeCases": ["错误表达式产生显式错误结果而不是伪成功"],
+      "forbiddenSubstitutes": ["返回 void 的 Binder", "用 SyntaxNode 冒充 BoundNode"]
+    },
+    {
+      "id": "10B-R02",
+      "text": "建立五种普通类型的 ConstantValue 与无值状态",
+      "spec": ["阶段10B", "五种普通类型"],
+      "artifact": "ConstantValue",
+      "positiveCases": ["int/float/bool/char/string"],
+      "negativeCases": ["handler 和未初始化不成为普通类型"],
+      "forbiddenSubstitutes": ["ConstantSymbol 只保存类型", "把 null 加回类型系统"]
+    },
+    {
+      "id": "10B-R03",
+      "text": "Bound 声明和赋值显式编码先求值再复制入槽",
+      "spec": ["阶段10B", "阶段19/20运行验证"],
+      "artifact": "快照复制契约",
+      "positiveCases": ["变量和常量初始化"],
+      "negativeCases": ["不形成实时符号别名"],
+      "forbiddenSubstitutes": ["只断言没有诊断", "提前伪造运行期值"]
+    },
+    {
+      "id": "10B-R04",
+      "text": "完整绑定类型矩阵、显式转换、一元与二元运算",
+      "spec": ["阶段10B", "PEVT5xxx"],
+      "artifact": "带类型的 BoundExpression",
+      "positiveCases": ["合法同型、通用等值、数字比较、两种转换"],
+      "negativeCases": ["混型、非法转换、非数字负号和比较"],
+      "forbiddenSubstitutes": ["采用 C# 优先级", "错误类型被当作成功类型"]
+    },
+    {
+      "id": "10B-R05",
+      "text": "实现只读常量、可写目标和未初始化静态可用性",
+      "spec": ["阶段10B", "PEVT6xxx"],
+      "artifact": "BoundEnvironment 与确定赋值状态",
+      "positiveCases": ["定义后赋值使用", "分支全部赋值"],
+      "negativeCases": ["常量赋值", "先使用", "仅部分分支初始化", "跨环境"],
+      "forbiddenSubstitutes": ["运行时才发现全部错误", "把块环境并入外层"]
+    },
+    {
+      "id": "10B-R06",
+      "text": "Binder 返回不可伪造的成功或失败结果并保留源码映射",
+      "spec": ["阶段10B", "G4"],
+      "artifact": "BindingResult",
+      "positiveCases": ["成功结果含 Bound 根"],
+      "negativeCases": ["存在 Error 时不能取得成功 Bound 根"],
+      "forbiddenSubstitutes": ["只写 DiagnosticBag 后丢弃语义", "公开构造伪造成功"]
+    }
+  ],
+  "diagnosticOwnership": [
+    { "id": "PEVT5001", "ownerStage": "10B", "mustEmitNow": true },
+    { "id": "PEVT5002", "ownerStage": "10B", "mustEmitNow": true },
+    { "id": "PEVT5003", "ownerStage": "10B", "mustEmitNow": true },
+    { "id": "PEVT5004", "ownerStage": "10B", "mustEmitNow": true },
+    { "id": "PEVT5005", "ownerStage": "10B", "mustEmitNow": true },
+    { "id": "PEVT5006", "ownerStage": "10B", "mustEmitNow": true },
+    { "id": "PEVT5007", "ownerStage": "10B", "mustEmitNow": true },
+    { "id": "PEVT5008", "ownerStage": "10B", "mustEmitNow": true },
+    { "id": "PEVT5009", "ownerStage": "10B", "mustEmitNow": true },
+    { "id": "PEVT5010", "ownerStage": "10B", "mustEmitNow": true },
+    { "id": "PEVT5011", "ownerStage": "10B", "mustEmitNow": true },
+    { "id": "PEVT5012", "ownerStage": "10B", "mustEmitNow": true },
+    { "id": "PEVT5013", "ownerStage": "10B", "mustEmitNow": true },
+    { "id": "PEVT5014", "ownerStage": "10B", "mustEmitNow": true },
+    { "id": "PEVT5015", "ownerStage": "10B", "mustEmitNow": true },
+    { "id": "PEVT5016", "ownerStage": "10B", "mustEmitNow": true },
+    { "id": "PEVT5017", "ownerStage": "10B", "mustEmitNow": true },
+    { "id": "PEVT5018", "ownerStage": "10B", "mustEmitNow": true },
+    { "id": "PEVT5019", "ownerStage": "10B", "mustEmitNow": true },
+    { "id": "PEVT5020", "ownerStage": "10B", "mustEmitNow": true },
+    { "id": "PEVT5021", "ownerStage": "10B", "mustEmitNow": true },
+    { "id": "PEVT5022", "ownerStage": "10B", "mustEmitNow": true },
+    { "id": "PEVT5023", "ownerStage": "10B", "mustEmitNow": true },
+    { "id": "PEVT5024", "ownerStage": "10B", "mustEmitNow": true },
+    { "id": "PEVT6001", "ownerStage": "10B", "mustEmitNow": true },
+    { "id": "PEVT6002", "ownerStage": "10B", "mustEmitNow": true },
+    { "id": "PEVT6003", "ownerStage": "10B", "mustEmitNow": true },
+    { "id": "PEVT6004", "ownerStage": "10B", "mustEmitNow": true },
+    { "id": "PEVT6005", "ownerStage": "10B", "mustEmitNow": true },
+    { "id": "PEVT6006", "ownerStage": "10B", "mustEmitNow": true },
+    { "id": "PEVT6007", "ownerStage": "10B", "mustEmitNow": true },
+    { "id": "PEVT6008", "ownerStage": "10B", "mustEmitNow": true },
+    { "id": "PEVT6009", "ownerStage": "10B", "mustEmitNow": true },
+    { "id": "PEVT6010", "ownerStage": "10B", "mustEmitNow": true },
+    { "id": "PEVT6011", "ownerStage": "10B", "mustEmitNow": true },
+    { "id": "PEVT6012", "ownerStage": "10B", "mustEmitNow": true },
+    { "id": "PEVT6013", "ownerStage": "10B", "mustEmitNow": true }
+  ],
+  "publicArtifacts": [
+    { "path": "Polaris/PolarisEvent/Binding/BoundNode.cs", "symbols": ["abstract class BoundNode", "TextSpan"] },
+    { "path": "Polaris/PolarisEvent/Binding/ConstantValue.cs", "symbols": ["struct ConstantValue", "PevtType"] },
+    { "path": "Polaris/PolarisEvent/Binding/BindingResult.cs", "symbols": ["class BindingResult", "Diagnostics"] }
+  ],
+  "deferred": [
+    { "id": "runtime-snapshot", "ownerStage": "20", "reason": "10B 只编码复制契约，解释器阶段验证真实运行值复制" }
+  ],
+  "allowedDeferredMarkers": ["阶段 19/20", "runtime-snapshot"]
+}
