@@ -17,8 +17,8 @@ namespace Polaris.Pevt.Syntax
         public ArgumentListSyntax(SyntaxToken openParen, IReadOnlyList<ExpressionSyntax> arguments, IReadOnlyList<SyntaxToken> commas, SyntaxToken closeParen)
         {
             OpenParen = openParen;
-            Arguments = arguments;
-            Commas = commas;
+            Arguments = SyntaxCollections.Freeze(arguments);
+            Commas = SyntaxCollections.Freeze(commas);
             CloseParen = closeParen;
         }
 

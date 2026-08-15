@@ -47,7 +47,7 @@ namespace Polaris.Pevt.Syntax
         public ChainedBinaryExpressionSyntax(ExpressionSyntax first, IReadOnlyList<BinaryChainSegment> segments)
         {
             First = first;
-            Segments = segments;
+            Segments = SyntaxCollections.Freeze(segments);
         }
 
         public override TextSpan Span => TextSpan.FromBounds(First.Span.Start, Segments[Segments.Count - 1].Operand.Span.End);

@@ -315,6 +315,110 @@ namespace Polaris.Pevt.Core.Tests.Syntax
             Assert.Empty(diagnostics);
         }
 
+        // ---- int32 boundary closure (PEVT5017, 10A 补正) ----
+
+        [Fact]
+        public void BoundaryMagnitude_UsedBarePositive_ReportsPEVT5017()
+        {
+            // 2147483648 裸露使用（没有恰好一层一元负号包着）就是超范围的正数字面量；
+            // 词法阶段特意对这个量级延迟判断，解析阶段必须在这里把它关闭。
+            (ExpressionSyntax expression, IReadOnlyList<Diagnostic> diagnostics) = ParseExpr("2147483648");
+            Assert.Equal("Literal(2147483648)", expression.ToString());
+            Assert.Equal("PEVT5017", Assert.Single(diagnostics).Id);
+        }
+
+        [Fact]
+        public void BoundaryMagnitude_UnderLogicalNot_ReportsPEVT5017()
+        {
+            // "!" 从不把边界量级收作 int.MinValue（那只对一元取负有意义），裸值一律越界。
+            (_, IReadOnlyList<Diagnostic> diagnostics) = ParseExpr("!2147483648");
+            Assert.Equal("PEVT5017", Assert.Single(diagnostics).Id);
+        }
+
+        [Fact]
+        public void DoubleNegatedBoundaryMagnitude_ReportsPEVT5017Once()
+        {
+            // 双重取负：内层负号恰好收下 int.MinValue（不报错），外层负号再取一次负会再次越界。
+            (ExpressionSyntax expression, IReadOnlyList<Diagnostic> diagnostics) = ParseExpr("--2147483648");
+            Assert.Equal("Unary(-, Unary(-, Literal(2147483648)))", expression.ToString());
+            Assert.Equal("PEVT5017", Assert.Single(diagnostics).Id);
+        }
+
+        [Fact]
+        public void IntegerOneMagnitudeBeyondBoundary_NegatedOnce_StillReportsPEVT5017()
+        {
+            // 2147483649 无论有没有一元负号都不可能合法——这个幅值已经由词法阶段直接报出，
+            // 不依赖任何一元负号上下文。
+            (_, IReadOnlyList<Diagnostic> diagnostics) = ParseExpr("-2147483649");
+            Assert.Equal("PEVT5017", Assert.Single(diagnostics).Id);
+        }
+
+        // ---- strict-case boolean literal (PEVT5023, 10A 补正) ----
+
+        [Theory]
+        [InlineData("True")]
+        [InlineData("FALSE")]
+        [InlineData("FaLsE")]
+        public void CaseVariantBooleanSpelling_ReportsPEVT5023(string source)
+        {
+            // 语言保留 true/false 这两个精确拼写给布尔字面量，大小写变体不能被当成"碰巧同名的
+            // 变量"静默放行，也不能忽略大小写接受成合法布尔值。
+            (ExpressionSyntax expression, IReadOnlyList<Diagnostic> diagnostics) = ParseExpr(source);
+            Assert.Equal("PEVT5023", Assert.Single(diagnostics).Id);
+            Assert.IsType<LiteralExpressionSyntax>(expression);
+        }
+
+        [Theory]
+        [InlineData("true")]
+        [InlineData("false")]
+        public void ExactCaseBooleanLiteral_DoesNotReportPEVT5023(string source)
+        {
+            (_, IReadOnlyList<Diagnostic> diagnostics) = ParseExpr(source);
+            Assert.Empty(diagnostics);
+        }
+
+        [Fact]
+        public void OrdinaryIdentifier_UnrelatedToBoolean_DoesNotReportPEVT5023()
+        {
+            (_, IReadOnlyList<Diagnostic> diagnostics) = ParseExpr("truthy");
+            Assert.DoesNotContain(diagnostics, d => d.Id == "PEVT5023");
+        }
+
+        // ---- @ builtin call adjacency and missing name (PEVT7001/PEVT7003) ----
+
+        [Fact]
+        public void BuiltinCall_MissingName_ReportsPEVT7001()
+        {
+            (_, IReadOnlyList<Diagnostic> diagnostics) = ParseExpr("@()");
+            Assert.Equal("PEVT7001", Assert.Single(diagnostics).Id);
+        }
+
+        [Fact]
+        public void BuiltinCall_SpaceBetweenAtAndName_ReportsPEVT7003()
+        {
+            (_, IReadOnlyList<Diagnostic> diagnostics) = ParseExpr("@ foo()");
+            Assert.Equal("PEVT7003", Assert.Single(diagnostics).Id);
+        }
+
+        // ---- aggregate await mode (PEVT7216) ----
+
+        [Fact]
+        public void Await_UnknownAggregateMode_ReportsPEVT7216()
+        {
+            (ExpressionSyntax expression, IReadOnlyList<Diagnostic> diagnostics) = ParseExpr("await every(a, b)(x, y)");
+            Assert.IsType<AggregateAwaitExpressionSyntax>(expression);
+            Assert.Equal("PEVT7216", Assert.Single(diagnostics).Id);
+        }
+
+        [Theory]
+        [InlineData("await all(a)()")]
+        [InlineData("await any(a, b)(x, y)")]
+        public void Await_KnownAggregateMode_DoesNotReportPEVT7216(string source)
+        {
+            (_, IReadOnlyList<Diagnostic> diagnostics) = ParseExpr(source);
+            Assert.DoesNotContain(diagnostics, d => d.Id == "PEVT7216");
+        }
+
         // ---- argument list edge cases ----
 
         [Fact]
@@ -381,11 +485,31 @@ namespace Polaris.Pevt.Core.Tests.Syntax
         // ---- missing operand / EOF recovery ----
 
         [Fact]
-        public void MissingRightOperand_AtEndOfFile_ReportsPEVT5001()
+        public void MissingRightOperand_AtEndOfFile_ReportsPEVT5003()
         {
+            // 阶段 10A 补正：二元运算符右侧缺操作数现在有专属编号（PEVT5003），
+            // 不再退化成泛泛的 PEVT5001。
             (ExpressionSyntax expression, IReadOnlyList<Diagnostic> diagnostics) = ParseExpr("a +");
             Assert.Equal("Chain(Name(a), + Missing)", expression.ToString());
-            Assert.Equal("PEVT5001", Assert.Single(diagnostics).Id);
+            Assert.Equal("PEVT5003", Assert.Single(diagnostics).Id);
+        }
+
+        [Fact]
+        public void MissingLeftOperand_BareBinaryOperatorAtStart_ReportsPEVT5002()
+        {
+            (ExpressionSyntax expression, IReadOnlyList<Diagnostic> diagnostics) = ParseExpr("* b");
+            Assert.Equal("Chain(Missing, * Name(b))", expression.ToString());
+            Assert.Equal("PEVT5002", Assert.Single(diagnostics).Id);
+        }
+
+        [Fact]
+        public void UnaryMinus_AtExpressionStart_DoesNotFalselyReportMissingLeftOperand()
+        {
+            // MinusToken 同时是二元减法和一元取负；出现在表达式起始位置永远是合法的一元取负，
+            // 不应该被误判成"二元运算符左侧缺操作数"。
+            (ExpressionSyntax expression, IReadOnlyList<Diagnostic> diagnostics) = ParseExpr("-a");
+            Assert.Equal("Unary(-, Name(a))", expression.ToString());
+            Assert.Empty(diagnostics);
         }
 
         [Fact]

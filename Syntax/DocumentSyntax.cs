@@ -20,8 +20,8 @@ namespace Polaris.Pevt.Syntax
             IReadOnlyList<StatementSyntax> statements, SyntaxToken endOfFile)
         {
             IdDeclaration = idDeclaration;
-            EnableDeclarations = enableDeclarations;
-            Statements = statements;
+            EnableDeclarations = SyntaxCollections.Freeze(enableDeclarations);
+            Statements = SyntaxCollections.Freeze(statements);
             EndOfFile = endOfFile;
         }
 

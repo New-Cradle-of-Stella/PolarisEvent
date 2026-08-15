@@ -36,6 +36,35 @@ namespace Polaris.Pevt.Core.Tests.Syntax
         }
 
         [Fact]
+        public void BlockSignature_MissingBlockKeyword_ReportsPEVT7119AndStillParsesDefinition()
+        {
+            // 看起来是自定义事件块的定义签名（参数是 "名 : 类型" 形状），只是漏写了 block 关键字——
+            // 区别于普通调用（调用参数是表达式，不会出现裸的 ":"）。
+            const string source = "id \"A\"\n_foo(x : int)\nendblock\nend";
+            (DocumentSyntax document, IReadOnlyList<Diagnostic> diagnostics) = ParseDoc(source);
+            Assert.Equal("PEVT7119", Assert.Single(diagnostics).Id);
+            var block = Assert.IsType<BlockDefinitionStatementSyntax>(document.Statements[0]);
+            Assert.Equal("_foo", block.Name.Text);
+            Assert.True(block.BlockKeyword.IsMissing);
+        }
+
+        [Fact]
+        public void BlockSignature_MissingBlockKeywordWithReturnType_ReportsPEVT7119()
+        {
+            const string source = "id \"A\"\n_foo() : bool\nreturn r\nendblock\nend";
+            (_, IReadOnlyList<Diagnostic> diagnostics) = ParseDoc(source);
+            Assert.Contains(diagnostics, d => d.Id == "PEVT7119");
+        }
+
+        [Fact]
+        public void OrdinaryCallWithExpressionArguments_DoesNotReportPEVT7119()
+        {
+            const string source = "id \"A\"\nblock _needsOne(x : int)\nendblock\n_needsOne(1)\nend";
+            (_, IReadOnlyList<Diagnostic> diagnostics) = ParseDoc(source);
+            Assert.DoesNotContain(diagnostics, d => d.Id == "PEVT7119");
+        }
+
+        [Fact]
         public void BlockDefinition_WithParamsAndReturn_ParsesSignature()
         {
             const string source = "id \"A\"\nblock _selectLine(name : string) : bool\nvar selected : bool = false\nreturn selected\nendblock\nend";
@@ -346,6 +375,35 @@ namespace Polaris.Pevt.Core.Tests.Syntax
             Assert.Empty(diagnostics);
             var statement = Assert.IsType<ExpressionStatementSyntax>(document.Statements[1]);
             Assert.IsType<RawCsExpressionSyntax>(statement.Expression);
+        }
+
+        // ---- $raw missing/invalid target (PEVT8001/PEVT8002) ----
+
+        [Fact]
+        public void RawStatement_NothingAfterDollarRaw_ReportsPEVT8001NotPEVT8002()
+        {
+            // "$raw" 后同一物理行上再没有任何 token——确实没有目标，而不是目标存在但形状不对。
+            (_, IReadOnlyList<Diagnostic> diagnostics) = ParseDoc("id \"A\"\n$raw\nend");
+            Assert.Contains(diagnostics, d => d.Id == "PEVT8001");
+            Assert.DoesNotContain(diagnostics, d => d.Id == "PEVT8002");
+        }
+
+        [Fact]
+        public void RawStatement_WrongTargetPresent_ReportsPEVT8002NotPEVT8001()
+        {
+            // "$raw" 后确实有内容（"foo"），只是既不是 cmd 也不是 cs。
+            (_, IReadOnlyList<Diagnostic> diagnostics) = ParseDoc("id \"A\"\n$raw foo\nend");
+            Assert.Contains(diagnostics, d => d.Id == "PEVT8002");
+            Assert.DoesNotContain(diagnostics, d => d.Id == "PEVT8001");
+        }
+
+        [Fact]
+        public void RawCsExpression_NothingAfterDollarRaw_ReportsPEVT8001()
+        {
+            // $raw 出现在表达式位置（这里是 var 初始化器）时走 ParseRawCsExpression，
+            // 同样需要区分"确实没有目标"和"目标存在但不是 cs"。
+            (_, IReadOnlyList<Diagnostic> diagnostics) = ParseDoc("id \"A\"\nvar x : int = $raw\nend");
+            Assert.Contains(diagnostics, d => d.Id == "PEVT8001");
         }
 
         // ---- async prefix on non-block targets ----

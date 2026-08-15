@@ -34,8 +34,8 @@ namespace Polaris.Pevt.Syntax
         public ParameterListSyntax(SyntaxToken openParen, IReadOnlyList<ParameterSyntax> parameters, IReadOnlyList<SyntaxToken> commas, SyntaxToken closeParen)
         {
             OpenParen = openParen;
-            Parameters = parameters;
-            Commas = commas;
+            Parameters = SyntaxCollections.Freeze(parameters);
+            Commas = SyntaxCollections.Freeze(commas);
             CloseParen = closeParen;
         }
 
@@ -70,7 +70,7 @@ namespace Polaris.Pevt.Syntax
             Parameters = parameters;
             Colon = colon;
             ReturnType = returnType;
-            Body = body;
+            Body = SyntaxCollections.Freeze(body);
             EndBlockKeyword = endBlockKeyword;
         }
 

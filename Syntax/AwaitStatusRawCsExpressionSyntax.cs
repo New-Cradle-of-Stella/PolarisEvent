@@ -49,8 +49,8 @@ namespace Polaris.Pevt.Syntax
         public IdentifierListSyntax(SyntaxToken openParen, IReadOnlyList<SyntaxToken> identifiers, IReadOnlyList<SyntaxToken> commas, SyntaxToken closeParen)
         {
             OpenParen = openParen;
-            Identifiers = identifiers;
-            Commas = commas;
+            Identifiers = SyntaxCollections.Freeze(identifiers);
+            Commas = SyntaxCollections.Freeze(commas);
             CloseParen = closeParen;
         }
 

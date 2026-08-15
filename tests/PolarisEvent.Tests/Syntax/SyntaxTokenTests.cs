@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Polaris.Pevt.Syntax;
 using Polaris.Pevt.Text;
 using Xunit;
@@ -18,8 +19,23 @@ namespace Polaris.Pevt.Core.Tests.Syntax
             var leading = new[] { new SyntaxTrivia(TriviaKind.Whitespace, new TextSpan(0, 1), " ") };
             var trailing = new[] { new SyntaxTrivia(TriviaKind.LineComment, new TextSpan(3, 4), "// x") };
             var withTrivia = new SyntaxToken(SyntaxKind.EndKeyword, new TextSpan(1, 3), "end", TokenValue.None, leading, trailing);
-            Assert.Same(leading, withTrivia.LeadingTrivia);
-            Assert.Same(trailing, withTrivia.TrailingTrivia);
+            Assert.Equal(leading, withTrivia.LeadingTrivia);
+            Assert.Equal(trailing, withTrivia.TrailingTrivia);
+        }
+
+        [Fact]
+        public void Constructor_DoesNotAliasCallerSuppliedTriviaLists()
+        {
+            // G5 深不可变门：token 必须复制调用者传入的 trivia 列表，而不是持有其引用——
+            // 否则调用者事后修改自己手里的 List 会反过来改写这个"不可变" token。
+            var leading = new List<SyntaxTrivia> { new SyntaxTrivia(TriviaKind.Whitespace, new TextSpan(0, 1), " ") };
+            var token = new SyntaxToken(SyntaxKind.EndKeyword, new TextSpan(1, 3), "end", TokenValue.None, leading);
+
+            leading.Add(new SyntaxTrivia(TriviaKind.LineComment, new TextSpan(2, 4), "// x"));
+            leading.Clear();
+
+            Assert.Single(token.LeadingTrivia);
+            Assert.Equal(TriviaKind.Whitespace, token.LeadingTrivia[0].Kind);
         }
 
         [Fact]

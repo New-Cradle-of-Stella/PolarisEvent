@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using Polaris.Pevt.Text;
 
@@ -54,6 +55,8 @@ namespace Polaris.Pevt.Syntax
                     continue;
                 }
 
+                if (statements.Count > 0)
+                    CheckOneStatementPerLine();
                 statements.Add(ParseStatement());
             }
 
@@ -81,6 +84,18 @@ namespace Polaris.Pevt.Syntax
             {
                 ReportError("PEVT1106", Current.Span);
                 SkipRestOfLine(idKeyword);
+            }
+
+            // 2 节：事件 ID 不能是空字符串（PEVT1110），也只能包含 ASCII 字母数字或 Unicode 中文汉字
+            // （PEVT1111）。转义出错的字符串字面量 Value.Kind 为 None，内容本身不可靠，不在这里重复判断
+            // ——那种情形已经由词法阶段的 PEVT5021 覆盖。
+            if (value.Value.Kind == TokenValueKind.String)
+            {
+                string content = value.Value.AsString;
+                if (content.Length == 0)
+                    ReportError("PEVT1110", value.Span);
+                else if (!IsValidEventIdContent(content))
+                    ReportError("PEVT1111", value.Span);
             }
 
             return new IdDeclarationSyntax(idKeyword, value);
@@ -119,7 +134,8 @@ namespace Polaris.Pevt.Syntax
                 case SyntaxKind.VarKeyword: return ParseVariableDeclarationStatement();
                 case SyntaxKind.ConstKeyword: return ParseConstantDeclarationStatement();
                 case SyntaxKind.IdentifierToken when Peek(1).Kind == SyntaxKind.EqualsToken: return ParseAssignmentStatement();
-                case SyntaxKind.IdentifierToken when Peek(1).Kind == SyntaxKind.OpenParenToken: return ParseExpressionStatement();
+                case SyntaxKind.IdentifierToken when Peek(1).Kind == SyntaxKind.OpenParenToken:
+                    return LooksLikeBlockSignatureMissingKeyword() ? ParseBlockDefinitionStatement(null) : ParseExpressionStatement();
                 case SyntaxKind.AtToken: return ParseExpressionStatement();
                 case SyntaxKind.AwaitKeyword: return ParseExpressionStatement();
                 case SyntaxKind.KillKeyword: return ParseKillStatement();
@@ -185,8 +201,36 @@ namespace Polaris.Pevt.Syntax
         {
             var statements = new List<StatementSyntax>();
             while (!Check(SyntaxKind.EndOfFileToken) && !IsAnyOf(Current.Kind, terminators))
+            {
+                // 10A-R02：不跳过第一条语句的检测。<see cref="_lastConsumedTokenEnd"/> 在进入这个
+                // 列表之前就已经正确反映了外层结构（if/while/switch 的头部条件、case 的表达式等）
+                // 真正消费到的位置，因此第一条 body 语句和头部同行时（比如 "if true @a()"）同样能被
+                // 检出，不需要单独区分"这是不是列表里的第一条"。
+                CheckOneStatementPerLine();
                 statements.Add(ParseStatement());
+            }
+
             return statements;
+        }
+
+        /// <summary>
+        /// PEVT1005（10A 补正）：按完整语句边界判断"同一物理行是否出现了不止一条语句"——只要
+        /// 上一条语句真正消费到的最后一个 token（<see cref="_lastConsumedTokenEnd"/>，不是
+        /// 语句节点的 <see cref="SyntaxNode.Span"/>：很多恢复路径会把缺失 token 的零长度位置钉在
+        /// 隔了一整行的下一个真实 token 上，用 Span.End 会把这一行错误地"拖"过去）所在的物理行，
+        /// 和下一条语句起始 token 所在的物理行相同，就报告。覆盖全部语句起始形态（内置调用、赋值、
+        /// await、标签、callevt、raw 语句等），不再依赖一份只登记部分关键字的 StatementLeaders 清单。
+        ///
+        /// 这个基于语句边界而非 token 种类的判定天然不会误报既有的几组"看起来像两个语句起始，
+        /// 实际只是同一条语句内部形状"的合法组合——它们从来都只走一次 <see cref="ParseStatement"/>：
+        /// <c>async block ...</c>、<c>goto #Label</c>、<c>handler h = callevt ...</c>、
+        /// <c>var x : bool = await a</c>。
+        /// </summary>
+        private void CheckOneStatementPerLine()
+        {
+            int previousEndLine = _source.GetLocation(new TextSpan(_lastConsumedTokenEnd, 0)).StartLine;
+            if (!Check(SyntaxKind.EndOfFileToken) && LineOf(Current) == previousEndLine)
+                ReportError("PEVT1005", Current.Span);
         }
 
         private static bool IsAnyOf(SyntaxKind kind, SyntaxKind[] candidates)
@@ -230,10 +274,36 @@ namespace Polaris.Pevt.Syntax
 
         // ---- if/elif/else/endif ----
 
+        /// <summary>流程语句的条件表达式必须存在（PEVT2001/2004/2101/2401）；判断标准与
+        /// <see cref="CanStartExpression"/> 一致，避免退化成泛泛的 PEVT5001。不消费任何 token，
+        /// 让调用方紧接着按各自的语句列表继续解析，交给统一的恢复机制处理。</summary>
+        private ExpressionSyntax ParseRequiredCondition(string missingDiagnosticId)
+        {
+            if (!CanStartExpression(Current.Kind))
+            {
+                ReportError(missingDiagnosticId, Current.Span);
+                return new MissingExpressionSyntax(Current.Span.Start);
+            }
+
+            return ParseExpression();
+        }
+
+        /// <summary><c>else</c>/<c>default</c> 后不允许出现表达式或其他参数（PEVT2008/2411）：
+        /// 只在关键字所在物理行发现能起始表达式的内容时才报告，报告后跳到行尾，避免这段多余内容
+        /// 被外层循环当成一条全新的、同样莫名其妙的语句再报一次错。</summary>
+        private void CheckNoTrailingExpression(SyntaxToken keyword, string diagnosticId)
+        {
+            if (!Check(SyntaxKind.EndOfFileToken) && LineOf(Current) == LineOf(keyword) && CanStartExpression(Current.Kind))
+            {
+                ReportError(diagnosticId, Current.Span);
+                SkipRestOfLine(keyword);
+            }
+        }
+
         private StatementSyntax ParseIfStatement()
         {
             SyntaxToken ifKeyword = Advance();
-            ExpressionSyntax condition = ParseExpression();
+            ExpressionSyntax condition = ParseRequiredCondition("PEVT2001");
             List<StatementSyntax> body = ParseStatementList(IfBodyTerminators);
             if (body.Count == 0)
                 ReportError("PEVT2301", ifKeyword.Span);
@@ -242,7 +312,7 @@ namespace Polaris.Pevt.Syntax
             while (Check(SyntaxKind.ElifKeyword))
             {
                 SyntaxToken elifKeyword = Advance();
-                ExpressionSyntax elifCondition = ParseExpression();
+                ExpressionSyntax elifCondition = ParseRequiredCondition("PEVT2004");
                 List<StatementSyntax> elifBody = ParseStatementList(IfBodyTerminators);
                 if (elifBody.Count == 0)
                     ReportError("PEVT2302", elifKeyword.Span);
@@ -253,6 +323,7 @@ namespace Polaris.Pevt.Syntax
             if (Check(SyntaxKind.ElseKeyword))
             {
                 SyntaxToken elseKeyword = Advance();
+                CheckNoTrailingExpression(elseKeyword, "PEVT2008");
                 List<StatementSyntax> elseBody = ParseStatementList(ElseBodyTerminators);
                 if (elseBody.Count == 0)
                     ReportError("PEVT2303", elseKeyword.Span);
@@ -278,6 +349,13 @@ namespace Polaris.Pevt.Syntax
                 }
             }
 
+            // 10A-R02："@a() endif" 一类的正文最后一条语句和闭合关键字同行：只在正文/elif/else
+            // 里确实有过内容时才检查——如果全都是空的（比如 "if a endif"，条件直接跟着闭合关键字，
+            // 中间连一条语句都没有），_lastConsumedTokenEnd 还停留在条件表达式上，那不是"两条语句"
+            // 挤在一行，是空产生式，已经由 PEVT2301 等空正文警告覆盖，不应该被误判成 PEVT1005。
+            bool ifBodyHadContent = body.Count > 0 || elifClauses.Any(e => e.Body.Count > 0) || (elseClause != null && elseClause.Body.Count > 0);
+            if (ifBodyHadContent)
+                CheckOneStatementPerLine();
             SyntaxToken endIf = ExpectClosingKeyword(SyntaxKind.EndIfKeyword, "PEVT2002", "PEVT2010");
             return new IfStatementSyntax(ifKeyword, condition, body, elifClauses, elseClause, endIf);
         }
@@ -287,10 +365,12 @@ namespace Polaris.Pevt.Syntax
         private StatementSyntax ParseWhileStatement()
         {
             SyntaxToken whileKeyword = Advance();
-            ExpressionSyntax condition = ParseExpression();
+            ExpressionSyntax condition = ParseRequiredCondition("PEVT2101");
             List<StatementSyntax> body = ParseStatementList(WhileBodyTerminators);
             if (body.Count == 0)
                 ReportError("PEVT2304", whileKeyword.Span);
+            if (body.Count > 0)
+                CheckOneStatementPerLine();
             SyntaxToken endWhile = ExpectClosingKeyword(SyntaxKind.EndWhileKeyword, "PEVT2102", "PEVT2104");
             return new WhileStatementSyntax(whileKeyword, condition, body, endWhile);
         }
@@ -300,27 +380,35 @@ namespace Polaris.Pevt.Syntax
         private StatementSyntax ParseSwitchStatement()
         {
             SyntaxToken switchKeyword = Advance();
-            ExpressionSyntax value = ParseExpression();
+            ExpressionSyntax value = ParseRequiredCondition("PEVT2401");
 
             bool startsWithArm = Check(SyntaxKind.CaseKeyword) || Check(SyntaxKind.DefaultKeyword);
             if (!startsWithArm)
                 ReportError("PEVT2404", Current.Span);
+            else
+                // 10A-R02："switch 1 case 1"：switch 表达式和第一个 case/default 挤在同一行。
+                CheckOneStatementPerLine();
 
             var arms = new List<SwitchArmSyntax>();
             var seenCaseTexts = new HashSet<string>();
             bool sawDefault = false;
 
+            _switchDepth++;
             while (Check(SyntaxKind.CaseKeyword) || Check(SyntaxKind.DefaultKeyword))
             {
                 if (Check(SyntaxKind.CaseKeyword))
                 {
                     SyntaxToken caseKeyword = Advance();
-                    ExpressionSyntax caseValue = ParseExpression();
+                    ExpressionSyntax caseValue = ParseRequiredCondition("PEVT2406");
                     if (!seenCaseTexts.Add(CanonicalizeSpan(caseValue.Span)))
                         ReportError("PEVT2407", caseValue.Span);
                     List<StatementSyntax> caseBody = ParseStatementList(SwitchArmTerminators);
                     if (caseBody.Count == 0)
                         ReportError("PEVT2408", caseKeyword.Span);
+                    // 同一处检查天然覆盖"这个 arm 的正文和下一个 case/default 同行"与"和 endswitch
+                    // 同行"（比如 "@a() endswitch"）两种情形——Current 到时候是哪一个都行。
+                    if (caseBody.Count > 0)
+                        CheckOneStatementPerLine();
                     arms.Add(new CaseArmSyntax(caseKeyword, caseValue, caseBody));
                 }
                 else
@@ -329,12 +417,16 @@ namespace Polaris.Pevt.Syntax
                     if (sawDefault)
                         ReportError("PEVT2410", defaultKeyword.Span);
                     sawDefault = true;
+                    CheckNoTrailingExpression(defaultKeyword, "PEVT2411");
                     List<StatementSyntax> defaultBody = ParseStatementList(SwitchArmTerminators);
                     if (defaultBody.Count == 0)
                         ReportError("PEVT2412", defaultKeyword.Span);
+                    if (defaultBody.Count > 0)
+                        CheckOneStatementPerLine();
                     arms.Add(new DefaultArmSyntax(defaultKeyword, defaultBody));
                 }
             }
+            _switchDepth--;
 
             // 2403（一个 case/default 都没有）与 2404（第一条语句不是 case/default）测的是两件不同
             // 的事，真正全空的 switch 会同时满足两者——不像 raw 块那组诊断，这里不需要互斥。
@@ -361,13 +453,22 @@ namespace Polaris.Pevt.Syntax
         private StatementSyntax ParseLabelStatement()
         {
             SyntaxToken hash = Advance();
-            if (!Check(SyntaxKind.IdentifierToken))
+            if (Check(SyntaxKind.IdentifierToken))
+                return new LabelStatementSyntax(hash, Advance());
+
+            // 区分"# 后面确实什么都没有"（PEVT3001，下一个 token 在别的物理行或已经是文件尾）
+            // 与"# 后面有内容，只是它不是合法标识符形状"（PEVT3002，比如 #123 或 #"str"）。
+            bool candidatePresent = !Check(SyntaxKind.EndOfFileToken) && LineOf(Current) == LineOf(hash);
+            if (candidatePresent)
             {
-                ReportError("PEVT3001", Current.Span);
-                return new LabelStatementSyntax(hash, SyntaxToken.CreateMissing(SyntaxKind.IdentifierToken, Current.Span.Start));
+                ReportError("PEVT3002", Current.Span);
+                SyntaxToken invalid = SyntaxToken.CreateMissing(SyntaxKind.IdentifierToken, Current.Span.Start);
+                SkipRestOfLine(hash);
+                return new LabelStatementSyntax(hash, invalid);
             }
 
-            return new LabelStatementSyntax(hash, Advance());
+            ReportError("PEVT3001", Current.Span);
+            return new LabelStatementSyntax(hash, SyntaxToken.CreateMissing(SyntaxKind.IdentifierToken, Current.Span.Start));
         }
 
         private StatementSyntax ParseGotoStatement()
@@ -377,6 +478,12 @@ namespace Polaris.Pevt.Syntax
             {
                 SyntaxToken hash = Advance();
                 SyntaxToken label = Expect(SyntaxKind.IdentifierToken, "PEVT3103");
+                if (!label.IsMissing && !Check(SyntaxKind.EndOfFileToken) && LineOf(Current) == LineOf(gotoKeyword))
+                {
+                    ReportError("PEVT3105", Current.Span);
+                    SkipRestOfLine(gotoKeyword);
+                }
+
                 return new GotoLabelStatementSyntax(gotoKeyword, hash, label);
             }
 
@@ -386,6 +493,13 @@ namespace Polaris.Pevt.Syntax
                 return new UnknownStatementSyntax(gotoKeyword);
             }
 
+            // 7.2 节：不在 switch 内部时，goto 只能使用 "#LabelName" 形式；裸表达式形式的
+            // "goto 表达式"（6.5 节）语法上只在 switch 内部才被允许，PEVT3111 是 Flow 阶段针对
+            // 同一根因的语义复核，这里先在语法层面就报出来（PEVT3102），但仍然按集合等待/case-goto
+            // 的通常形状继续解析，让恢复保持一致。
+            if (_switchDepth == 0)
+                ReportError("PEVT3102", Current.Span);
+
             return new GotoCaseStatementSyntax(gotoKeyword, ParseExpression());
         }
 
@@ -394,9 +508,16 @@ namespace Polaris.Pevt.Syntax
         private StatementSyntax ParseVariableDeclarationStatement()
         {
             SyntaxToken varKeyword = Advance();
-            SyntaxToken name = ParseDeclarationName();
+            SyntaxToken name = ParseDeclarationName(out bool nameRecoveredWholeLine);
+            if (nameRecoveredWholeLine)
+                return new VariableDeclarationSyntax(varKeyword, name,
+                    SyntaxToken.CreateMissing(SyntaxKind.ColonToken, name.Span.End),
+                    SyntaxToken.CreateMissing(SyntaxKind.IntKeyword, name.Span.End), null, null);
+
             SyntaxToken colon = Expect(SyntaxKind.ColonToken, "PEVT6005");
-            SyntaxToken type = ParseTypeNameOrMissing();
+            SyntaxToken type = ParseDeclaredTypeOrRecover(varKeyword, out bool typeRecoveredWholeLine);
+            if (typeRecoveredWholeLine)
+                return new VariableDeclarationSyntax(varKeyword, name, colon, type, null, null);
 
             SyntaxToken equalsToken = null;
             ExpressionSyntax initializer = null;
@@ -404,6 +525,7 @@ namespace Polaris.Pevt.Syntax
             {
                 equalsToken = Advance();
                 initializer = ParseInitializerExpression();
+                CheckBooleanLiteralForm(type, initializer);
             }
 
             return new VariableDeclarationSyntax(varKeyword, name, colon, type, equalsToken, initializer);
@@ -412,9 +534,20 @@ namespace Polaris.Pevt.Syntax
         private StatementSyntax ParseConstantDeclarationStatement()
         {
             SyntaxToken constKeyword = Advance();
-            SyntaxToken name = ParseDeclarationName();
+            SyntaxToken name = ParseDeclarationName(out bool nameRecoveredWholeLine);
+            if (nameRecoveredWholeLine)
+                return new ConstantDeclarationSyntax(constKeyword, name,
+                    SyntaxToken.CreateMissing(SyntaxKind.ColonToken, name.Span.End),
+                    SyntaxToken.CreateMissing(SyntaxKind.IntKeyword, name.Span.End),
+                    SyntaxToken.CreateMissing(SyntaxKind.EqualsToken, name.Span.End),
+                    new MissingExpressionSyntax(name.Span.End));
+
             SyntaxToken colon = Expect(SyntaxKind.ColonToken, "PEVT6005");
-            SyntaxToken type = ParseTypeNameOrMissing();
+            SyntaxToken type = ParseDeclaredTypeOrRecover(constKeyword, out bool typeRecoveredWholeLine);
+            if (typeRecoveredWholeLine)
+                return new ConstantDeclarationSyntax(constKeyword, name, colon, type,
+                    SyntaxToken.CreateMissing(SyntaxKind.EqualsToken, type.Span.End),
+                    new MissingExpressionSyntax(type.Span.End));
 
             SyntaxToken equalsToken;
             ExpressionSyntax initializer;
@@ -422,6 +555,7 @@ namespace Polaris.Pevt.Syntax
             {
                 equalsToken = Advance();
                 initializer = ParseInitializerExpression();
+                CheckBooleanLiteralForm(type, initializer);
             }
             else
             {
@@ -433,15 +567,76 @@ namespace Polaris.Pevt.Syntax
             return new ConstantDeclarationSyntax(constKeyword, name, colon, type, equalsToken, initializer);
         }
 
-        private SyntaxToken ParseDeclarationName()
+        /// <summary>
+        /// 8.9 节："布尔字面量只能是全小写的 true 或 false；其他大小写或数值形式均无效"（PEVT5023）。
+        /// 大小写变体（<c>True</c>/<c>TRUE</c>）在词法阶段就已经变成普通标识符，语法层面无法区分
+        /// "打算写布尔字面量却拼错大小写"和"引用一个碰巧叫这个名字的变量"——那需要环境绑定信息，
+        /// 留给后续阶段。这里只处理不需要绑定就能确定违规的形状：声明类型是 <c>bool</c>，
+        /// 初始化器却是裸的数值字面量。声明类型和初始化器在同一条语句内，不需要跨语句查找。
+        /// </summary>
+        private void CheckBooleanLiteralForm(SyntaxToken type, ExpressionSyntax initializer)
         {
+            if (type.Kind != SyntaxKind.BoolKeyword)
+                return;
+
+            if (initializer is LiteralExpressionSyntax literal &&
+                (literal.Token.Kind == SyntaxKind.IntegerLiteralToken || literal.Token.Kind == SyntaxKind.FloatLiteralToken))
+                ReportError("PEVT5023", literal.Span);
+        }
+
+        /// <param name="recoveredWholeLine">
+        /// true 表示名称候选本身不可挽救（PEVT6013）：已经把这个 token 连同它所在物理行剩余部分
+        /// 一起消费掉，调用方必须直接放弃 colon/type/初始化器的解析，不能再尝试——否则那些 Expect
+        /// 会对着一个已经跳过的位置重复报错，而真正的病灶 token（比如 <c>var if : int</c> 里的
+        /// <c>if</c>）如果不在这里连带同步掉，会原样留在流里，被外层循环当成一条全新的语句，
+        /// 让 <c>if</c> 被重新解析成一个虚假的 <see cref="IfStatementSyntax"/>。
+        /// 类型关键字写在名称位置（PEVT6006）不受这个字段影响：既有测试依赖它保持"不消费"，
+        /// 让这个 token 继续留给 <see cref="ParseDeclaredTypeOrRecover"/> 当作类型识别出来。
+        /// </param>
+        private SyntaxToken ParseDeclarationName(out bool recoveredWholeLine)
+        {
+            recoveredWholeLine = false;
+
             if (IsTypeKeyword(Current.Kind))
             {
                 ReportError("PEVT6006", Current.Span);
                 return SyntaxToken.CreateMissing(SyntaxKind.IdentifierToken, Current.Span.Start);
             }
 
+            // 9.6 节：保留关键字不能被用作变量/常量名称。类型关键字已经在上面拿到了更精确的
+            // PEVT6006（"类型写在了名称位置"）；其余保留字（if、true、goto……）落在这里报 PEVT6013。
+            if (Current.Kind != SyntaxKind.IdentifierToken && SyntaxFacts.IsReservedWord(Current.Text))
+            {
+                ReportError("PEVT6013", Current.Span);
+                SyntaxToken invalid = Advance();
+                SkipRestOfLine(invalid);
+                recoveredWholeLine = true;
+                return SyntaxToken.CreateMissing(SyntaxKind.IdentifierToken, invalid.Span.Start);
+            }
+
             return Expect(SyntaxKind.IdentifierToken, "PEVT6004");
+        }
+
+        /// <summary>
+        /// 形参列表和自定义事件块返回类型共用的类型解析（<see cref="ParseTypeNameOrMissing"/>）不能
+        /// 在遇到无效类型时消费掉整行——那两个位置的"整行"往往还包含后续形参或事件块正文，消费掉
+        /// 会连带吞掉完全无关的合法内容。var/const 声明的类型位置没有这个顾虑：它右边只可能是可选
+        /// 的 <c>= 初始化器</c>，一旦类型本身就不合法，整条声明已经不可能再被正确解读，因此在这里
+        /// 消费掉无效候选并同步到物理行结束（PEVT5010），避免它（比如 <c>var x : foo</c> 里的
+        /// <c>foo</c>）原样留在流里，被外层循环当成一条全新的、同样莫名其妙的语句。
+        /// </summary>
+        private SyntaxToken ParseDeclaredTypeOrRecover(SyntaxToken declarationKeyword, out bool recoveredWholeLine)
+        {
+            recoveredWholeLine = false;
+
+            if (IsTypeKeyword(Current.Kind))
+                return Advance();
+
+            ReportError("PEVT5010", Current.Span);
+            SyntaxToken invalid = Advance();
+            SkipRestOfLine(declarationKeyword);
+            recoveredWholeLine = true;
+            return SyntaxToken.CreateMissing(SyntaxKind.IntKeyword, invalid.Span.Start);
         }
 
         private SyntaxToken ParseTypeNameOrMissing()
@@ -496,7 +691,7 @@ namespace Polaris.Pevt.Syntax
         private StatementSyntax ParseHandlerDeclarationStatement()
         {
             SyntaxToken handlerKeyword = Advance();
-            SyntaxToken name = Expect(SyntaxKind.IdentifierToken, "PEVT7205");
+            SyntaxToken name = ParseHandlerName();
 
             if (!Check(SyntaxKind.EqualsToken))
             {
@@ -507,6 +702,18 @@ namespace Polaris.Pevt.Syntax
 
             SyntaxToken equalsToken = Advance();
             return new HandlerDeclarationStatementSyntax(handlerKeyword, name, equalsToken, ParseHandlerInitializer());
+        }
+
+        /// <summary>9.6 节：保留关键字同样不能被用作句柄名称（PEVT6013）。</summary>
+        private SyntaxToken ParseHandlerName()
+        {
+            if (Current.Kind != SyntaxKind.IdentifierToken && SyntaxFacts.IsReservedWord(Current.Text))
+            {
+                ReportError("PEVT6013", Current.Span);
+                return SyntaxToken.CreateMissing(SyntaxKind.IdentifierToken, Current.Span.Start);
+            }
+
+            return Expect(SyntaxKind.IdentifierToken, "PEVT7205");
         }
 
         /// <summary>15.2 节：初始化器只能是 <c>@</c> 调用、<c>_</c> 调用或 <c>callevt</c>。
@@ -560,7 +767,7 @@ namespace Polaris.Pevt.Syntax
                 return new RawCmdStatementSyntax(dollarRaw, cmd, open, content, close);
             }
 
-            SyntaxToken cs = Expect(SyntaxKind.CsKeyword, "PEVT8002");
+            SyntaxToken cs = ExpectRawCsTarget(dollarRaw);
             IdentifierListSyntax arguments = Check(SyntaxKind.OpenParenToken) ? ParseIdentifierList() : null;
             SyntaxToken rawOpen = Expect(SyntaxKind.TripleQuoteToken, "PEVT8003");
             SyntaxToken rawContent = Check(SyntaxKind.RawContentToken) ? Advance() : SyntaxToken.CreateMissing(SyntaxKind.RawContentToken, Current.Span.Start);
@@ -605,7 +812,20 @@ namespace Polaris.Pevt.Syntax
             if (_blockStack.Count > 0)
                 ReportError("PEVT7104", Current.Span);
 
-            SyntaxToken blockKeyword = Advance();
+            SyntaxToken blockKeyword;
+            if (Check(SyntaxKind.BlockKeyword))
+            {
+                blockKeyword = Advance();
+            }
+            else
+            {
+                // 调用方（PEVT7119 的识别路径，见 LooksLikeBlockSignatureMissingKeyword）已经确认
+                // 这其实是一份遗漏了 block 关键字的定义签名，而不是一次普通的自定义事件块调用——
+                // 报告后补一个缺失 token，继续按完整定义签名解析名称、参数、返回类型、正文和 endblock。
+                ReportError("PEVT7119", Current.Span);
+                blockKeyword = SyntaxToken.CreateMissing(SyntaxKind.BlockKeyword, Current.Span.Start);
+            }
+
             SyntaxToken name = ParseCustomBlockDefinitionName();
             ParameterListSyntax parameters = ParseParameterList();
 
@@ -618,11 +838,27 @@ namespace Polaris.Pevt.Syntax
             }
 
             _blockStack.Push(returnType != null);
+            int savedSwitchDepth = _switchDepth;
+            _switchDepth = 0; // 自定义事件块拥有独立的标签/跳转环境，不应该让外层 switch 泄漏进来。
             List<StatementSyntax> body = ParseStatementList(BlockBodyTerminators);
+            _switchDepth = savedSwitchDepth;
             _blockStack.Pop();
 
             SyntaxToken endBlock = Expect(SyntaxKind.EndBlockKeyword, "PEVT7116");
             return new BlockDefinitionStatementSyntax(asyncKeyword, blockKeyword, name, parameters, colon, returnType, body, endBlock);
+        }
+
+        /// <summary>
+        /// PEVT7119：识别"看起来是自定义事件块定义签名，只是漏写了 block 关键字"的形状——
+        /// 调用参数是普通表达式，定义参数却是 "名 : 类型" 或声明了返回类型的 "() : 类型"，
+        /// 两者在语法上不会混淆。只在这个形状出现时才把它当定义处理，否则仍按普通调用解析。
+        /// </summary>
+        private bool LooksLikeBlockSignatureMissingKeyword()
+        {
+            if (Peek(2).Kind == SyntaxKind.CloseParenToken)
+                return Peek(3).Kind == SyntaxKind.ColonToken; // "_foo() : type"
+
+            return Peek(2).Kind == SyntaxKind.IdentifierToken && Peek(3).Kind == SyntaxKind.ColonToken; // "_foo(name : type"
         }
 
         /// <summary>14.1 节：完整名称必须以 <c>_</c> 开头。词法阶段把 <c>_playScene</c> 整体

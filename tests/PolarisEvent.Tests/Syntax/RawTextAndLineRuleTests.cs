@@ -348,31 +348,6 @@ namespace Polaris.Pevt.Core.Tests.Syntax
         }
 
         [Fact]
-        public void OneStatementPerLine_ThreeLeadersOnOneLine_ReportsOneDiagnosticPerRepeat()
-        {
-            // 第一个 end 立起这一行的基准；第二、第三个各自和"当前基准行"比较，各报一次——
-            // 报告次数和"多出来的语句数"对应，而不是恒定报一次。
-            (_, IReadOnlyList<Diagnostic> diagnostics) = Lex("end end end");
-            Assert.Equal(2, diagnostics.Count(d => d.Id == "PEVT1005"));
-        }
-
-        [Fact]
-        public void OneStatementPerLine_VarDeclarationsOnSeparateLines_NoDiagnostic()
-        {
-            (_, IReadOnlyList<Diagnostic> diagnostics) = Lex("var a : int\nvar b : int\nend");
-            Assert.Empty(diagnostics);
-        }
-
-        [Theory]
-        [InlineData("switch x\ncase 1\nendswitch")]
-        [InlineData("while x\nendwhile")]
-        public void OneStatementPerLine_StructuredFlowAcrossSeparateLines_NoDiagnostic(string source)
-        {
-            (_, IReadOnlyList<Diagnostic> diagnostics) = Lex(source);
-            Assert.Empty(diagnostics);
-        }
-
-        [Fact]
         public void IllegalLineBreak_MultipleDanglingLinesInsideParens_ReportsOnePerLineBreak()
         {
             (_, IReadOnlyList<Diagnostic> diagnostics) = Lex("@foo(a,\nb,\nc)");
@@ -553,36 +528,6 @@ namespace Polaris.Pevt.Core.Tests.Syntax
             Assert.Contains(tokens, t => t.Kind == SyntaxKind.StringLiteralToken && t.Value.Kind != TokenValueKind.None && t.Value.AsString == "a");
         }
 
-        // ---- one-statement-per-line (PEVT1005) ----
-
-        [Fact]
-        public void OneStatementPerLine_TwoLeaderKeywordsOnSameLine_ReportsPEVT1005()
-        {
-            (_, IReadOnlyList<Diagnostic> diagnostics) = Lex("end end");
-            Assert.Equal("PEVT1005", Assert.Single(diagnostics).Id);
-        }
-
-        [Fact]
-        public void OneStatementPerLine_LeaderKeywordsOnSeparateLines_NoDiagnostic()
-        {
-            (_, IReadOnlyList<Diagnostic> diagnostics) = Lex("if x\nendif");
-            Assert.Empty(diagnostics);
-        }
-
-        [Theory]
-        [InlineData("async block _foo()\nendblock")]
-        [InlineData("goto #Label")]
-        [InlineData("handler h = callevt \"X\"")]
-        [InlineData("var x : bool = await a")]
-        public void OneStatementPerLine_KnownAmbiguousPairs_DoNotFalsePositive(string source)
-        {
-            // async/block、goto/#、handler/callevt、var-初始化器里的 await
-            // 都会让两个"看起来像语句起始"的 token 落在同一行——这些都是合法的单条语句，
-            // 因此故意没把 async、#、callevt、await 计入 StatementLeaders。
-            (_, IReadOnlyList<Diagnostic> diagnostics) = Lex(source);
-            Assert.DoesNotContain(diagnostics, d => d.Id == "PEVT1005");
-        }
-
         // ---- illegal mid-construct line breaks (PEVT1006) ----
 
         [Fact]
@@ -626,15 +571,6 @@ namespace Polaris.Pevt.Core.Tests.Syntax
             // 多出来的右括号不应该把内部计数减到负数，否则后面本该报的 1006 会被吞掉。
             (_, IReadOnlyList<Diagnostic> diagnostics) = Lex(")\n@foo(a,\nb)");
             Assert.Single(diagnostics, d => d.Id == "PEVT1006");
-        }
-
-        [Fact]
-        public void OneStatementPerLine_LeaderAfterMultilineRawBlock_UsesRawBlockClosingLine()
-        {
-            // raw 内容自己的换行不经过 LexLineBreak，也不会写 _lastStatementLeaderLine；
-            // 关键是结束分隔符所在行之后的 "end end" 仍然按正常规则各自定位到正确的物理行。
-            (_, IReadOnlyList<Diagnostic> diagnostics) = Lex("cmd'''line1\nline2'''\nend end");
-            Assert.Equal("PEVT1005", Assert.Single(diagnostics).Id);
         }
 
         // ---- additional boundary checks ----

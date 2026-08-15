@@ -15,7 +15,7 @@ namespace Polaris.Pevt.Syntax
         {
             ElifKeyword = elifKeyword;
             Condition = condition;
-            Body = body;
+            Body = SyntaxCollections.Freeze(body);
         }
 
         public override TextSpan Span => TextSpan.FromBounds(ElifKeyword.Span.Start, Condition.Span.End);
@@ -32,7 +32,7 @@ namespace Polaris.Pevt.Syntax
         public ElseClauseSyntax(SyntaxToken elseKeyword, IReadOnlyList<StatementSyntax> body)
         {
             ElseKeyword = elseKeyword;
-            Body = body;
+            Body = SyntaxCollections.Freeze(body);
         }
 
         public override TextSpan Span => ElseKeyword.Span;
@@ -55,8 +55,8 @@ namespace Polaris.Pevt.Syntax
         {
             IfKeyword = ifKeyword;
             Condition = condition;
-            Body = body;
-            ElifClauses = elifClauses;
+            Body = SyntaxCollections.Freeze(body);
+            ElifClauses = SyntaxCollections.Freeze(elifClauses);
             ElseClause = elseClause;
             EndIf = endIf;
         }
@@ -86,7 +86,7 @@ namespace Polaris.Pevt.Syntax
         {
             WhileKeyword = whileKeyword;
             Condition = condition;
-            Body = body;
+            Body = SyntaxCollections.Freeze(body);
             EndWhile = endWhile;
         }
 
@@ -100,7 +100,7 @@ namespace Polaris.Pevt.Syntax
     {
         public IReadOnlyList<StatementSyntax> Body { get; }
 
-        protected SwitchArmSyntax(IReadOnlyList<StatementSyntax> body) => Body = body;
+        protected SwitchArmSyntax(IReadOnlyList<StatementSyntax> body) => Body = SyntaxCollections.Freeze(body);
     }
 
     /// <summary><c>case 表达式 事件语句...</c>（6.2 节）。</summary>
@@ -144,7 +144,7 @@ namespace Polaris.Pevt.Syntax
         {
             SwitchKeyword = switchKeyword;
             Value = value;
-            Arms = arms;
+            Arms = SyntaxCollections.Freeze(arms);
             EndSwitch = endSwitch;
         }
 

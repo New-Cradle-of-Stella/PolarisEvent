@@ -15,24 +15,6 @@ namespace Polaris.Pevt.Syntax
     /// </summary>
     public sealed class Lexer
     {
-        /// <summary>
-        /// 语法上明确只能作为语句起始、绝不会作为其他语句一部分出现的关键字，用于阶段 4 的
-        /// "一行一语句" 启发式检测（PEVT1005）。刻意排除了看起来像语句起始、但语法上其实可能嵌在
-        /// 另一条语句内部的关键字：<c>await</c>（可作 primary-expression）、<c>callevt</c>（可作
-        /// handler-initializer）、<c>async</c>（永远紧跟 <c>block</c>，把它算作一个整体的起点即可）、
-        /// <c>$raw</c>（<c>$raw cs</c> 可作表达式）、<c>#</c>（也出现在 <c>goto #Label</c> 内部）。
-        /// 把这些也计入会在完全合法的代码上产生假阳性。
-        /// </summary>
-        private static readonly HashSet<SyntaxKind> StatementLeaders = new HashSet<SyntaxKind>
-        {
-            SyntaxKind.EndKeyword, SyntaxKind.IfKeyword, SyntaxKind.ElifKeyword, SyntaxKind.ElseKeyword, SyntaxKind.EndIfKeyword,
-            SyntaxKind.WhileKeyword, SyntaxKind.EndWhileKeyword,
-            SyntaxKind.SwitchKeyword, SyntaxKind.CaseKeyword, SyntaxKind.DefaultKeyword, SyntaxKind.EndSwitchKeyword,
-            SyntaxKind.GotoKeyword, SyntaxKind.VarKeyword, SyntaxKind.ConstKeyword,
-            SyntaxKind.HandlerKeyword, SyntaxKind.ReturnKeyword, SyntaxKind.EndBlockKeyword,
-            SyntaxKind.KillKeyword, SyntaxKind.ExecKeyword, SyntaxKind.BlockKeyword,
-        };
-
         private readonly SourceText _source;
         private readonly DiagnosticBag _diagnostics;
         private CancellationGate _gate;
@@ -41,7 +23,6 @@ namespace Polaris.Pevt.Syntax
         private int _parenDepth;
         private SyntaxKind _lastRealTokenKind = SyntaxKind.None;
         private int _lastRealTokenEnd;
-        private int _lastStatementLeaderLine = -1;
 
         public Lexer(SourceText source, DiagnosticBag diagnostics, CancellationToken cancellationToken = default)
         {
@@ -97,21 +78,20 @@ namespace Polaris.Pevt.Syntax
 
         /// <summary>
         /// 每个真正产出的 token（跳过 EOF）都要在这里登记：更新相邻 token 判定所需的状态
-        /// （PEVT1006 悬空运算符、PEVT8016 raw 块左侧紧贴），并对语句起始关键字做同行重复检测
-        /// （PEVT1005）。<see cref="_pending"/> 里预先算好的 token 同样要经过这里。
+        /// （PEVT1006 悬空运算符、PEVT8016 raw 块左侧紧贴）。<see cref="_pending"/> 里预先算好的
+        /// token 同样要经过这里。
+        ///
+        /// "一行一语句"（PEVT1005）不在这里检测：只凭 token 种类判断"是不是语句起始"必然是一份
+        /// 不完整的关键字清单——<c>await</c>/<c>callevt</c>/<c>async</c>/<c>#</c>/<c>$raw</c> 等
+        /// token 既可能起始一条新语句，也可能合法地出现在另一条语句内部（如
+        /// <c>handler h = callevt "X"</c>），词法器没有语法结构信息，无法区分这两种情况。真正的
+        /// "同一物理行是否出现了不止一条完整语句"由 <see cref="Parser"/> 在语句解析完成、知道每条
+        /// 语句真实边界之后判断（见 Parser.Statements.cs 的 CheckOneStatementPerLine）。
         /// </summary>
         private SyntaxToken Track(SyntaxToken token)
         {
             if (token.Kind == SyntaxKind.EndOfFileToken)
                 return token;
-
-            if (StatementLeaders.Contains(token.Kind))
-            {
-                int line = _source.GetLocation(token.Span).StartLine;
-                if (line == _lastStatementLeaderLine)
-                    ReportError("PEVT1005", token.Span);
-                _lastStatementLeaderLine = line;
-            }
 
             _lastRealTokenKind = token.Kind;
             _lastRealTokenEnd = token.Span.End;

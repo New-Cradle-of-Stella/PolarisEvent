@@ -43,8 +43,11 @@ namespace Polaris.Pevt.Syntax
             Text = text ?? throw new ArgumentNullException(nameof(text));
             Value = value;
             IsMissing = isMissing;
-            LeadingTrivia = leadingTrivia ?? NoTrivia;
-            TrailingTrivia = trailingTrivia ?? NoTrivia;
+            // G5：不能直接持有调用者的 List/array 引用——否则调用者事后清空或替换原始集合会
+            // 反过来改写这个本应不可变的 token。leadingTrivia/trailingTrivia 为 null 时才退回共享的
+            // 空数组，避免每个不带 trivia 的 token 都分配一次。
+            LeadingTrivia = leadingTrivia == null ? NoTrivia : SyntaxCollections.Freeze(leadingTrivia);
+            TrailingTrivia = trailingTrivia == null ? NoTrivia : SyntaxCollections.Freeze(trailingTrivia);
         }
 
         /// <summary>为解析器期望但源码中不存在的 <paramref name="expectedKind"/> 创建一个缺失 token 表示。</summary>
