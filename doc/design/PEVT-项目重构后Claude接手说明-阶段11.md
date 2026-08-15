@@ -18,8 +18,8 @@ Polaris 已从单体项目拆成唯一插件核心与十个普通组件 DLL：
 | --- | --- | --- |
 | `PolarisCore` | 唯一 `BepInPlugin` 入口、组件宿主和公共基础契约 | 阶段 11 不应修改，也不能让 Core 反向引用人物目录 |
 | `PolarisEvent` | PEVT 前端、未来解释运行时和内置事件内容 | 阶段 11 的全部生产代码放在这里 |
-| `tests/PolarisEvent.Tests` | PEVT 单元测试 | 阶段 11 的测试放在这里 |
-| `tests/Polaris.IntegrationTests` | Core、Diagnostics、Event 的宿主集成测试 | 阶段 11 通常只需回归运行，不增加运行时人物注册测试 |
+| `PolarisEvent/tests/PolarisEvent.Tests` | PEVT 单元测试 | 阶段 11 的测试放在这里 |
+| `PolarisEvent/tests/Polaris.IntegrationTests` | Core、Diagnostics、Event 的宿主集成测试 | 阶段 11 通常只需回归运行，不增加运行时人物注册测试 |
 | `PolarisRes` | 资源挂载、缓存和 PXLS 资源 | 阶段 11 不引用；实际资源绑定留给阶段 18、29 |
 | `PolarisTools` | 独立兄弟仓库中的 VSIX | 阶段 11 不修改，但必须验证其仍能引用 PEVT 前端 |
 
@@ -49,12 +49,12 @@ PolarisCore(netstandard2.1)
 | 旧计划中的路径 | 当前真实路径 |
 | --- | --- |
 | `Polaris/Polaris.Pevt.Core` | `Polaris/PolarisEvent` |
-| `Polaris/Polaris.Pevt.Core.Tests` | `Polaris/tests/PolarisEvent.Tests` |
-| `Polaris/Polaris.Pevt.IntegrationTests` | `Polaris/tests/Polaris.IntegrationTests` |
+| `Polaris/Polaris.Pevt.Core.Tests` | `Polaris/PolarisEvent/tests/PolarisEvent.Tests` |
+| `Polaris/Polaris.Pevt.IntegrationTests` | `Polaris/PolarisEvent/tests/Polaris.IntegrationTests` |
 | `Polaris/Event/Pevt` | `Polaris/PolarisEvent` |
 | `Polaris/Event/Pevt/Content` | `Polaris/PolarisEvent/Content` |
 | `Polaris.csproj` | `Polaris.slnx`，生产代码已拆为多个组件项目 |
-| 根目录 `PEVT-*.md` | `Polaris/doc/design/PEVT-*.md` |
+| 根目录 `PEVT-*.md` | `Polaris/PolarisEvent/doc/design/PEVT-*.md` |
 
 PolarisTools 仍位于兄弟目录 `E:/Projects/PolarisTools`，其项目引用已经改为：
 
@@ -77,8 +77,8 @@ PolarisTools 仍位于兄弟目录 `E:/Projects/PolarisTools`，其项目引用�
 
 当前验证基线：
 
-- `tests/PolarisEvent.Tests`：补正前基线 649 项通过；10A–10D 必须增加测试，因此后续不得把 649 当成固定上限或唯一验收数量；
-- `tests/Polaris.IntegrationTests`：5 项通过；
+- `PolarisEvent/tests/PolarisEvent.Tests`：补正前基线 649 项通过；10A–10D 必须增加测试，因此后续不得把 649 当成固定上限或唯一验收数量；
+- `PolarisEvent/tests/Polaris.IntegrationTests`：5 项通过；
 - `dotnet build Polaris.slnx --no-restore`：0 warning、0 error；
 - PolarisTools：0 error，但当前已有大量 nullable、线程分析器和 VSIX 重复项 warning。阶段 11 以“不增加新的 PEVT/Actor warning”为要求，不要顺手清理工具项目历史 warning。
 
@@ -229,15 +229,15 @@ tests/PolarisEvent.Tests/
 - 行数统计必须以阶段开始时的快照为基准，不能把项目搬迁算入阶段 11；
 - `E:/Projects/Polaris - 副本` 只是备份，不是实现目标，禁止在那里写代码或把旧项目结构复制回来。
 
-`tests/PolarisEvent.Tests/Debug` 等迁移遗留输出也不是阶段 11 内容，不要把其中二进制文件加入提交。
+`PolarisEvent/tests/PolarisEvent.Tests/Debug` 等迁移遗留输出也不是阶段 11 内容，不要把其中二进制文件加入提交。
 
 ## 10. 阶段 10A–10D 与阶段 11 验证命令
 
 在 `E:/Projects/Polaris` 运行：
 
 ```powershell
-dotnet test tests/PolarisEvent.Tests/PolarisEvent.Tests.csproj --no-restore
-dotnet test tests/Polaris.IntegrationTests/Polaris.IntegrationTests.csproj --no-restore
+dotnet test PolarisEvent/tests/PolarisEvent.Tests/PolarisEvent.Tests.csproj --no-restore
+dotnet test PolarisEvent/tests/Polaris.IntegrationTests/Polaris.IntegrationTests.csproj --no-restore
 dotnet build PolarisEvent/PolarisEvent.csproj -f netstandard2.0 --no-restore
 dotnet build PolarisEvent/PolarisEvent.csproj -f netstandard2.1 --no-restore
 dotnet build Polaris.slnx --no-restore
@@ -277,7 +277,7 @@ rg -n -g "!*.md" "commandText|\.phxx|Polaris\.Event\.Compiler|HppCompiler|Events
 `CodexDynamicProbe.Mcp` 1.0.0 已完成新结构迁移，MCP 配置指向 Release 二进制和当前 `doc/design` 计划路径。内置验证现在执行：
 
 - `Polaris.slnx`、PolarisEvent netstandard2.0/netstandard2.1、PolarisTools 构建；
-- `tests/PolarisEvent.Tests` 与 `tests/Polaris.IntegrationTests`；
+- `PolarisEvent/tests/PolarisEvent.Tests` 与 `PolarisEvent/tests/Polaris.IntegrationTests`；
 - 阶段合同、证据矩阵、诊断三联覆盖、公开产物形状、测试防弱化、延期说明、旧链和前端程序集依赖；
 - G10 新会话独立反证复核；无 Claude CLI 时使用 nonce/source/evidence 哈希绑定的外部复核提交。
 

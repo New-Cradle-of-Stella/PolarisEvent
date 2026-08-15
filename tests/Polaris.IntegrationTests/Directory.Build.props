@@ -1,0 +1,9 @@
+<Project>
+
+  <!--
+    This project itself needs no game directory check. Its ProjectReference to PolarisCore.csproj
+    still enforces the check on the runtime host's own build, because Directory.Build.props
+    resolution is based on each project file's own directory, not the referencing project's.
+  -->
+
+</Project>
