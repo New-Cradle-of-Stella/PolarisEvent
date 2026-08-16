@@ -261,6 +261,8 @@ namespace Polaris.Pevt.Binding
             {
                 if (arm is CaseArmSyntax caseArm)
                 {
+                    ReportSideEffectingCaseExpression(caseArm.Value);
+
                     PevtType caseType = BindExpression(caseArm.Value, env);
                     if (valueType.IsOrdinaryType() && caseType.IsOrdinaryType() && caseType != valueType)
                         Report("PEVT5009", caseArm.Value.Span);
@@ -275,6 +277,44 @@ namespace Polaris.Pevt.Binding
 
             if (branchStates.Count > 0)
                 env.Restore(BoundEnvironment.Merge(branchStates, sawDefault, preState));
+        }
+
+        /// <summary>
+        /// PEVT2415：<c>case</c> 表达式不允许包含 <c>@</c>、<c>_</c>、<c>$raw cs</c>、<c>await</c>、
+        /// <c>status</c>、<c>callevt</c> 或 <c>exec</c>。
+        ///
+        /// 原因是 switch 的派发链会按顺序逐个比较 case 值，而 <c>goto 表达式</c> 还会让这条链再跑一遍；
+        /// 只要 case 表达式带副作用，同一段源码执行几次就取决于匹配到第几个分支，行为无法预测。
+        /// 整棵子表达式树都要查——副作用藏在括号或运算符右边一样不行。
+        /// </summary>
+        private void ReportSideEffectingCaseExpression(ExpressionSyntax expression)
+        {
+            switch (expression)
+            {
+                case BuiltinCallExpressionSyntax _:
+                case CustomBlockCallExpressionSyntax _:
+                case RawCsExpressionSyntax _:
+                case AggregateAwaitExpressionSyntax _:
+                case StatusExpressionSyntax _:
+                case EventCallExpressionSyntax _:
+                case ExecCallExpressionSyntax _:
+                    Report("PEVT2415", expression.Span);
+                    return;
+
+                case ParenthesizedExpressionSyntax parenthesized:
+                    ReportSideEffectingCaseExpression(parenthesized.Inner);
+                    return;
+
+                case UnaryExpressionSyntax unary:
+                    ReportSideEffectingCaseExpression(unary.Operand);
+                    return;
+
+                case ChainedBinaryExpressionSyntax chain:
+                    ReportSideEffectingCaseExpression(chain.First);
+                    foreach (BinaryChainSegment segment in chain.Segments)
+                        ReportSideEffectingCaseExpression(segment.Operand);
+                    return;
+            }
         }
 
         private void BindBranch(IReadOnlyList<StatementSyntax> body, BoundEnvironment env, Dictionary<string, bool> preState, List<Dictionary<string, bool>> branchStates)
