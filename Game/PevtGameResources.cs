@@ -345,14 +345,27 @@ namespace Polaris.Event.Game
             _eventLeases.Clear();
             _portraits.Clear();
 
-            PevtGameHost.Guard("ReleaseAudioSheets", () =>
-            {
-                foreach (string sheet in _loadedSheets)
-                    SND.unloadSheets(sheet, BgmLoadKey);
-            });
+            ReleaseAudioSheets();
+            return count;
+        }
+
+        /// <summary>
+        /// 卸载本事件加载过的事件专用 BGM sheet。<c>@music_stop</c> 与事件收尾都会走到，
+        /// 因此必须幂等——清单清空后再调是空操作。
+        /// </summary>
+        public void ReleaseAudioSheets()
+        {
+            if (_loadedSheets.Count == 0)
+                return;
+
+            var sheets = new List<string>(_loadedSheets);
             _loadedSheets.Clear();
 
-            return count;
+            PevtGameHost.Guard("ReleaseAudioSheets", () =>
+            {
+                foreach (string sheet in sheets)
+                    SND.unloadSheets(sheet, BgmLoadKey);
+            });
         }
 
         // ---- 原版音频细节 ----

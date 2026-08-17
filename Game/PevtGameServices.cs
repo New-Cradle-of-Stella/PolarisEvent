@@ -47,7 +47,7 @@ namespace Polaris.Event.Game
 
             Resources = new PevtGameResources(actors);
             Dialogue = new PevtGameDialogue(actors, eventId);
-            Portrait = new PevtGamePortrait(actors, Resources, clock);
+            Portrait = new PevtGamePortrait(actors, clock);
             Image = new PevtGameImage(clock);
             Screen = new PevtGameScreen(clock);
             Camera = new PevtGameCamera(clock);

@@ -194,6 +194,11 @@ namespace Polaris.Event.Game
 
                 drawer.rewriteKeyAndLayer(key);
                 _layers[id] = key;
+
+                // 容器只在 need_sort 置位的那一帧重排图层；不置位的话改完键名层序也不会立刻生效。
+                EvDrawerContainer drawers = PevtGameHost.Drawers;
+                if (drawers != null)
+                    drawers.need_sort = true;
             });
 
         public void Fill(string layerId, string color) =>

@@ -44,7 +44,6 @@ namespace Polaris.Event.Game
             };
 
         private readonly PevtActorRegistry _actors;
-        private readonly PevtGameResources _resources;
         private readonly PevtGameClock _clock;
 
         /// <summary>本事件建出来的立绘，事件结束时逐个退场。</summary>
@@ -52,11 +51,9 @@ namespace Polaris.Event.Game
 
         public PevtGamePortrait(
             PevtActorRegistry actors,
-            PevtGameResources resources,
             PevtGameClock clock)
         {
             _actors = actors ?? throw new ArgumentNullException(nameof(actors));
-            _resources = resources ?? throw new ArgumentNullException(nameof(resources));
             _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         }
 

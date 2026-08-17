@@ -470,6 +470,78 @@ namespace Polaris.Pevt.Binding
             return handler.AsyncReturnType.Value;
         }
 
+        /// <summary>
+        /// 15.6 节的集合等待。<c>await all/any</c> 的表达式类型固定是 <c>int</c>（成功数量或首个成功
+        /// 序号），真正需要绑定器做的是那份结果绑定列表：里面的名字是**新声明的普通变量**，
+        /// 不先在这里登记，后面用到它们就会被误报成 PEVT6001——合法源码被判错。
+        ///
+        /// 声明成"已初始化"是刻意的：静态上无法知道哪个句柄会失败，而"失败句柄对应的变量保持未
+        /// 初始化"是运行期事实，由 PEVTR3002 在真的读到它时报出来（运行诊断表 9 节）。
+        /// </summary>
+        private PevtType BindAggregateAwait(AggregateAwaitExpressionSyntax node, BoundEnvironment env)
+        {
+            IReadOnlyList<SyntaxToken> handles = node.Handles.Identifiers;
+            IReadOnlyList<SyntaxToken> bindings = node.Bindings?.Identifiers ?? new SyntaxToken[0];
+
+            // 逐个解析句柄，并记住它们各自的异步返回类型——结果绑定的类型来自这里。
+            var handlerTypes = new List<PevtType?>(handles.Count);
+            var seenHandles = new HashSet<string>(System.StringComparer.Ordinal);
+
+            foreach (SyntaxToken handle in handles)
+            {
+                if (handle.IsMissing)
+                {
+                    handlerTypes.Add(null);
+                    continue;
+                }
+
+                if (!env.TryGetSymbol(handle.Text, out Symbol symbol) || !(symbol is HandlerSymbol handler))
+                {
+                    Report("PEVT7218", handle.Span);
+                    handlerTypes.Add(null);
+                    continue;
+                }
+
+                if (!seenHandles.Add(handle.Text))
+                    Report("PEVT7219", handle.Span);
+
+                handlerTypes.Add(handler.AsyncReturnType);
+            }
+
+            if (bindings.Count == 0)
+                return PevtType.Int;
+
+            if (bindings.Count != handles.Count)
+                Report("PEVT7221", node.Bindings.Span);
+
+            var seenBindings = new HashSet<string>(System.StringComparer.Ordinal);
+            for (int i = 0; i < bindings.Count; i++)
+            {
+                SyntaxToken binding = bindings[i];
+                if (binding.IsMissing)
+                    continue;
+
+                // 同一列表内重复，或与当前环境里已有的名字撞车，都是 PEVT7223。
+                if (!seenBindings.Add(binding.Text) || env.IsDeclaredEver(binding.Text))
+                {
+                    Report("PEVT7223", binding.Span);
+                    continue;
+                }
+
+                PevtType? handlerType = i < handlerTypes.Count ? handlerTypes[i] : null;
+                if (!handlerType.HasValue)
+                {
+                    // 对应句柄没有普通返回值（或根本没解析出来）时不能绑定结果。
+                    Report("PEVT7224", binding.Span);
+                    continue;
+                }
+
+                Declare(env, new VariableSymbol(binding.Text, handlerType.Value), initialized: true);
+            }
+
+            return PevtType.Int;
+        }
+
         // ---- expressions ----
 
         /// <summary><paramref name="isStatementContext"/>：这个表达式的值是否会被整条语句丢弃——
@@ -492,6 +564,7 @@ namespace Polaris.Pevt.Binding
                 case RawCsExpressionSyntax rawCs: BindRawCs(rawCs, env); return PevtType.Error;
                 case AwaitExpressionSyntax awaitExpr: return BindAwait(awaitExpr, env, isStatementContext);
                 case StatusExpressionSyntax statusExpr: BindHandleOperand(statusExpr.Handle, env, "PEVT7214"); return PevtType.Int;
+                case AggregateAwaitExpressionSyntax aggregate: return BindAggregateAwait(aggregate, env);
 
                 default: return PevtType.Error; // MissingExpressionSyntax、callevt、await all/any：见类顶部范围说明。
             }

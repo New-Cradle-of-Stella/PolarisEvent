@@ -22,16 +22,27 @@ namespace Polaris.Event.Game
         }
 
         /// <summary>
-        /// 音量与音高。原版 cue 的音量由 CRI 的类别音量统一决定，单条音效没有公开的
-        /// 逐次覆写入口，因此这两个参数只在音量为 0 时被尊重（等于不播放），
-        /// 其余情况按 cue 自身的设定播放。
+        /// 音量为 0 直接不播；其余情况把 volume/pitch 覆写到这一次播放的 CRI 播放器上。
+        /// 覆写只影响本次播放实例，不动全局类别音量。
         /// </summary>
         public void PlaySound(string soundId, float volume, float pitch)
         {
             if (volume <= 0f)
                 return;
 
-            PevtGameHost.Guard("PlaySound", () => PolarisAPI.Game.Audio.Play(soundId, false));
+            PevtGameHost.Guard("PlaySound", () => Apply(PolarisAPI.Game.Audio.Play(soundId, false), volume, pitch));
+        }
+
+        /// <summary>1 是"按 cue 自己的设定"，因此只有偏离 1 时才下发覆写。</summary>
+        private static void Apply(GameAudioPlayback playback, float volume, float pitch)
+        {
+            if (playback == null)
+                return;
+
+            if (volume != 1f)
+                playback.SetVolume(volume);
+            if (pitch != 1f)
+                playback.SetPitch(pitch);
         }
 
         /// <summary>
@@ -43,7 +54,7 @@ namespace Polaris.Event.Game
             if (volume <= 0f)
                 return;
 
-            PevtGameHost.Guard("PlayVoice", () => PolarisAPI.Game.Audio.Play(voiceId, false));
+            PevtGameHost.Guard("PlayVoice", () => Apply(PolarisAPI.Game.Audio.Play(voiceId, false), volume, 1f));
         }
 
         public PevtWait PlayAmbience(string trackId, float volume, int fadeFrames)
@@ -52,6 +63,7 @@ namespace Polaris.Event.Game
             {
                 StopAmbienceNow();
                 _ambience = PolarisAPI.Game.Audio.Play(trackId, true);
+                Apply(_ambience, volume, 1f);
             });
 
             return TrackFrames(fadeFrames);
@@ -124,9 +136,19 @@ namespace Polaris.Event.Game
             return TrackFrames(fadeFrames);
         }
 
-        /// <summary>卸载本事件加载过的 BGM sheet；资源服务持有这份清单。</summary>
+        /// <summary>
+        /// 卸载本事件加载过的 BGM sheet。
+        ///
+        /// 不能只调 <see cref="BGM.flushEventLoadedTiming"/>：它卸的是 <c>BGM.Aevt_loaded_timing</c>，
+        /// 而那份清单只有原版 <c>LOAD_SND_TIMING</c> 命令会填。PEVT 自己加载的 sheet 记在资源服务里，
+        /// 所以两边都要走一遍，否则 <c>@music_stop</c> 到事件结束前都不会真正释放。
+        /// </summary>
         public void ReleaseCurrent() =>
-            PevtGameHost.Guard("MusicRelease", BGM.flushEventLoadedTiming);
+            PevtGameHost.Guard("MusicRelease", () =>
+            {
+                _resources.ReleaseAudioSheets();
+                BGM.flushEventLoadedTiming();
+            });
 
         public PevtWait Pause(int fadeFrames)
         {
