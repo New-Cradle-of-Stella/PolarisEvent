@@ -51,6 +51,9 @@ namespace Polaris.Event.Game
         /// <summary>当前根事件；没有事件在跑时为 null。</summary>
         public PevtEventInstance Current => Host.Root;
 
+        /// <summary>宿主自己的帧号，与 PEVT 的等待同一单位。供只读诊断查询。</summary>
+        public long Frame => _clock.Frame;
+
         /// <summary>本次事件会话还没释放的原版资源租约数；没有事件在跑时为 0。供只读诊断查询。</summary>
         public int OutstandingLeaseCount => _session?.Resources.OutstandingLeaseCount ?? 0;
 

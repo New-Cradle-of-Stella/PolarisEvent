@@ -4,6 +4,12 @@
     <AssemblyName>PolarisEvent</AssemblyName>
     <RootNamespace>Polaris.Event</RootNamespace>
     <LangVersion>latest</LangVersion>
+    <!--
+      Roslyn 是 NuGet 依赖而非项目引用，类库默认不会把它拷进输出目录，deploy-polaris.ps1
+      只从输出目录取 *.dll，于是 libs\ 里缺 Microsoft.CodeAnalysis*.dll：
+      PevtRoslynRawCsCompiler 的字段类型解析不出来，组件发现整轮抛 TypeLoadException。
+    -->
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   </PropertyGroup>
 
   <!--

@@ -55,6 +55,11 @@
       <HintPath>$(AicManagedDir)\Newtonsoft.Json.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <!-- 调试页热键走原版 IN.getKD(Key)，它的形参类型来自新输入系统，所以要显式引用。 -->
+    <Reference Include="Unity.InputSystem">
+      <HintPath>$(AicManagedDir)\Unity.InputSystem.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
   </ItemGroup>
 
 </Project>

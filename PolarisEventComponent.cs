@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using Polaris.Components;
 using Polaris.Event.Game;
+using Polaris.Event.Game.Debugging;
 using Polaris.Pevt.Registration;
 using Polaris.Pevt.Runtime;
 
@@ -23,6 +24,9 @@ namespace Polaris.Event
         /// </summary>
         public override void Awake()
         {
+            // 设置项文案必须早于 Start 阶段的设置项扫描注册，绑定配置时要用说明文字查表。
+            PevtDebugStrings.Register();
+
             _runtime = new PevtGameRuntime();
             _runtime.Scan(AppDomain.CurrentDomain.GetAssemblies());
 
@@ -31,11 +35,19 @@ namespace Polaris.Event
                 PolarisAPI.Errors.Report(new InvalidOperationException(report.DescribeFatalConflicts()), "PolarisEvent.Registration");
         }
 
-        /// <summary>每帧唯一的更新点，按固定顺序推进调度器。</summary>
-        public override void Update() => _runtime?.Update();
+        /// <summary>
+        /// 每帧唯一的更新点，按固定顺序推进调度器。
+        /// 调试页排在调度器之后：这一帧刚推进出来的状态就是它要显示的那一份。
+        /// </summary>
+        public override void Update()
+        {
+            _runtime?.Update();
+            PevtDebugPage.Update();
+        }
 
         public override void Shutdown()
         {
+            PevtDebugPage.Shutdown();
             _runtime?.Shutdown();
             _runtime = null;
         }
