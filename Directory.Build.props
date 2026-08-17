@@ -4,20 +4,32 @@
     这里刻意不 Import 上一级的 ..\Directory.Build.props：那份文件对所有项目无条件要求游戏程序集
     目录存在，而 PolarisEvent 的 netstandard2.0 前端必须能在没装游戏的机器上（PolarisTools 的
     构建环境）编译。所以在本仓库自己解析游戏目录，并且只在游戏侧目标上校验它。
+
+    游戏程序集的位置。唯一来源是 aic_path.txt：单行纯文本，内容就是游戏根目录
+    （含 AliceInCradle_Data 的那一层）。前后空白和成对的引号会被去掉，别的什么都不解析，
+    所以不要往里写注释行。
+
+    不再读环境变量 AIC_GAME_DIR，也不再有硬编码的默认路径，也不再看
+    Directory.Build.props.user——换机器只改 aic_path.txt 这一个文件。
+
+    GetPathOfFileAbove 从本文件所在目录逐级往上找 aic_path.txt：放在仓库根目录就覆盖
+    全部子模块；子模块被单独 clone 出去时，放在子模块自己的目录里同样能找到。
+    临时想用另一份游戏安装编译，命令行 -p:AicGameDir=... 依然优先。
   -->
 
-  <Import Project="Directory.Build.props.user" Condition="Exists('Directory.Build.props.user')" />
-
   <PropertyGroup>
-    <AicGameDir Condition="'$(AicGameDir)' == '' And '$(AIC_GAME_DIR)' != ''">$(AIC_GAME_DIR)</AicGameDir>
-    <AicGameDir Condition="'$(AicGameDir)' == ''">D:\AliceInCradle Win ver029\AliceInCradle_ver029</AicGameDir>
-    <AicManagedDir>$(AicGameDir)\AliceInCradle_Data\Managed</AicManagedDir>
+    <AicPathFile Condition="'$(AicPathFile)' == ''">$([MSBuild]::GetPathOfFileAbove('aic_path.txt'))</AicPathFile>
+    <AicGameDirRaw Condition="'$(AicGameDir)' == '' And '$(AicPathFile)' != ''">$([System.IO.File]::ReadAllText($(AicPathFile)))</AicGameDirRaw>
+    <AicGameDir Condition="'$(AicGameDir)' == '' And '$(AicGameDirRaw)' != ''">$(AicGameDirRaw.Trim().Trim('"'))</AicGameDir>
+    <AicManagedDir Condition="'$(AicGameDir)' != ''">$(AicGameDir)\AliceInCradle_Data\Managed</AicManagedDir>
   </PropertyGroup>
 
   <Target Name="CheckAicGameDir" BeforeTargets="ResolveAssemblyReferences"
           Condition="'$(TargetFramework)' == 'netstandard2.1'">
+    <Error Condition="'$(AicGameDir)' == ''"
+           Text="aic_path.txt not found (searched upwards from $(MSBuildThisFileDirectory)).&#xA;Create aic_path.txt in the repository root. It must hold a single line: the AliceInCradle install directory, i.e. the one that contains AliceInCradle_Data." />
     <Error Condition="!Exists('$(AicManagedDir)')"
-           Text="找不到游戏程序集目录：$(AicManagedDir)&#xA;请设置环境变量 AIC_GAME_DIR 指向游戏根目录（含 AliceInCradle_Data 的那一层），或在 PolarisEvent 下新建 Directory.Build.props.user 覆盖 AicGameDir。" />
+           Text="Game assembly directory not found: $(AicManagedDir)&#xA;Fix the path in $(AicPathFile) -- it must point at the AliceInCradle install directory, i.e. the one that contains AliceInCradle_Data." />
   </Target>
 
 </Project>
