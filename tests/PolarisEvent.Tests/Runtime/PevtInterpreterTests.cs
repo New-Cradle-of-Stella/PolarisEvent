@@ -74,8 +74,7 @@ namespace Polaris.Pevt.Core.Tests.Runtime
         public void UninitializedRead_IsAlreadyBlockedStatically()
         {
             // PEVT6003 在加载期就挡住了"确定未赋值就读取"，所以本阶段的源码走不到 PEVTR3002。
-            // 解释器仍然保留这道运行期防线（见下一个测试），因为功能阶段 E 的异步异常、
-            // 集合等待失败和 exec 会真正把未初始化的值送到读取点。
+            // 解释器仍然保留这道运行期防线，因为功能阶段 E 的异步异常、集合等待失败和 exec 会真正把未初始化的值送到读取点。
             PevtTestHost host = Host();
             var exception = Assert.Throws<System.InvalidOperationException>(
                 () => host.Start("id \"T\"\nvar a : int\nvar b : int = a\nend\n"));
@@ -629,15 +628,19 @@ end
         // ---- 本阶段范围 ----
 
         [Theory]
-        // 异步、handler 与 callevt 从功能阶段 E 起可以编译；这里只剩功能阶段 F 的两个原始桥。
-        [InlineData("id \"T\"\nenable cs\n$raw cs'''return 1;'''\nend\n", "$raw cs")]
-        [InlineData("id \"T\"\n$raw cmd'''MSG a'''\nend\n", "$raw cmd")]
-        public void ConstructsDeferredToLaterStagesAreRejectedAtCompileTime(string source, string expectedFragment)
+        // 功能阶段 F 之后，语言里再没有"编译得出来但运行时跑不了"的构造，两个原始桥是最后两个。
+        // 这道断言反过来盯住它：任何新加的语法必须同时给出执行路径。
+        [InlineData("id \"T\"\nenable cs\n$raw cs'''return 1;'''\nend\n")]
+        [InlineData("id \"T\"\n$raw cmd'''MSG a'''\nend\n")]
+        [InlineData("id \"T\"\nenable async\nhandler h = @actor_move_start(\"x\", \"left\", 1)\nawait h\nend\n")]
+        [InlineData("id \"T\"\ncallevt \"Other\"\nend\n")]
+        [InlineData("id \"T\"\nexec(\"@wait(1)\")\nend\n")]
+        public void EveryLanguageConstructHasARuntimePathAfterStageF(string source)
         {
             PevtCompileResult result = Host().TryCompile(source);
 
-            Assert.False(result.Success);
-            Assert.Contains(result.UnsupportedFeatures, feature => feature.Contains(expectedFragment));
+            Assert.True(result.Success, string.Join("; ", result.UnsupportedFeatures));
+            Assert.Empty(result.UnsupportedFeatures);
         }
 
         private static IEnumerator<PevtWait> Empty()

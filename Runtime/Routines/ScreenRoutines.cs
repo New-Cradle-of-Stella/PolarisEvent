@@ -4,9 +4,6 @@ namespace Polaris.Pevt.Runtime.Routines
 {
     /// <summary>
     /// 画面、镜头与后处理组合，对应同步指令中间层规范第 8 节。
-    ///
-    /// 遮罩层与镜头快照都是事件临时占用：遮罩在透明度归零时释放，镜头在事件结束时由会话恢复。
-    /// 这样事件被取消或异常终止时也不会把黑屏和偏移的镜头留给玩家。
     /// </summary>
     internal static class ScreenRoutines
     {

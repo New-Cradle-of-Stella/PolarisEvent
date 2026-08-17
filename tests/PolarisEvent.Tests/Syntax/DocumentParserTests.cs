@@ -232,9 +232,8 @@ namespace Polaris.Pevt.Core.Tests.Syntax
         [Fact]
         public void ReservedKeywordAsVariableName_ConsumesCandidate_DoesNotReparseAsFakeIfStatement()
         {
-            // 10A-R04："if" 必须被消费掉并同步到物理行结束（连带 ": int"），不能原样留在流里被外层
-            // 循环重新当成一个真正的 if 语句起始——只应该有 PEVT6013 这一条主诊断，且第二条语句
-            // 必须仍然是 EndStatementSyntax，不能是一个虚假的 IfStatementSyntax。
+            // "if" 必须被消费掉并同步到物理行结束（连带 ": int"），不能原样留在流里被外层循环重新当成一个真正的 if 语句起始。
+            // 只应该有 PEVT6013 这一条主诊断，且第二条语句必须仍然是 EndStatementSyntax。
             (DocumentSyntax document, IReadOnlyList<Diagnostic> diagnostics) = ParseDoc("id \"A\"\nvar if : int\nend");
             Assert.Equal("PEVT6013", Assert.Single(diagnostics).Id);
             Assert.Equal(2, document.Statements.Count);
@@ -558,18 +557,14 @@ namespace Polaris.Pevt.Core.Tests.Syntax
         }
 
         // ---- one-statement-per-line (PEVT1005) ----
-        //
-        // 阶段 10A 补正：不再依赖词法阶段一份只登记部分关键字的 StatementLeaders 清单（那份清单
-        // 天然无法覆盖全部语句起始形态），改由 Parser 在语句解析完成、知道每条语句真实边界之后判断
-        // "上一条语句结束的物理行"和"下一条语句起始 token 所在的物理行"是否相同。
+        // 判断由 Parser 在语句解析完成、知道每条语句真实边界之后做：比较上一条语句结束的物理行与下一条语句起始 token 所在的行，
+        // 不再依赖词法阶段那份只登记部分关键字的 StatementLeaders 清单。
 
         [Fact]
         public void OneStatementPerLine_ThreeDeclarationsOnOneLine_ReportsOneDiagnosticPerRepeat()
         {
-            // 第一条声明立起这一行的基准；第二、第三条各自和"上一条语句结束的行"比较，各报一次——
-            // 报告次数和"多出来的语句数"对应，而不是恒定报一次。
-            // （不用连续 "end end end"：end 自身的"多余参数"恢复会把同行的下一个 end 当成参数吞掉，
-            // 测的是另一条规则，不是这里要覆盖的"两条独立语句"场景。）
+            // 第一条声明立起这一行的基准，第二、第三条各自和上一条语句结束的行比较，各报一次——报告次数与多出来的语句数对应。
+            // 不用连续 "end end end"：end 自身的"多余参数"恢复会把同行的下一个 end 当成参数吞掉，那测的是另一条规则。
             (_, IReadOnlyList<Diagnostic> diagnostics) = ParseDoc("id \"A\"\nvar a : int var b : int var c : int\nend");
             Assert.Equal(2, diagnostics.Count(d => d.Id == "PEVT1005"));
         }
@@ -607,9 +602,8 @@ namespace Polaris.Pevt.Core.Tests.Syntax
         [Fact]
         public void OneStatementPerLine_LeaderAfterMultilineRawBlock_UsesRawBlockClosingLine()
         {
-            // raw 内容自己的换行不影响判断；关键是结束分隔符所在行之后的另一条语句仍然按正常规则
-            // 定位到"结束分隔符所在的物理行"，不是 raw 内容内部的某一行。结束分隔符所在行本身还会
-            // 独立触发 PEVT8005（该行分隔符之后还有多余内容）——两条诊断根因不同，都应该出现。
+            // raw 内容自己的换行不影响判断，关键是后面那条语句仍然定位到结束分隔符所在的物理行，而不是 raw 内容内部的某一行。
+            // 结束分隔符所在行还会独立触发 PEVT8005，两条诊断根因不同，都应该出现。
             (_, IReadOnlyList<Diagnostic> diagnostics) = ParseDoc("id \"A\"\n$raw cmd'''line1\nline2''' var x : int\nend");
             Assert.Contains(diagnostics, d => d.Id == "PEVT1005");
             Assert.Contains(diagnostics, d => d.Id == "PEVT8005");
@@ -636,9 +630,8 @@ namespace Polaris.Pevt.Core.Tests.Syntax
         [InlineData("id \"A\"\nvar x : bool = await a\nend")]
         public void OneStatementPerLine_KnownAmbiguousPairs_DoNotFalsePositive(string source)
         {
-            // async+block、goto+#、handler+callevt、var 初始化器里的 await 都会让两个
-            // "看起来像语句起始"的 token 落在同一行——但按完整语句边界判断时，它们从来都只是
-            // *一条* 语句内部的形状（只有一次 ParseStatement 调用），不会触发 PEVT1005。
+            // async+block、goto+#、handler+callevt、var 初始化器里的 await 都会让两个"看起来像语句起始"的 token 落在同一行。
+            // 但按完整语句边界判断时，它们只是一条语句内部的形状（只有一次 ParseStatement 调用），不会触发 PEVT1005。
             (_, IReadOnlyList<Diagnostic> diagnostics) = ParseDoc(source);
             Assert.DoesNotContain(diagnostics, d => d.Id == "PEVT1005");
         }
@@ -753,9 +746,8 @@ namespace Polaris.Pevt.Core.Tests.Syntax
         [Fact]
         public void MultipleIndependentNewDiagnostics_OnSeparateLines_AreAllReportedInOnePass()
         {
-            // 阶段 10A 补正新增的几类诊断分别放在互不相关的物理行：事件 ID 非法字符、
-            // 空 if 条件、goto 裸表达式在 switch 外、保留字用作变量名——精确诊断不应该让恢复
-            // 提前停止，四处根因都必须在同一次解析里各自单独报出来。
+            // 四类诊断分别放在互不相关的物理行：事件 ID 非法字符、空 if 条件、goto 裸表达式在 switch 外、保留字用作变量名。
+            // 精确诊断不应该让恢复提前停止，四处根因都必须在同一次解析里各自单独报出来。
             const string source = "id \"a!\"\nif\nendif\ngoto 1\nvar if : int\nend";
             (_, IReadOnlyList<Diagnostic> diagnostics) = ParseDoc(source);
             Assert.Contains(diagnostics, d => d.Id == "PEVT1111");

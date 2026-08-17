@@ -12,11 +12,6 @@ namespace Polaris.Pevt.Registration
 {
     /// <summary>
     /// 逐个扫描生成注册器，把嵌入事件与人物目录登记进两张分离的注册表。
-    ///
-    /// 扫描器是唯一固定来源的地方：注册上下文由它创建，注册器拿不到修改 owner 的入口，
-    /// 因此生成类无法伪造来源程序集。
-    ///
-    /// 游戏侧对每个嵌入包重新执行完整解压、校验和静态分析，不信任工具侧结果。
     /// </summary>
     public sealed class PevtRegistryScanner
     {
@@ -32,11 +27,21 @@ namespace Polaris.Pevt.Registration
         /// 绑定用的 API 表。默认使用权威 <see cref="CommandDescriptorCatalog.Builtin"/> 的投影，
         /// 不另建第二份注册表。
         /// </param>
-        public PevtRegistryScanner(PevtEmbeddedSourceLimits limits = null, BuiltinApiTable builtinApi = null)
+        /// <param name="rawCsAnalyzer">
+        /// <c>$raw cs</c> 的 C# 分析器；宿主接上它，嵌入源里的 C# 内容才会在扫描期一并重校
+        /// （PEVT8007–8010）。为 null 时那四个编号不产生，其余静态门不受影响。
+        /// </param>
+        public PevtRegistryScanner(
+            PevtEmbeddedSourceLimits limits = null,
+            BuiltinApiTable builtinApi = null,
+            Runtime.Raw.IPevtRawCsAnalyzer rawCsAnalyzer = null)
         {
             _limits = limits ?? PevtEmbeddedSourceLimits.Default;
             _builtinApi = builtinApi ?? CommandDescriptorCatalog.Builtin.ToBuiltinApiTable();
+            _rawCsAnalyzer = rawCsAnalyzer;
         }
+
+        private readonly Runtime.Raw.IPevtRawCsAnalyzer _rawCsAnalyzer;
 
         /// <summary>已扫描过的 owner，按扫描顺序。</summary>
         public IReadOnlyCollection<string> ScannedOwners => _scannedOwners;
@@ -118,7 +123,8 @@ namespace Polaris.Pevt.Registration
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                PevtEmbeddedLoadResult result = PevtEmbeddedSourceLoader.Load(source, _limits, _builtinApi, cancellationToken);
+                PevtEmbeddedLoadResult result = PevtEmbeddedSourceLoader.Load(
+                    source, _limits, _builtinApi, cancellationToken, _rawCsAnalyzer);
                 if (!result.Success)
                 {
                     Events.AddFailure(context.Owner, result);

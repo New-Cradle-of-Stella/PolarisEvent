@@ -11,7 +11,7 @@ namespace Polaris.Pevt.Binding
         public PevtType Type { get; }
 
         /// <summary>
-        /// 形参的取值语义（人物 ID、appearance、anchor 等）。null 表示没有额外约束。
+        /// 形参的取值语义（人物 ID、appearance、anchor 等），null 表示没有额外约束。
         /// 参数域只影响补全与提示，不参与重载选择——重载仍然只按参数数量和普通类型区分。
         /// </summary>
         public ParameterDomain Domain { get; }
@@ -29,8 +29,7 @@ namespace Polaris.Pevt.Binding
 
     /// <summary>
     /// 11.2 节的一条 <c>@</c> API 签名：宿主侧注册契约，不是 <c>.pevt</c> 源文件里的自举定义语法。
-    /// 本阶段只搭建"绑定器如何按名称和参数签名匹配调用"的机制本身；把游戏侧真实处理器登记进一张
-    /// 全局表是阶段 13"@ API 描述目录"的工作，那时会有真正的 CommandDescriptor 数据喂给这里。
+    /// 这里只提供"按名称和参数签名匹配调用"的机制本身，真实处理器数据由 CommandDescriptor 目录喂进来。
     /// </summary>
     public sealed class BuiltinSignature
     {

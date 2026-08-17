@@ -62,12 +62,9 @@ namespace Polaris.Pevt.Loading
     }
 
     /// <summary>
-    /// 嵌入包加载器，实现 PEVT-嵌入注册与ID冲突规范.md 第 5 节的固定顺序：
-    /// 格式版本 → 压缩算法 → 载荷上限 → Base64 解码 → 受限 GZip 解压 → 长度 → SHA-256 →
-    /// 严格 UTF-8 → 完整静态校验 → <c>id</c> 与 <c>DeclaredId</c> 一致性。
-    ///
-    /// 任一步失败即停止并返回具体诊断：包已经损坏时，继续跑后面的检查只会产生误导性的连锁报告。
-    /// 语法错误不因构建时已经校验过而略过——第 5 步始终重新执行共享语言核心。
+    /// 嵌入包加载器，按规范第 5 节的固定顺序执行：格式版本 → 压缩算法 → 载荷上限 → Base64 解码 →
+    /// 受限 GZip 解压 → 长度 → SHA-256 → 严格 UTF-8 → 完整静态校验 → <c>id</c> 与 <c>DeclaredId</c> 一致性。
+    /// 任一步失败即停止并返回具体诊断；静态校验始终重新执行共享语言核心，不因构建时校验过而略过。
     /// </summary>
     public static class PevtEmbeddedSourceLoader
     {
@@ -82,11 +79,16 @@ namespace Polaris.Pevt.Loading
         private const string DeclaredIdMismatch = "PEVT9209";
         private const string InvalidSourcePath = "PEVT9210";
 
+        /// <param name="rawCsAnalyzer">
+        /// <c>$raw cs</c> 的 C# 分析器。游戏侧接上它，嵌入源里的 <c>$raw cs</c> 才会在加载期
+        /// 重做 PEVT8007–8010——"游戏侧必须对嵌入源重新做完整静态校验"包括这一段 C#。
+        /// </param>
         public static PevtEmbeddedLoadResult Load(
             PevtEmbeddedSource source,
             PevtEmbeddedSourceLimits limits = null,
             BuiltinApiTable builtinApi = null,
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default,
+            Runtime.Raw.IPevtRawCsAnalyzer rawCsAnalyzer = null)
         {
             if (source == null)
                 throw new ArgumentNullException(nameof(source));
@@ -177,7 +179,8 @@ namespace Polaris.Pevt.Loading
             }
 
             // 第 5 步：语法错误不因构建时已经校验过而略过，这里始终重新执行完整静态校验。
-            PevtCompilation compilation = PevtSourceCompiler.Compile(decoded.Text, diagnostics, builtinApi, cancellationToken);
+            PevtCompilation compilation = PevtSourceCompiler.Compile(
+                decoded.Text, diagnostics, builtinApi, cancellationToken, null, rawCsAnalyzer);
             if (!compilation.Success)
             {
                 return new PevtEmbeddedLoadResult(source, null, decoded.Text,
@@ -250,13 +253,6 @@ namespace Polaris.Pevt.Loading
 
         /// <summary>
         /// 校验 GZip 尾部的 CRC32 与 ISIZE。
-        ///
-        /// 必要性：<see cref="GZipStream"/> 读到被截断的流时不抛异常，而是静静返回已经解出的部分字节。
-        /// 只靠后面的长度和 SHA-256 检查虽然也能拒绝这种包，但会把"数据被截断"误报成"长度不符"或
-        /// "哈希不符"，作者拿到的诊断指向错误的原因。这里显式校验尾部，让截断与损坏得到确定的
-        /// <c>PEVT9205</c>。
-        ///
-        /// <c>gzip-base64-v1</c> 固定为单个 GZip 成员，因此尾部就是整个载荷的尾部。
         /// </summary>
         private static void ValidateGzipTrailer(byte[] compressed, byte[] decompressed)
         {

@@ -6,10 +6,8 @@ using Polaris.Pevt.Runtime;
 namespace Polaris.Event.Game
 {
     /// <summary>
-    /// 运行时人物解析。它查的就是功能阶段 B 建立的 <see cref="ActorDirectory"/>，
-    /// 不在游戏侧再造第二个人物模型，也不接受原版 CMD 短键作为公开 ID：
-    /// <c>n</c> / <c>so</c> 这类短键只出现在 <see cref="ActorVisual.LegacyPerson"/> 里，
-    /// 供立绘适配器挑选原版视觉源使用（PEVT-人物目录与原版别名规范.md 第 3 节）。
+    /// 运行时人物解析，查的就是功能阶段 B 建立的 <see cref="ActorDirectory"/>，不在游戏侧再造第二个人物模型。
+    /// 原版 CMD 短键不是公开 ID，它们只出现在 <see cref="ActorVisual.LegacyPerson"/> 里，供立绘适配器挑选原版视觉源。
     /// </summary>
     internal sealed class PevtGameActorCatalog : IPevtActorCatalogService
     {

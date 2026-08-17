@@ -5,11 +5,8 @@ using Polaris.Pevt.Binding;
 namespace Polaris.Pevt.Runtime
 {
     /// <summary>
-    /// 一个运行期 PEVT 值。只承载五种普通类型（8.2 节）；<c>handler</c> 是运行时专用包装，
-    /// 分开存放，不进入本类型。
-    ///
-    /// 本类型是只读结构体，因此赋值、传参和存入槽位天然是值复制——9.3 节要求的"快照值"语义
-    /// 不需要额外的深拷贝步骤，也不可能出现两个变量共享同一份可变状态。
+    /// 一个运行期 PEVT 值，只承载五种普通类型（8.2 节）；<c>handler</c> 是运行时专用包装，分开存放，不进入本类型。
+    /// 只读结构体让赋值、传参和存入槽位天然是值复制，9.3 节要求的快照语义不需要额外的深拷贝步骤。
     /// </summary>
     public readonly struct PevtValue : IEquatable<PevtValue>
     {

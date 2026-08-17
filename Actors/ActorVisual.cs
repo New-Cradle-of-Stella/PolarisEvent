@@ -4,8 +4,8 @@ using Polaris.Pevt.Text;
 namespace Polaris.Pevt.Actors
 {
     /// <summary>
-    /// 一条已校验的人物视觉登记：世界像素角色、事件立绘或 UI 头像。三类共用同一形状，只用
-    /// <see cref="Kind"/> 区分，避免为纯数据差异造出三套并行类型。构造后深不可变。
+    /// 一条已校验的人物视觉登记：世界像素角色、事件立绘或 UI 头像。
+    /// 三类共用同一形状、只用 <see cref="Kind"/> 区分，避免为纯数据差异造出三套并行类型；构造后深不可变。
     /// </summary>
     public sealed class ActorVisual
     {

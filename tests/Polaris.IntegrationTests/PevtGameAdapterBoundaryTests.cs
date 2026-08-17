@@ -11,11 +11,6 @@ namespace Polaris.Pevt.IntegrationTests
 {
     /// <summary>
     /// 功能阶段 D 的程序集边界证明。
-    ///
-    /// 断言直接读两个目标输出的元数据，而不是把它们加载进测试宿主：<c>netstandard2.1</c> 那份
-    /// 引用了 Assembly-CSharp、unsafeAssem 与 UnityEngine，在没装游戏的测试环境里根本加载不起来。
-    /// 读元数据既能证明"前端干净"，也能证明"游戏侧确实接上了适配器"，而这正是本阶段最容易
-    /// 悄悄退化的两件事——多一个 <c>using</c> 就会让 PolarisTools 编译不过。
     /// </summary>
     public class PevtGameAdapterBoundaryTests
     {
@@ -38,6 +33,11 @@ namespace Polaris.Pevt.IntegrationTests
             "PevtGameMusic",
             "PevtGameUi",
             "PevtGameInput",
+
+            // 功能阶段 F：持久状态适配器与 `$raw cmd` 专用桥。
+            "PevtGameState",
+            "RawCmd.PevtGameRawCommandBridge",
+            "RawCmd.PevtGameRawCommandSession",
         };
 
         private static readonly string[] GameAssemblies =
@@ -89,16 +89,116 @@ namespace Polaris.Pevt.IntegrationTests
         }
 
         /// <summary>
-        /// 旧执行链回归：除了功能阶段 F 的 <c>$raw cmd</c> 专用桥，游戏侧不得出现任何
-        /// 原版 CMD 文本入口的痕迹。这里检查的是最终产物而不是源码，源码级扫描由构建脚本负责。
+        /// 前端产物里不可能出现原版事件文本入口——它连游戏程序集都不引用。
         /// </summary>
         [Fact]
-        public void GameTarget_HasNoVanillaCommandTextEntryPoint()
+        public void Frontend_HasNoVanillaCommandTextEntryPoint()
         {
-            AssemblyFacts gameTarget = Read("netstandard2.1");
+            AssemblyFacts frontend = Read("netstandard2.0");
 
-            Assert.DoesNotContain("Polaris.Event.Game.PevtRawCmdBridge", gameTarget.TypeNames);
-            Assert.DoesNotContain("EvReader", gameTarget.TypeReferences);
+            Assert.DoesNotContain("EvReader", frontend.TypeReferences);
+            Assert.DoesNotContain("EV", frontend.TypeReferences);
+        }
+
+        /// <summary>
+        /// 旧执行链回归的精确白名单。
+        /// </summary>
+        [Theory]
+        [InlineData("EvReader")]
+        [InlineData("EV.stack")]
+        [InlineData("EV.readOneLine")]
+        [InlineData("EV.setEventContent")]
+        [InlineData("EV.getEventContent")]
+        [InlineData("EV.unstackReader")]
+        [InlineData("EV.getStacked")]
+        public void VanillaEventTextEntryPointsOnlyAppearInTheRawCmdBridge(string token)
+        {
+            var offenders = new List<string>();
+
+            foreach (string file in EnumerateProductionSources())
+            {
+                string normalized = file.Replace('\\', '/');
+                if (normalized.Contains("/Game/RawCmd/"))
+                    continue;
+
+                if (StripComments(File.ReadAllText(file)).Contains(token))
+                    offenders.Add(normalized.Substring(normalized.IndexOf("/PolarisEvent/", StringComparison.Ordinal) + 1));
+            }
+
+            Assert.True(offenders.Count == 0,
+                $"`{token}` 只允许出现在 Game/RawCmd，实际还出现在：{string.Join(", ", offenders)}");
+        }
+
+        /// <summary>旧默认执行链的痕迹必须为零，没有白名单。</summary>
+        [Theory]
+        [InlineData("commandText")]
+        [InlineData(".phxx")]
+        [InlineData("Polaris.Event.Compiler")]
+        [InlineData("HppCompiler")]
+        [InlineData("EventsDir")]
+        [InlineData("Patch_EV_getEventContent")]
+        public void TheOldExecutionChainLeavesNoTrace(string token)
+        {
+            foreach (string file in EnumerateProductionSources())
+                Assert.False(StripComments(File.ReadAllText(file)).Contains(token), $"`{token}` 仍然出现在 {file}。");
+        }
+
+        /// <summary>
+        /// 去掉注释再搜。仓库里大量文档注释正是在解释"这些入口为什么不许用"，把它们算成命中，
+        /// 这道闸门就只会逼人删注释。
+        /// </summary>
+        private static string StripComments(string text)
+        {
+            var builder = new System.Text.StringBuilder(text.Length);
+            int i = 0;
+
+            while (i < text.Length)
+            {
+                if (text[i] == '/' && i + 1 < text.Length && text[i + 1] == '/')
+                {
+                    while (i < text.Length && text[i] != '\n')
+                        i++;
+                    continue;
+                }
+
+                if (text[i] == '/' && i + 1 < text.Length && text[i + 1] == '*')
+                {
+                    i += 2;
+                    while (i + 1 < text.Length && !(text[i] == '*' && text[i + 1] == '/'))
+                        i++;
+                    i = Math.Min(i + 2, text.Length);
+                    continue;
+                }
+
+                builder.Append(text[i]);
+                i++;
+            }
+
+            return builder.ToString();
+        }
+
+        private static IEnumerable<string> EnumerateProductionSources()
+        {
+            string root = RepositoryRoot();
+
+            foreach (string file in Directory.EnumerateFiles(root, "*.cs", SearchOption.AllDirectories))
+            {
+                string normalized = file.Replace('\\', '/');
+                if (normalized.Contains("/obj/") || normalized.Contains("/bin/") || normalized.Contains("/tests/"))
+                    continue;
+
+                yield return file;
+            }
+        }
+
+        private static string RepositoryRoot()
+        {
+            var directory = new DirectoryInfo(Path.GetDirectoryName(typeof(PevtGameAdapterBoundaryTests).Assembly.Location));
+            while (directory != null && !File.Exists(Path.Combine(directory.FullName, "PolarisEvent.csproj")))
+                directory = directory.Parent;
+
+            Assert.NotNull(directory);
+            return directory.FullName;
         }
 
         // ---- 元数据读取 ----

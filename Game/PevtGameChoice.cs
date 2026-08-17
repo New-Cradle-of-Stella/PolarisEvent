@@ -7,13 +7,6 @@ namespace Polaris.Event.Game
 {
     /// <summary>
     /// 选择适配器，直接驱动原版 <see cref="EvSelector"/>。
-    ///
-    /// EvSelector 自己是 <c>MonoBehaviourAutoRun</c>，激活后每帧自行处理焦点与点击并把选中项写进
-    /// <c>result</c>；原版事件循环也只是轮询这个字段。因此 PEVT 用同样的方式轮询即可，不需要
-    /// 进入 <c>EV.ST.SELECT</c> 状态。
-    ///
-    /// <c>activate(define_to)</c> 传一个非空的 define_to，是为了让原版把结果留在 <c>result</c> 里
-    /// 而不是当作跳转标签——PEVT 没有标签跳转的概念，控制流完全由解释器负责。
     /// </summary>
     internal sealed class PevtGameChoice : IPevtChoice
     {

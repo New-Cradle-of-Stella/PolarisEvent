@@ -8,15 +8,6 @@ namespace Polaris.Event.Game
 {
     /// <summary>
     /// 游戏侧适配器共用的单例入口与"事件模式"开关。
-    ///
-    /// 关键前提：原版 <see cref="EV"/> 在游戏启动时就由 <c>NelM2DBase</c> 调用 <c>EV.initEvent</c>
-    /// 建好了 <c>MsgCon</c>、<c>DC</c>、<c>Sel</c>、<c>Pics</c> 这些演出对象，而 <c>EV.Instance</c> 的
-    /// <c>FixedUpdate</c> 每帧都会推进消息容器与图层容器——即使没有任何原版事件在跑。
-    /// 所以 PolarisEvent 只需要直接操作这些演出对象，不需要（也绝不允许）压入 <c>EvReader</c>、
-    /// 提交 CMD 文本或让 <c>EV.readOneLine</c> 参与调度。
-    ///
-    /// 由此带来的代价是 <c>EV.isActive()</c> 在 PEVT 事件期间是 false（它只看 EvReader 栈），
-    /// 因此"停住游戏主循环"要由 <see cref="EnterEventMode"/> 用原版自己的公开开关显式完成。
     /// </summary>
     internal static class PevtGameHost
     {
@@ -43,9 +34,6 @@ namespace Polaris.Event.Game
 
         /// <summary>
         /// 进入事件模式：停掉游戏主循环与玩家操作，并占住 UI 使用标记。
-        ///
-        /// 用的全是原版 <c>STOP_GMAIN</c> / <c>STOP_GHANDLE</c> 走的同一组开关，
-        /// 不改写 <c>EV.state</c>——那个字段属于原版解释器的游标，写它会让原版事件的恢复逻辑错乱。
         /// </summary>
         public static void EnterEventMode()
         {
@@ -61,11 +49,6 @@ namespace Polaris.Event.Game
 
         /// <summary>
         /// 退出事件模式。必须在根事件结束、替换、异常和插件卸载的每一条路径上都走到。
-        ///
-        /// <c>quitEvent</c> / <c>evEnd</c> / <c>deactivateEvent</c> 是原版按"整个事件会话结束"
-        /// 设计的收尾动作。如果此刻恰好有一个原版事件在跑（PEVT 事件是在它中途被启动的），
-        /// 调它们会把原版自己的会话状态一起拆掉，因此这三步以 <see cref="EV.isActive()"/> 为闸门；
-        /// 那种情况下只收 PolarisEvent 自己占用的东西，把会话收尾留给原版的 <c>evEnd</c>。
         /// </summary>
         public static void ExitEventMode()
         {

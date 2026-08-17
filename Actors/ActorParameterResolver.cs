@@ -19,9 +19,8 @@ namespace Polaris.Pevt.Actors
     }
 
     /// <summary>
-    /// 内置语义站位。普通 <c>@actor_enter</c> / <c>@actor_move</c> 使用这些名字，
-    /// 坐标由 PolarisEvent 自己保存，不在运行时翻译回原版 <c>L/R/C</c> 组合键
-    /// （PEVT-人物目录与原版别名规范.md 第 8 节）。
+    /// 内置语义站位，普通 <c>@actor_enter</c>/<c>@actor_move</c> 使用这些名字。
+    /// 坐标由 PolarisEvent 自己保存，不在运行时翻译回原版 <c>L/R/C</c> 组合键。
     /// </summary>
     public static class BuiltinActorAnchors
     {
@@ -56,9 +55,6 @@ namespace Polaris.Pevt.Actors
 
     /// <summary>
     /// 把人物相关参数域的取值解析到一个已合并的人物空间上。
-    ///
-    /// 本类型只回答"当前看得见什么"，永远不发射诊断：人物、外观和站位的存在性通常是运行期事实，
-    /// 未知取值只影响补全，不产生静态错误。运行期缺失由 PEVTR4401/PEVTR4402 负责。
     /// </summary>
     public sealed class ActorParameterResolver
     {

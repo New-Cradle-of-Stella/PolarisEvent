@@ -6,8 +6,8 @@ using Xunit;
 namespace Polaris.Pevt.Core.Tests.Actors
 {
     /// <summary>
-    /// PEVT9111 / PEVT9117 / PEVT9118 的发射路径。这三条不由 XML 语法决定，而由资源字段的静态事实决定，
-    /// 因此 Core 提供唯一判定，工具侧与游戏侧共用；这里同时验证合法字段不会误报任一编号。
+    /// PEVT9111 / PEVT9117 / PEVT9118 的发射路径。这三条由资源字段的静态事实而不是 XML 语法决定，
+    /// 因此 Core 提供唯一判定供两侧共用；这里同时验证合法字段不会误报任一编号。
     /// </summary>
     public class ActorResourceBindingTests
     {

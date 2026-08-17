@@ -8,9 +8,10 @@ using Polaris.Pevt.Text;
 
 namespace Polaris.Pevt.Flow
 {
-    /// <summary>外层事件环境里的一个变量/常量声明槽位（9.1/9.2/9.4 节）。<c>if</c>/<c>elif</c>/
-    /// <c>else</c>/<c>while</c>/<c>switch</c>/<c>case</c>/<c>default</c> 不创建新环境，因此嵌套在
-    /// 它们正文里的声明仍然属于外层事件的同一个符号槽表；自定义事件块有自己独立的环境，不在此列。</summary>
+    /// <summary>
+    /// 外层事件环境里的一个变量/常量声明槽位（9.1/9.2/9.4 节）。分支与循环语句不创建新环境，
+    /// 因此嵌套在它们正文里的声明仍属于同一张符号槽表；自定义事件块有自己独立的环境，不在此列。
+    /// </summary>
     public sealed class ProgramSymbolSlot
     {
         public string Name { get; }
@@ -29,13 +30,8 @@ namespace Polaris.Pevt.Flow
     }
 
     /// <summary>
-    /// 一个事件文件完成全部静态检查（词法/语法/绑定/控制流）后的不可变产物。计划要求的"绑定节点/
-    /// 源码映射"由已经不可变的 <see cref="Document"/>（语法树本身不可变，且每个节点都携带自己的
-    /// <see cref="TextSpan"/>，因此天然就是"源码映射"）承载，而不是另外复制一份平行结构；本类型
-    /// 只额外补上运行时真正需要、语法树本身不提供的几样东西：事件 ID、文件级能力标记、外层事件的
-    /// 符号槽表（<see cref="TopLevelSymbols"/>，不含各自定义事件块的独立环境），以及用于缓存/变更
-    /// 检测的源码哈希。只有零 Error 级诊断（警告不影响）时才允许产出——不可变定义本身就代表"这份
-    /// 源码已经通过全部静态门槛，可以安全交给后续阶段（解释器）执行"。
+    /// 一个事件文件通过全部静态检查后的不可变产物：事件 ID、文件级能力标记、外层事件的符号槽表和源码哈希。
+    /// 语法树本身已经不可变并携带源码跨度，因此不再复制一份平行的绑定节点结构；只有零 Error 级诊断时才允许产出。
     /// </summary>
     public sealed class PevtProgramDefinition
     {
@@ -79,8 +75,10 @@ namespace Polaris.Pevt.Flow
             return new PevtProgramDefinition(eventId, hasCs, hasAsync, document, source, symbols, hash);
         }
 
-        /// <summary>递归进入 if/elif/else/while/switch 的正文（它们与外层事件共用同一个环境，9.4 节），
-        /// 但不进入 <c>BlockDefinitionStatementSyntax</c> 的块体——那是一个完全独立的符号环境。</summary>
+        /// <summary>
+        /// 递归进入 if/elif/else/while/switch 的正文（它们与外层事件共用同一个环境，9.4 节），
+        /// 但不进入 <c>BlockDefinitionStatementSyntax</c> 的块体——那是一个完全独立的符号环境。
+        /// </summary>
         private static void CollectTopLevelSymbols(IReadOnlyList<StatementSyntax> statements, List<ProgramSymbolSlot> symbols)
         {
             foreach (StatementSyntax statement in statements)

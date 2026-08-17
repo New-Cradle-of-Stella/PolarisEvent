@@ -39,9 +39,6 @@ namespace Polaris.Pevt.Runtime
 
     /// <summary>
     /// 一次事件执行的预算账本。
-    ///
-    /// 三个上限各自映射到明确的诊断：总步数 → PEVTR1001，调用深度 → PEVTR1003，
-    /// 无进展 → PEVTR1002。每帧步数不是错误条件，用完只是让出一帧。
     /// </summary>
     public sealed class PevtExecutionBudget
     {

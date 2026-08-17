@@ -8,13 +8,6 @@ namespace Polaris.Event.Game
 {
     /// <summary>
     /// 通用演出图层适配器，建立在原版 <see cref="EvDrawer"/> 之上。
-    ///
-    /// 图层键是 PEVT 自己的 ID。原版按键名首字符判定图层（<c>#</c> 背景、<c>&amp;</c> 前景），
-    /// 所以这里统一加前缀再交给容器；PEVT 脚本里看不到这个前缀，<see cref="SetOrder"/> 也只是
-    /// 在两个前缀之间改写键名，而不是暴露原版的图层命名规则。
-    ///
-    /// 缩放、旋转与着色原版没有现成的动画，走 <see cref="PevtTweenWait"/> 由 PEVT 逐帧写
-    /// <c>pz</c>/<c>prot</c>/<c>gcol</c>——这些字段本来就是重绘逻辑每帧读取的。
     /// </summary>
     internal sealed class PevtGameImage : IPevtImage
     {

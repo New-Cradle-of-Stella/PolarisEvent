@@ -6,9 +6,6 @@ namespace Polaris.Pevt.Diagnostics
 {
     /// <summary>
     /// PEVTRxxxx 运行诊断编号的唯一集中目录，逐条对应 PEVT-运行诊断表.md。
-    ///
-    /// 与加载期的 <see cref="DiagnosticCatalog"/> 完全独立：两套编号互不共用，
-    /// 同一个四位数字在两张表里是两条不同的诊断。
     /// </summary>
     public static class RuntimeDiagnosticCatalog
     {

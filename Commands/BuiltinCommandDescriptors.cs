@@ -4,15 +4,9 @@ using Polaris.Pevt.Binding;
 namespace Polaris.Pevt.Commands
 {
     /// <summary>
-    /// 第一版 <c>@</c> API 的权威登记数据，逐条对应 PEVT-内置事件语句表.md 的 API 表，
-    /// <c>Capability</c> 列对应 PEVT-内置能力规范.md 的能力标识。
-    ///
-    /// 优先级按功能阶段划分而不是按能力规范第 17 节的简写清单：对话、选择、立绘、图层、画面、音频、
-    /// UI 与输入全部属于「可演出 P0」（功能阶段 D 的交付范围），地图与实体、持久状态与进度为 P1，
-    /// Alice In Cradle 领域扩展为 P2。
-    ///
-    /// <c>_start</c> 异步变体不在本表出现——它由等待类别 <see cref="CommandWaitKind.WaitParallel"/>
-    /// 的条目自动派生，避免同一份参数契约写两遍。
+    /// 第一版 <c>@</c> API 的权威登记数据，逐条对应 PEVT-内置事件语句表.md，<c>Capability</c> 列对应 PEVT-内置能力规范.md。
+    /// 优先级按功能阶段划分（P0 演出，P1 地图实体与持久状态，P2 Alice In Cradle 领域）；<c>_start</c> 异步变体由
+    /// <see cref="CommandWaitKind.WaitParallel"/> 条目自动派生，不在本表出现。
     /// </summary>
     public static class BuiltinCommandDescriptors
     {

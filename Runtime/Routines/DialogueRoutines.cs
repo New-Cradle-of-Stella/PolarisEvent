@@ -5,9 +5,6 @@ namespace Polaris.Pevt.Runtime.Routines
 {
     /// <summary>
     /// 对话与选择组合，逐条对应同步指令中间层规范第 6 节的原子方法顺序。
-    ///
-    /// 共同约定：人物 ID 一律先经人物目录解析（未知人物 PEVTR4401），任何校验失败都发生在第一个
-    /// 副作用之前；选择类组合无论成功还是失败都要把构造器 Reset 掉，否则下一次选择会带上残留选项。
     /// </summary>
     internal static class DialogueRoutines
     {

@@ -59,9 +59,8 @@ namespace Polaris.Pevt.Syntax
     }
 
     /// <summary>
-    /// <c>callevt "事件ID"</c>（10 节）。目标是否存在、是否声明 <c>enable async</c> 只在运行时解析
-    /// （10.4 节）——本节点只承载语法层面已经确定的目标字面量。作为独立语句、handler 初始化器以外的
-    /// 表达式位置使用时报 PEVT7304（见 <see cref="Parser.ParsePrimaryOperand"/>）。
+    /// <c>callevt "事件ID"</c>（10 节）。目标是否存在、是否声明 <c>enable async</c> 只在运行时解析，
+    /// 本节点只承载语法层面已经确定的目标字面量。
     /// </summary>
     public sealed class EventCallExpressionSyntax : ExpressionSyntax
     {
@@ -80,9 +79,8 @@ namespace Polaris.Pevt.Syntax
     }
 
     /// <summary>
-    /// <c>exec(source)</c>（13.1 节）：动态解析并执行一段 PEVT 源文本。片段内容本身的校验发生在运行时
-    /// （13.4 节），加载期只检查参数数量（PEVT7401/7402）与位置（PEVT7404/7406）；参数静态类型是否为
-    /// <c>string</c>（PEVT7403）需要类型绑定，留给后续阶段。
+    /// <c>exec(source)</c>（13.1 节）：动态解析并执行一段 PEVT 源文本。加载期只检查参数数量与位置，
+    /// 片段内容本身的校验发生在运行时。
     /// </summary>
     public sealed class ExecCallExpressionSyntax : ExpressionSyntax
     {
@@ -101,11 +99,8 @@ namespace Polaris.Pevt.Syntax
     }
 
     /// <summary>
-    /// <c>await all(句柄...)(绑定...)</c> / <c>await any(句柄...)(绑定...)</c>（15.6 节）。句柄/绑定
-    /// 列表都只是逗号分隔的裸标识符，复用 <see cref="IdentifierListSyntax"/>；绑定列表允许为空
-    /// （放弃全部返回值），句柄列表不允许为空（PEVT7217）。列表内容的名称有效性、去重、数量匹配
-    /// （PEVT7218/7219/7221/7223/7224）以及带绑定形式只能出现在语句/初始化器位置（PEVT7225）
-    /// 都需要环境/绑定信息，留给后续阶段。
+    /// <c>await all/any(句柄...)(绑定...)</c>（15.6 节）。绑定列表允许为空，句柄列表不允许为空（PEVT7217）；
+    /// 名称有效性、去重与数量匹配需要环境绑定信息，留给后续阶段。
     /// </summary>
     public sealed class AggregateAwaitExpressionSyntax : ExpressionSyntax
     {

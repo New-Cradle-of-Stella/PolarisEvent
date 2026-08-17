@@ -5,12 +5,9 @@ using Polaris.Pevt.Runtime;
 namespace Polaris.Event.Game
 {
     /// <summary>
-    /// 游戏侧时钟。帧号不取 Unity 的 <c>Time.frameCount</c>，而是由宿主的更新点自己递增：
-    /// PEVT 的全部等待都以"调度器推进了几次"为单位，用引擎帧会让暂停、慢动作后处理和
-    /// 编辑器步进产生和调度不一致的计时。
-    ///
-    /// 受管动作的聚合等待走 <see cref="RegisterMotion"/> 登记的票据，而不是去问原版
-    /// "现在有没有东西在动"——后者会把别的系统的动画也算进来。
+    /// 游戏侧时钟。帧号不取 Unity 的 <c>Time.frameCount</c> 而由宿主的更新点自己递增，因为 PEVT 的等待都以调度器推进次数为单位，
+    /// 用引擎帧会让暂停、慢动作后处理和编辑器步进产生和调度不一致的计时；受管动作的聚合等待同理走
+    /// <see cref="RegisterMotion"/> 登记的票据，而不是去问原版"现在有没有东西在动"。
     /// </summary>
     internal sealed class PevtGameClock : IPevtClock
     {

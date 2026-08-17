@@ -55,10 +55,6 @@ namespace Polaris.Pevt.Runtime
 
     /// <summary>
     /// 一次事件外层调用或一次自定义事件块调用的运行环境（9.4 节）。
-    ///
-    /// 名称解析只在当前环境中进行，不向外层查找：自定义事件块不隐式捕获外层变量，外层也看不到块内声明。
-    /// <c>if</c>/<c>while</c>/<c>switch</c> 不创建新环境，因此它们内部的声明属于同一个环境——正因如此
-    /// 才需要"声明执行标记"来发现同一个声明被控制流重复执行（PEVTR3001）。
     /// </summary>
     public sealed class PevtEnvironment
     {
@@ -71,11 +67,6 @@ namespace Polaris.Pevt.Runtime
 
         /// <summary>
         /// 外层环境；只有 <c>exec</c> 的临时片段环境会有。
-        ///
-        /// 普通事件块刻意不设外层（9.4 节的环境隔离），而 <c>exec</c> 的规范要求恰恰相反：
-        /// 片段"允许读写授权的外层变量，新增变量只存在临时环境"。用一条显式父链表达这件事，
-        /// 比让片段直接拿到宿主环境安全——<see cref="Declare"/> 永远只写本地，片段声明的变量
-        /// 随临时环境一起销毁，不可能污染宿主。
         /// </summary>
         public PevtEnvironment Parent { get; }
 
@@ -88,8 +79,8 @@ namespace Polaris.Pevt.Runtime
         public IReadOnlyCollection<string> SlotNames => _slots.Keys;
 
         /// <summary>
-        /// 标记一个声明语句"已经执行过"。同一个声明在同一环境里第二次执行返回 false，
-        /// 由调用方转成 PEVTR3001。声明用它在编译产物里的唯一序号标识。
+        /// 标记一个声明语句"已经执行过"，声明用它在编译产物里的唯一序号标识。
+        /// 同一个声明在同一环境里第二次执行返回 false，由调用方转成 PEVTR3001。
         /// </summary>
         public bool MarkDeclarationExecuted(int declarationId) => _executedDeclarations.Add(declarationId);
 
@@ -143,8 +134,6 @@ namespace Polaris.Pevt.Runtime
     /// <summary>
     /// <c>handler</c> 的运行期表示：只保存调度器里的协程 ID、拥有者与预期返回类型，
     /// 不保存运行状态副本——<c>status</c>、<c>await</c> 和 <c>kill</c> 始终按 ID 查调度器。
-    ///
-    /// 功能阶段 C 只需要它作为独立存储的占位；异步语义在功能阶段 E 实现。
     /// </summary>
     public sealed class PevtHandlerValue
     {

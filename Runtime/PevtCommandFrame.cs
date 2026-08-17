@@ -24,9 +24,6 @@ namespace Polaris.Pevt.Runtime
 
     /// <summary>
     /// 一次同步 <c>@</c> 调用的临时指令帧（同步指令中间层规范第 4 节）。
-    ///
-    /// 保存已确定的描述条目、调用开始时的实参快照、组合协程、当前等待、返回值和临时清理栈。
-    /// C# 迭代器自己保存组合步骤位置与局部值，因此这里不需要复制一份步骤状态。
     /// </summary>
     public sealed class PevtCommandFrame
     {

@@ -92,9 +92,8 @@ namespace Polaris.Pevt.Syntax
     }
 
     /// <summary>
-    /// 恢复用占位语句：孤立的闭合符（如落单的 <c>elif</c>/<c>endif</c>）、无法识别的语句起始，
-    /// 或本阶段尚未支持的语句形态（<c>@</c>/<c>_</c> 调用等留给阶段 7）都用它包一层，
-    /// 具体原因由对应位置报告的诊断编号说明,节点本身只负责占住这个位置。
+    /// 恢复用占位语句：孤立的闭合符、无法识别的语句起始，或本阶段尚未支持的语句形态都用它包一层。
+    /// 具体原因由对应位置报告的诊断编号说明，节点本身只负责占住这个位置。
     /// </summary>
     public sealed class UnknownStatementSyntax : StatementSyntax
     {

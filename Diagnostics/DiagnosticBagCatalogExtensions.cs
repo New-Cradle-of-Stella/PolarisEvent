@@ -5,8 +5,7 @@ namespace Polaris.Pevt.Diagnostics
 {
     /// <summary>
     /// 让词法/语法阶段按目录编号直接上报诊断，不必在每个调用点重复拼接级别与默认消息。
-    /// 独立成新文件而不是改 <see cref="DiagnosticBag"/> 本体，是为了不触碰阶段 1 已跟踪的文件
-    /// （见交付记录里 stage-whitespace 对已跟踪文件的已知误报）。
+    /// 独立成新文件而不是改 <see cref="DiagnosticBag"/> 本体。
     /// </summary>
     public static class DiagnosticBagCatalogExtensions
     {

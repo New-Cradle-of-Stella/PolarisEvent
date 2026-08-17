@@ -6,11 +6,8 @@ using Polaris.Pevt.Text;
 namespace Polaris.Pevt.Runtime
 {
     /// <summary>
-    /// 二元运算的运行期语义（8.4/8.6/8.7 节）。
-    ///
-    /// 类型匹配由绑定器在加载期保证，这里只负责真正的算术和三条运行期失败：
-    /// <c>int</c> 用 checked 溢出 → PEVTR2001，除零 → PEVTR2002，
-    /// <c>float</c> 结果非有限 → PEVTR2003。
+    /// 二元运算的运行期语义（8.4/8.6/8.7 节）。类型匹配由绑定器在加载期保证，这里只负责算术和三条运行期失败：
+    /// <c>int</c> 用 checked 溢出 → PEVTR2001，除零 → PEVTR2002，<c>float</c> 结果非有限 → PEVTR2003。
     /// </summary>
     internal static class PevtOperations
     {

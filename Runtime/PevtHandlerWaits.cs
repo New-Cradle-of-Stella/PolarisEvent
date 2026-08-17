@@ -7,9 +7,6 @@ namespace Polaris.Pevt.Runtime
     /// <summary>
     /// 单句柄 <c>await</c>。目标成功时返回它的普通值；失败或已被 <c>kill</c> 时产生
     /// <c>PEVTR5001</c>，并把原始异步异常作为内部原因保留（异步模型第 9 节）。
-    ///
-    /// 无论成功还是失败，观察一次就把 <see cref="PevtAsyncRoutine.Observed"/> 置上——
-    /// 这正是 <c>PEVTR5005</c>"未被观察的异步失败"判定的依据。
     /// </summary>
     public sealed class PevtHandlerWait : PevtWait<PevtValue>
     {
@@ -18,8 +15,8 @@ namespace Polaris.Pevt.Runtime
 
         /// <param name="wrapAsAwaitFailure">
         /// true 是真正的 <c>await</c>：目标失败按 <c>PEVTR5001</c> 报，原异常作为内部原因。
-        /// false 用于同步附着的构造（同步 <c>callevt</c>、<c>exec</c>）：它们的失败就是当前流程
-        /// 自己的失败，必须原样报出目标的诊断编号，否则 PEVTR4xxx/PEVTR12xx 会被 5001 盖掉。
+        /// false 用于同步附着的构造（同步 <c>callevt</c>、<c>exec</c>），它们必须原样报出目标的诊断编号，
+        /// 否则 PEVTR4xxx/PEVTR12xx 会被 5001 盖掉。
         /// </param>
         public PevtHandlerWait(PevtAsyncRoutine routine, bool wrapAsAwaitFailure = true)
         {
@@ -114,11 +111,9 @@ namespace Polaris.Pevt.Runtime
     }
 
     /// <summary>
-    /// <c>await any</c>：每帧按输入列表顺序检查，第一个成功的句柄固定返回序号（从 1 开始），
-    /// 随后请求取消其余尚未结束的句柄，并且必须等它们全部进入终态才返回——否则未停下的动作
-    /// 会继续泄漏到后面的演出里（第 9 节）。全部失败或被取消时返回 0。
-    ///
-    /// 同一帧多个句柄同时成功时取列表中序号最小的那个，因此结果与调度顺序无关，可重现。
+    /// <c>await any</c>：每帧按输入列表顺序检查，第一个成功的句柄返回其序号（从 1 开始），随后请求取消其余句柄
+    /// 并必须等它们全部进入终态才返回，否则未停下的动作会泄漏到后面的演出里；全部失败或被取消时返回 0。
+    /// 同一帧多个句柄同时成功时取序号最小的那个，因此结果与调度顺序无关、可重现。
     /// </summary>
     public sealed class PevtAnyHandlersWait : PevtWait<int>
     {
@@ -196,8 +191,6 @@ namespace Polaris.Pevt.Runtime
 
     /// <summary>
     /// <c>kill</c> 使用的取消等待。目标真正停下（或取消超时）之前，当前同步流程不推进下一条语句。
-    ///
-    /// 对已经进入终态的目标执行 <c>kill</c> 时立即成功，且不修改它原有的结果或异常（第 10 节）。
     /// </summary>
     public sealed class PevtCancellationWait : PevtWait
     {

@@ -100,8 +100,8 @@ namespace Polaris.Pevt.Runtime
         }
 
         /// <summary>
-        /// 级联释放。后代先于自身释放，同层按登记逆序。单个释放动作抛异常不阻止其余动作，
-        /// 全部异常收集后返回，由调用方转成 PEVTR1101 附加诊断。
+        /// 级联释放：后代先于自身释放，同层按登记逆序。
+        /// 单个释放动作抛异常不阻止其余动作，全部异常收集后返回，由调用方转成 PEVTR1101 附加诊断。
         /// </summary>
         public IReadOnlyList<Exception> ReleaseCascade(PevtOwnershipNode node)
         {

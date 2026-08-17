@@ -67,8 +67,8 @@ namespace Polaris.Pevt.Core.Tests.Syntax
         [InlineData("$raw cs end")]
         public void Raw_DollarRawCmdOrBareCsNotFollowedByBlock_ReportsPEVT8003(string source)
         {
-            // 8003 只在 cmd/cs 紧跟在 $raw 后面时才有意义；裸的 "cmd"/"cs"（比如 enable cs 的 cs）
-            // 不该触发这条检查——见下面 Raw_BareCmdOrCsWithoutDollarRaw_DoesNotTriggerPEVT8003。
+            // 8003 只在 cmd/cs 紧跟在 $raw 后面时才有意义；裸的 "cmd"/"cs"（比如 enable cs 的 cs）不该触发这条检查，
+            // 见下面 Raw_BareCmdOrCsWithoutDollarRaw_DoesNotTriggerPEVT8003。
             (IReadOnlyList<SyntaxToken> tokens, IReadOnlyList<Diagnostic> diagnostics) = Lex(source);
             Assert.Equal("PEVT8003", Assert.Single(diagnostics).Id);
             Assert.Equal(SyntaxKind.EndKeyword, tokens[2].Kind); // 诊断不影响后续正常分词
@@ -165,7 +165,7 @@ namespace Polaris.Pevt.Core.Tests.Syntax
         [Fact]
         public void Raw_CommentBetweenCmdAndOpenDelimiter_ReportsOnlyPEVT8016NotPEVT8003()
         {
-            // 前瞻检查（PEVT8003）会跳过注释找到后面确实存在的 '''，所以不会漏报"没写 raw 块"；
+            // 前瞻检查（PEVT8003）会跳过注释找到后面确实存在的 '''，所以不会漏报"没写 raw 块"。
             // 但真正产出 open-delimiter token 时，那段注释 trivia 仍然说明它没有紧贴 cmd：PEVT8016。
             (_, IReadOnlyList<Diagnostic> diagnostics) = Lex("cmd/* gap */'''x'''");
             Assert.Equal("PEVT8016", Assert.Single(diagnostics).Id);
@@ -518,10 +518,8 @@ namespace Polaris.Pevt.Core.Tests.Syntax
 
             (IReadOnlyList<SyntaxToken> tokens, IReadOnlyList<Diagnostic> diagnostics) = Lex(source);
 
-            // 失败后不再尝试合并 "a"："a" 单独成一个 token，"b" 从它自己所在行重新按正常 token 参与
-            // 词法分析——但 "b" 之后同样跟着一个行末 "+"，于是词法器把它当成一次新的续接尝试，
-            // 拿 "b" 自己的列号去核对 "c"，发现同样对不上列，因此正确地又报了一次 PEVT1011：
-            // 一次列错位的输入，级联出两条诊断，根因都可追溯到同一处多出来的缩进空格。
+            // 失败后不再尝试合并 "a"，"b" 从它自己所在行重新参与词法分析；而 "b" 之后同样跟着行末 "+"，于是又是一次续接尝试，
+            // 拿 "b" 自己的列号核对 "c" 同样对不上，因此正确地又报了一次 PEVT1011。一次列错位输入级联出两条诊断，根因都是同一处多出来的缩进空格。
             Assert.All(diagnostics, d => Assert.Equal("PEVT1011", d.Id));
             Assert.Equal(2, diagnostics.Count);
 
@@ -578,9 +576,8 @@ namespace Polaris.Pevt.Core.Tests.Syntax
         [Fact]
         public void Raw_OpenDelimiterAfterOrdinaryIdentifier_IsNotAdjacencyChecked()
         {
-            // 8016 只在紧邻 cmd/cs/参数列表右括号时才有意义；跟在普通标识符后面的 "'''" 不属于
-            // 这三种前置 token，即使中间有空格也不该被当成"漏写紧贴"来报错——那本来就不是合法位置，
-            // 交给以后的解析阶段去处理"这里出现 raw 块毫无道理"这类语法层面的问题。
+            // 8016 只在紧邻 cmd/cs/参数列表右括号时才有意义；跟在普通标识符后面的 "'''" 不属于这三种前置 token，
+            // 即使中间有空格也不该被当成"漏写紧贴"来报错——那本来就不是合法位置，交给解析阶段去处理。
             (_, IReadOnlyList<Diagnostic> diagnostics) = Lex("foo '''x'''");
             Assert.DoesNotContain(diagnostics, d => d.Id == "PEVT8016");
         }
@@ -588,9 +585,8 @@ namespace Polaris.Pevt.Core.Tests.Syntax
         [Fact]
         public void MultilineString_PlusFollowedByCommentBeforeLineEnd_DoesNotTriggerContinuationButStillReportsPEVT1006()
         {
-            // "+" 后面除空格外还有别的东西（这里是注释）——不满足续接触发形状，交还给普通 dispatch；
-            // 但普通 dispatch 产出的这个裸 "+" 本身仍然是"换行前悬空的运算符"，一样违反 1.2 节，
-            // 因此仍然通过通用的 PEVT1006 检查报出来，只是不再经过续接合并逻辑。
+            // "+" 后面除空格外还有别的东西（这里是注释），不满足续接触发形状，交还给普通 dispatch。
+            // 产出的这个裸 "+" 仍然是换行前悬空的运算符，因此照样通过通用的 PEVT1006 检查报出来，只是不再经过续接合并逻辑。
             (IReadOnlyList<SyntaxToken> tokens, IReadOnlyList<Diagnostic> diagnostics) = Lex("\"a\" +// oops\nb");
             Assert.Contains(tokens, t => t.Kind == SyntaxKind.PlusToken);
             Assert.Equal("PEVT1006", Assert.Single(diagnostics).Id);

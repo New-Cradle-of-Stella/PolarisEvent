@@ -4,8 +4,8 @@ using System.Collections.Generic;
 namespace Polaris.Pevt.Text
 {
     /// <summary>
-    /// 把字符偏移映射到 1-based 行号与列号的不可变行表。识别 <c>\r\n</c>、单独 <c>\r</c> 与单独 <c>\n</c>
-    /// 三种换行，且不会把 <c>\r\n</c> 计成两行。列号按 UTF-16 char 计数，不做码点或字形聚簇折算。
+    /// 把字符偏移映射到 1-based 行号与列号的不可变行表，识别 <c>\r\n</c>、单独 <c>\r</c> 与单独 <c>\n</c> 三种换行，
+    /// 且不把 <c>\r\n</c> 计成两行。列号按 UTF-16 char 计数，不做码点或字形聚簇折算。
     /// </summary>
     public sealed class LineMap
     {

@@ -38,8 +38,6 @@ namespace Polaris.Pevt.Runtime
     /// <summary>
     /// 全部跨帧等待的统一基类。PEVT 的每一次跨帧停顿都必须表现为一个可取消、可诊断的 PevtWait；
     /// Core 里不存在 Unity <c>YieldInstruction</c>，也没有"带字符串 kind 的万能等待"。
-    ///
-    /// <see cref="Tick"/> 与 <see cref="Cancel"/> 都是幂等的：进入终态后再调用不改变结果。
     /// </summary>
     public abstract class PevtWait
     {
@@ -297,8 +295,8 @@ namespace Polaris.Pevt.Runtime
     }
 
     /// <summary>
-    /// 等待一个或一组受管动作票据完成。超时用负数以外的 <c>timeoutFrames</c> 表示；
-    /// 0 表示不超时。超时不算失败，而是以"未全部完成"成功返回。
+    /// 等待一个或一组受管动作票据完成，<c>timeoutFrames</c> 为 0 表示不超时。
+    /// 超时不算失败，而是以"未全部完成"成功返回。
     /// </summary>
     public sealed class PevtMotionWait : PevtWait<bool>
     {
@@ -332,10 +330,7 @@ namespace Polaris.Pevt.Runtime
         }
     }
 
-    /// <summary>
-    /// 等待玩家确认或指定受控按键。结果表示是否由输入结束（而不是超时）。
-    /// <c>timeoutFrames</c> 为 0 表示无超时。
-    /// </summary>
+    /// <summary>等待玩家确认或指定受控按键，<c>timeoutFrames</c> 为 0 表示无超时。结果表示是否由输入结束，而不是超时。</summary>
     public sealed class PevtInputWait : PevtWait<bool>
     {
         private readonly Func<bool> _pressed;

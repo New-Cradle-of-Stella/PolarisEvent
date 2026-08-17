@@ -7,10 +7,6 @@ namespace Polaris.Pevt.Runtime.Routines
 {
     /// <summary>
     /// 把全部 P0 组合处理器登记到指令注册表。
-    ///
-    /// 登记走的是描述目录里的重载：<see cref="PevtCommandRegistry.Register(string, IReadOnlyList{PevtType}, IPevtCommandRoutine)"/>
-    /// 会在目录里查不到对应重载时直接失败，所以这张表不可能悄悄挂上一个描述目录里没有的 API，
-    /// 参数类型写错也会当场暴露，而不是等到运行时才发现签名对不上。
     /// </summary>
     public static class P0CommandRoutines
     {

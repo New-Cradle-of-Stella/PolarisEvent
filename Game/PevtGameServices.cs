@@ -7,11 +7,6 @@ namespace Polaris.Event.Game
 {
     /// <summary>
     /// 一次事件会话持有的全部游戏侧适配器。
-    ///
-    /// 每个事件拿一套新的实例，因为几乎每个适配器都记着"本事件建了什么"——立绘、图层、遮罩、
-    /// 环境声、UI 临时状态。共用一套实例会让上一个事件的清理表跟到下一个事件里去。
-    /// <see cref="Release"/> 是唯一的清理入口，事件正常结束、被替换、异常终止和插件卸载
-    /// 四条路径都必须走到它。
     /// </summary>
     internal sealed class PevtGameSessionServices
     {
@@ -38,7 +33,17 @@ namespace Polaris.Event.Game
         private readonly PevtGameClock _clock;
         private bool _released;
 
-        public PevtGameSessionServices(PevtActorRegistry actors, PevtGameClock clock, string eventId)
+        /// <param name="rawCommands">
+        /// 进程级原版会话通道。它**不是**每个事件一份：原版 EV 是单套静态执行器，通道必须在全部
+        /// 事件之间共享才能保证"同一时间只有一个原版文本会话"。
+        /// </param>
+        /// <param name="rawCs">同样是进程级共享对象——编译缓存跨事件复用。</param>
+        public PevtGameSessionServices(
+            PevtActorRegistry actors,
+            PevtGameClock clock,
+            string eventId,
+            IPevtRawCommands rawCommands = null,
+            Polaris.Pevt.Runtime.Raw.PevtRawCsExecutor rawCs = null)
         {
             if (actors == null)
                 throw new ArgumentNullException(nameof(actors));
@@ -72,15 +77,20 @@ namespace Polaris.Event.Game
                 Audio,
                 Music,
                 Ui,
-                new PevtGameInput());
+                new PevtGameInput(),
+                // P1/P2 领域包目前只接了持久状态，World / Entity / Inventory / Quest / Player / Battle 留空，
+                // 对应的 `@` 以 PEVTR4001「当前宿主没有提供 X 服务」明确失败——那些子系统的原版入口语义还没有经过动态验证，
+                // 猜错一次就会写坏玩家存档。
+                new PevtDomainServices(state: new PevtGameState()),
+                rawCommands,
+                rawCs);
 
             Camera.CaptureSnapshot();
         }
 
         /// <summary>
-        /// 逐层清理。先跑会话登记的临时状态恢复表（它记录的是脚本显式改过的东西），
-        /// 再让各适配器收掉自己建出来的显示实例与资源租约。两步都不能因为前一步抛异常而跳过，
-        /// 所以恢复表的失败只被收集、不向上抛。
+        /// 逐层清理：先跑会话登记的临时状态恢复表（它记录的是脚本显式改过的东西），再让各适配器收掉自己建出来的显示实例与资源租约。
+        /// 两步都不能因为前一步抛异常而跳过，所以恢复表的失败只被收集、不向上抛。
         /// </summary>
         public IReadOnlyList<Exception> Release()
         {

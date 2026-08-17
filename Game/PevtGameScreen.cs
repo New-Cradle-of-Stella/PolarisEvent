@@ -10,11 +10,8 @@ using XX;
 namespace Polaris.Event.Game
 {
     /// <summary>
-    /// 画面遮罩与聚光。
-    ///
-    /// 遮罩用一个专属的背景填充图层，而不是原版的画面转场（<see cref="EvTransFader"/>）——
-    /// 转场是"从一张图切到另一张图"的过渡，而 <c>@screen_fade</c> 要的是一层可以停在任意
-    /// 透明度上的纯色。遮罩层是事件临时占用，透明度归零或事件结束时释放。
+    /// 画面遮罩与聚光。遮罩用一个专属的背景填充图层而不是原版画面转场（<see cref="EvTransFader"/>），
+    /// 因为 <c>@screen_fade</c> 要的是一层能停在任意透明度上的纯色；遮罩层是事件临时占用，透明度归零或事件结束时释放。
     /// </summary>
     internal sealed class PevtGameScreen : IPevtScreen
     {

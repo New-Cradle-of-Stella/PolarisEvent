@@ -6,8 +6,8 @@ using Xunit;
 namespace Polaris.Pevt.Core.Tests.Actors
 {
     /// <summary>
-    /// 内置固定人物目录的 golden 测试。PEVT-人物目录与原版别名规范.md 第 7.1 节把 `__vp_person.dat` 的
-    /// 18 个稳定说话人键归并为 16 个公开 profile；这里逐条钉死映射，任何一条改动都必须先改规范。
+    /// 内置固定人物目录的 golden 测试。规范第 7.1 节把 `__vp_person.dat` 的 18 个稳定说话人键归并为 16 个公开 profile，
+    /// 这里逐条钉死映射，任何一条改动都必须先改规范。
     /// </summary>
     public class BuiltinActorCatalogTests
     {

@@ -127,10 +127,6 @@ namespace Polaris.Pevt.Runtime
 
     /// <summary>
     /// 一次事件执行实例：可跨帧恢复的同步 PEVT 解释器。
-    ///
-    /// 执行模型是"显式帧栈 + 每帧求值栈"。一条 <c>@</c> 指令跨帧时，当前指令帧连同求值栈原样保留，
-    /// 下一帧从同一条指令继续——因此 <c>var x : int = @choose(...)</c> 这种"表达式中间发生跨帧等待"
-    /// 也能正确恢复。
     /// </summary>
     public sealed partial class PevtExecution
     {
@@ -175,9 +171,6 @@ namespace Polaris.Pevt.Runtime
 
         /// <summary>
         /// 子执行实例（<c>async block</c>、<c>callevt</c> 子事件、<c>exec</c> 片段）的构造入口。
-        ///
-        /// 预算是**共享**的：总步数、调用深度和停滞判定必须覆盖整棵调用树，否则一个事件可以靠
-        /// 无限层子事件绕过 PEVTR1001。子事件提供者也一路传下去，让子事件还能再 callevt。
         /// </summary>
         private PevtExecution(
             PevtCompiledProgram program,
@@ -214,9 +207,6 @@ namespace Polaris.Pevt.Runtime
 
         /// <summary>
         /// 本实例之外已经占用的帧深度。
-        ///
-        /// 子事件、异步块和 <c>exec</c> 片段各有自己的帧栈，共享预算对象并不会让 <c>_frames.Count</c>
-        /// 变大——不带这个偏移的话，无限递归的 <c>callevt</c> 永远撞不到 PEVTR1003，只会一直挂着。
         /// </summary>
         public int DepthOffset { get; }
 
@@ -431,6 +421,12 @@ namespace Polaris.Pevt.Runtime
 
                 case PevtOpCode.Exec:
                     return ExecuteExec(frame, instruction);
+
+                case PevtOpCode.RawCmd:
+                    return ExecuteRawCmd(frame, instruction);
+
+                case PevtOpCode.RawCs:
+                    return ExecuteRawCs(frame, instruction);
 
                 default:
                     return Fault("PEVTR9001", $"未知指令 {instruction.OpCode}。", instruction.Span);

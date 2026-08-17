@@ -7,24 +7,9 @@ using Polaris.Pevt.Text;
 namespace Polaris.Pevt.Binding
 {
     /// <summary>
-    /// 阶段 8 的表达式/变量绑定器（PevtType、符号、词法环境、五种普通类型的表达式类型系统、快照语义、
-    /// 只读常量和局部未初始化检查）在此基础上，阶段 9 补上"名称、调用与能力绑定"：跨环境的定义先于
-    /// 使用区分（PEVT6001 与 6012）、自定义事件块的签名/参数/返回路径绑定、<c>@</c> 内置事件语句的
-    /// 签名重载匹配、<c>enable cs</c>/<c>$raw cs</c> 参数副本绑定，以及 <c>handler</c> 的专属规则
-    /// （声明查重 7207、重新赋值 7208、静态已知同步的调用 7204、<c>await</c>/<c>kill</c>/<c>status</c>
-    /// 的句柄解析 7210/7212-7214、无返回值 <c>await</c> 用作表达式 7211、句柄用在三者以外的位置 7209）。
-    /// 验证目标是 PEVT7xxx/8xxx 逐编号覆盖（callevt 静态阶段刻意保持"只认语法，不查真实 ID"）。
-    ///
-    /// 仍然明确不在本阶段范围内（留给后续阶段，见各方法上的具体说明，或本段列出原因）：
-    /// - PEVT7117（块"是否每条路径都返回"）：真正的控制流可达性分析是阶段 10 的"检测……块返回路径"。
-    /// - PEVT7203（AsyncCallUsedAsOrdinaryValue）：PEVT7209 的检查点（<see cref="BindOrdinaryNameRead"/>）
-    ///   覆盖的是"读取一个已经声明的句柄名称"，7203 描述的是反过来的方向——异步调用本身（而不是先
-    ///   声明成 handler）被直接当普通值使用，例如 <c>var x : bool = @asyncQuery()</c>；这需要在
-    ///   <see cref="BindBuiltinCall"/>/<see cref="BindCustomBlockCall"/> 内部再额外区分"匹配到的签名
-    ///   是异步的"，目前二者只按同步语义返回声明的返回类型。
-    /// - PEVT72xx 集合等待（<c>await all</c>/<c>await any</c>）的句柄列表/绑定列表校验、
-    ///   <c>$raw cs</c> 的 C# 内容本身（PEVT8007-8010）、<c>exec</c> 参数的静态字符串类型核对
-    ///   （PEVT7403，明确归 13.4 节描述的运行时动态执行阶段）。
+    /// 名称、调用与能力绑定：跨环境的定义先于使用、自定义事件块签名、<c>@</c> 重载匹配、<c>$raw cs</c> 参数副本，
+    /// 以及 <c>handler</c> 的声明、赋值与 await/kill/status 规则。callevt 在静态阶段刻意只认语法、不查真实 ID；
+    /// PEVT7117、7203 与集合等待的列表校验留给后续阶段。
     /// </summary>
     public sealed class Binder
     {
@@ -53,30 +38,34 @@ namespace Polaris.Pevt.Binding
 
         /// <summary>
         /// 当前处于"直接位置"的那个表达式节点：整条语句的表达式，或一个声明/句柄声明的初始化器。
-        ///
-        /// 只有带非空结果绑定的集合等待需要它（PEVT7225）：绑定会在当前环境里引入新变量，
-        /// 所以它必须是整条语句的顶层，不能藏在括号、运算符或调用参数里。用节点身份比较而不是
-        /// 一个布尔标记，正是为了让"括号也算嵌套"这条规则自然成立。
         /// </summary>
         private ExpressionSyntax _directExpressionRoot;
 
-        public Binder(DiagnosticBag diagnostics, SourceText source, BuiltinApiTable builtinApi = null)
+        /// <summary>
+        /// <c>$raw cs</c> 的 C# 分析器（PEVT8007–8010 与代码块返回类型）。
+        /// </summary>
+        private readonly Runtime.Raw.IPevtRawCsAnalyzer _rawCsAnalyzer;
+
+        public Binder(
+            DiagnosticBag diagnostics,
+            SourceText source,
+            BuiltinApiTable builtinApi = null,
+            Runtime.Raw.IPevtRawCsAnalyzer rawCsAnalyzer = null)
         {
             _diagnostics = diagnostics;
             _source = source;
             _builtinApi = builtinApi ?? BuiltinApiTable.Empty;
+            _rawCsAnalyzer = rawCsAnalyzer;
         }
 
         private void Report(string diagnosticId, TextSpan span) =>
             _diagnostics.AddFromCatalog(diagnosticId, _source.GetLocation(span));
 
-        /// <summary>外层事件用一个全新环境；每个自定义事件块定义各自再用一个全新、互不关联的环境
-        /// （9.4 节："自定义事件块不会隐式捕获外层环境"）。绑定前先做一次全文件块名预扫描，
-        /// 好让"定义先于调用"（7115）能和"哪里都没定义"（7110）区分开。</summary>
+        /// <summary>外层事件与每个自定义事件块定义各自使用一个全新、互不关联的环境（9.4 节）。
+        /// 绑定前先做一次全文件块名预扫描，好让"定义先于调用"（7115）能和"哪里都没定义"（7110）区分开。</summary>
         /// <param name="seedSymbols">
-        /// 预先存在于外层环境里的符号。只有 <c>exec</c> 片段会用到：片段"允许读写授权的外层变量"，
-        /// 因此静态校验必须先知道这些名字，否则合法片段会被判成 PEVT6001。片段里新声明的名字
-        /// 仍然只进片段自己的环境。
+        /// 预先存在于外层环境里的符号，只有 <c>exec</c> 片段会用到——片段允许读写授权的外层变量，
+        /// 静态校验必须先知道这些名字，否则合法片段会被判成 PEVT6001。片段里新声明的名字仍然只进片段自己的环境。
         /// </param>
         public void BindDocument(DocumentSyntax document, IEnumerable<Symbol> seedSymbols = null)
         {
@@ -265,9 +254,10 @@ namespace Polaris.Pevt.Binding
             env.Restore(BoundEnvironment.Merge(branchStates, isExhaustive: node.ElseClause != null, preState));
         }
 
-        /// <summary>5 节：循环体可能一次也不执行，因此循环之后的状态就是循环之前的状态；循环体仍然
-        /// 用一份克隆单独走一遍绑定，只是为了在体内本身报告读取/声明相关的诊断（单趟扫描，不做
-        /// "下一轮迭代能看到本轮末尾赋值"的不动点分析——已知的简化，见类顶部范围说明的姊妹记录）。</summary>
+        /// <summary>
+        /// 5 节：循环体可能一次也不执行，因此循环之后的状态就是循环之前的状态。
+        /// 循环体仍然用一份克隆单独走一遍绑定，只为在体内报告读取与声明相关的诊断，不做不动点分析。
+        /// </summary>
         private void BindWhile(WhileStatementSyntax node, BoundEnvironment env)
         {
             Dictionary<string, bool> preState = env.SnapshotFlowState();
@@ -309,10 +299,6 @@ namespace Polaris.Pevt.Binding
         /// <summary>
         /// PEVT2415：<c>case</c> 表达式不允许包含 <c>@</c>、<c>_</c>、<c>$raw cs</c>、<c>await</c>、
         /// <c>status</c>、<c>callevt</c> 或 <c>exec</c>。
-        ///
-        /// 原因是 switch 的派发链会按顺序逐个比较 case 值，而 <c>goto 表达式</c> 还会让这条链再跑一遍；
-        /// 只要 case 表达式带副作用，同一段源码执行几次就取决于匹配到第几个分支，行为无法预测。
-        /// 整棵子表达式树都要查——副作用藏在括号或运算符右边一样不行。
         /// </summary>
         private void ReportSideEffectingCaseExpression(ExpressionSyntax expression)
         {
@@ -358,10 +344,8 @@ namespace Polaris.Pevt.Binding
         }
 
         /// <summary>
-        /// 14.1 节：块体是一个完全独立的环境，形参进入时已经定义且已经初始化（9.4 节）。块名称
-        /// 登记进外层环境时绕开 PEVT6007 那条重复检查（用它自己更具体的 PEVT7103），好让"把块名当
-        /// 变量赋值"落到 PEVT6002 而不是被误报成 6001。签名只在整段定义（含 <c>endblock</c>）绑定
-        /// 完毕后才写入 <see cref="_readyBlocks"/>——这就是"定义先于调用"检查的全部机制。
+        /// 14.1 节：块体是完全独立的环境，形参进入时已经定义且已经初始化。
+        /// 签名只在整段定义（含 <c>endblock</c>）绑定完毕后才写入 <see cref="_readyBlocks"/>，这就是"定义先于调用"检查的全部机制。
         /// </summary>
         private void BindBlockDefinition(BlockDefinitionStatementSyntax block, BoundEnvironment enclosingEnv)
         {
@@ -395,9 +379,8 @@ namespace Polaris.Pevt.Binding
         /// 句柄的返回值只在 <c>await</c> 完成后才可用，不是声明本身的静态类型（15.1 节）。</summary>
         private void BindHandlerDeclaration(HandlerDeclarationStatementSyntax node, BoundEnvironment env)
         {
-            // 15.1 节：无返回值的异步调用完全可以作为 handler 初始化器（句柄只记录运行状态）；
-            // 这不是"值被丢弃的语句"，但同样不要求调用必须有普通返回值，因此按 isStatementContext
-            // 的语义传 true，避免误报 PEVT7008/7114。
+            // 15.1 节：无返回值的异步调用完全可以作为 handler 初始化器，句柄只记录运行状态。
+            // 因此按 isStatementContext 的语义传 true，避免误报 PEVT7008/7114。
             _directExpressionRoot = node.Initializer;
             BindExpression(node.Initializer, env, isStatementContext: true);
             PevtType? asyncReturnType = CheckSynchronousInitializer(node.Initializer);
@@ -415,10 +398,8 @@ namespace Polaris.Pevt.Binding
         }
 
         /// <summary>
-        /// 15.2 节："handler 声明的初始化器是静态已知为同步的 @ 或 _ 调用"是 PEVT7204；
-        /// <c>callevt</c> 的目标是否异步只能在运行时解析（10.3 节），因此不在这里核对。
-        /// 顺带返回初始化器对应异步定义的普通返回值类型，供调用方construct <see cref="HandlerSymbol"/>；
-        /// 找不到唯一匹配签名时返回 null（对应调用点已经因为其它原因报过错，不再重复猜测）。
+        /// 15.2 节：handler 初始化器是静态已知为同步的 <c>@</c>/<c>_</c> 调用时报 PEVT7204；<c>callevt</c> 的异步性只能在运行时解析，不在这里核对。
+        /// 顺带返回异步定义的普通返回值类型供构造 <see cref="HandlerSymbol"/>，找不到唯一匹配签名时返回 null。
         /// </summary>
         private PevtType? CheckSynchronousInitializer(ExpressionSyntax initializer)
         {
@@ -447,10 +428,10 @@ namespace Polaris.Pevt.Binding
             }
         }
 
-        /// <summary><c>kill</c>/<c>status</c> 共用的句柄解析：不存在于任何环境是 PEVT7210；存在但
-        /// 不是句柄种类复用调用方指定的、位置专属的"不是句柄"编号（PEVT7213/7214，与阶段 5/7 语法层
-        /// "根本不是标识符"的场景共用同一个号）。<c>await</c> 还需要句柄的异步返回值类型，走
-        /// <see cref="BindAwait"/> 单独处理。</summary>
+        /// <summary>
+        /// <c>kill</c>/<c>status</c> 共用的句柄解析：不存在于任何环境是 PEVT7210，存在但不是句柄种类则用调用方指定的位置专属编号（PEVT7213/7214）。
+        /// <c>await</c> 还需要句柄的异步返回值类型，走 <see cref="BindAwait"/> 单独处理。
+        /// </summary>
         private void BindHandleOperand(SyntaxToken handleToken, BoundEnvironment env, string wrongKindDiagnosticId)
         {
             if (handleToken.IsMissing)
@@ -467,9 +448,8 @@ namespace Polaris.Pevt.Binding
         }
 
         /// <summary>
-        /// 15.3 节：<c>await</c> 的表达式类型取决于句柄对应异步定义是否声明了普通返回值——有，
-        /// 结果就是那个类型（进而让 <c>var x : T = await a</c> 也能享受 PEVT6008 的类型核对）；
-        /// 没有，只能作为独立事件语句使用，此时仍被当表达式用是 PEVT7211。
+        /// 15.3 节：<c>await</c> 的表达式类型取决于句柄对应异步定义是否声明了普通返回值。
+        /// 有就是那个类型（进而享受 PEVT6008 的类型核对）；没有则只能作为独立事件语句，仍被当表达式用是 PEVT7211。
         /// </summary>
         private PevtType BindAwait(AwaitExpressionSyntax node, BoundEnvironment env, bool isStatementContext)
         {
@@ -499,12 +479,9 @@ namespace Polaris.Pevt.Binding
         }
 
         /// <summary>
-        /// 15.6 节的集合等待。<c>await all/any</c> 的表达式类型固定是 <c>int</c>（成功数量或首个成功
-        /// 序号），真正需要绑定器做的是那份结果绑定列表：里面的名字是**新声明的普通变量**，
-        /// 不先在这里登记，后面用到它们就会被误报成 PEVT6001——合法源码被判错。
-        ///
-        /// 声明成"已初始化"是刻意的：静态上无法知道哪个句柄会失败，而"失败句柄对应的变量保持未
-        /// 初始化"是运行期事实，由 PEVTR3002 在真的读到它时报出来（运行诊断表 9 节）。
+        /// 15.6 节的集合等待：<c>await all/any</c> 的表达式类型固定是 <c>int</c>，绑定器真正要做的是把结果绑定列表里的名字
+        /// 当成新声明的普通变量登记，否则后面用到它们会被误报成 PEVT6001。登记成"已初始化"是刻意的——
+        /// 哪个句柄会失败只有运行期知道，由 PEVTR3002 在真的读到未初始化槽时报出。
         /// </summary>
         private PevtType BindAggregateAwait(AggregateAwaitExpressionSyntax node, BoundEnvironment env)
         {
@@ -576,10 +553,10 @@ namespace Polaris.Pevt.Binding
 
         // ---- expressions ----
 
-        /// <summary><paramref name="isStatementContext"/>：这个表达式的值是否会被整条语句丢弃——
-        /// 只有这种情况下，无返回值的 <c>@</c>/自定义事件块调用才是合法的（否则 PEVT7008/7114）。
-        /// 括号原样传递这个标记（括号不改变"是不是整条语句"），链式运算和调用参数则总是 false
-        /// （它们的值总是被外层运算符或调用消费，不会被丢弃）。</summary>
+        /// <summary>
+        /// <paramref name="isStatementContext"/>：这个表达式的值是否会被整条语句丢弃，只有这种情况下无返回值的调用才合法（否则 PEVT7008/7114）。
+        /// 括号原样传递这个标记，链式运算和调用参数则总是 false。
+        /// </summary>
         public PevtType BindExpression(ExpressionSyntax expression, BoundEnvironment env, bool isStatementContext = false)
         {
             switch (expression)
@@ -593,7 +570,7 @@ namespace Polaris.Pevt.Binding
                 case BuiltinCallExpressionSyntax builtinCall: return BindBuiltinCall(builtinCall, env, isStatementContext);
                 case CustomBlockCallExpressionSyntax blockCall: return BindCustomBlockCall(blockCall, env, isStatementContext);
                 case ExecCallExpressionSyntax execCall: BindArguments(execCall.Arguments, env); return PevtType.Error;
-                case RawCsExpressionSyntax rawCs: BindRawCs(rawCs, env); return PevtType.Error;
+                case RawCsExpressionSyntax rawCs: return BindRawCs(rawCs, env, isStatementContext);
                 case AwaitExpressionSyntax awaitExpr: return BindAwait(awaitExpr, env, isStatementContext);
                 case StatusExpressionSyntax statusExpr: BindHandleOperand(statusExpr.Handle, env, "PEVT7214"); return PevtType.Int;
                 case AggregateAwaitExpressionSyntax aggregate: return BindAggregateAwait(aggregate, env);
@@ -620,9 +597,10 @@ namespace Polaris.Pevt.Binding
             _ => PevtType.Error,
         };
 
-        /// <summary>PEVT6001（哪个环境都没声明过）、PEVT6012（声明过，但在另一个环境）与 PEVT6003
-        /// （本环境声明过，但当前路径上还没有完成初始化）的共用入口——普通变量读取、转换操作数和
-        /// <c>return</c> 目标都经过这里。</summary>
+        /// <summary>
+        /// PEVT6001（哪个环境都没声明过）、PEVT6012（声明过但在另一个环境）与 PEVT6003（本环境声明过但当前路径还没初始化）
+        /// 三者的共用入口，普通变量读取、转换操作数和 <c>return</c> 目标都经过这里。
+        /// </summary>
         private PevtType BindNameRead(SyntaxToken nameToken, BoundEnvironment env)
         {
             if (nameToken.IsMissing)
@@ -657,10 +635,10 @@ namespace Polaris.Pevt.Binding
         private void ReportUndefinedOrOutsideEnvironment(SyntaxToken nameToken) =>
             Report(_everDeclaredAnywhere.Contains(nameToken.Text) ? "PEVT6012" : "PEVT6001", nameToken.Span);
 
-        /// <summary>15.2 节 PEVT7209："句柄被用于 await、kill、status 以外的表达式、运算、转换或
-        /// 调用参数"。这三个合法位置各自直接持有裸标识符 token，从不经过普通表达式解析
-        /// （见 <see cref="BindAwait"/>/<see cref="BindHandleOperand"/>），因此任何从这里（普通
-        /// <c>NameExpressionSyntax</c> 读取）解析出句柄类型的名称，必然是用在了不允许的位置。</summary>
+        /// <summary>
+        /// 15.2 节 PEVT7209：句柄被用于 await、kill、status 以外的表达式、运算、转换或调用参数。
+        /// 那三个合法位置各自直接持有裸标识符 token，从不经过普通表达式解析，所以从这里解析出句柄类型的名称必然是误用。
+        /// </summary>
         private PevtType BindOrdinaryNameRead(NameExpressionSyntax name, BoundEnvironment env)
         {
             PevtType type = BindNameRead(name.Identifier, env);
@@ -759,9 +737,10 @@ namespace Polaris.Pevt.Binding
             }
         }
 
-        /// <summary>8.3 节：语法层面只有 <c>(float)x</c>/<c>(string)x</c> 两种形状会被解析成
-        /// <see cref="ConversionExpressionSyntax"/>（见 Parser.ParseParenthesizedOrConversion）；
-        /// 这里只需要按目标类型核对源变量的实际类型是否恰好是 <c>int</c>/<c>char</c>（PEVT5012）。</summary>
+        /// <summary>
+        /// 8.3 节：语法层面只有 <c>(float)x</c>/<c>(string)x</c> 会被解析成 <see cref="ConversionExpressionSyntax"/>，
+        /// 这里只需按目标类型核对源变量的实际类型是否恰好是 <c>int</c>/<c>char</c>（PEVT5012）。
+        /// </summary>
         private PevtType BindConversion(ConversionExpressionSyntax node, BoundEnvironment env)
         {
             PevtType targetType = PevtTypeFacts.FromTypeKeyword(node.TargetType.Kind);
@@ -792,9 +771,8 @@ namespace Polaris.Pevt.Binding
         // ---- 14.4: custom block calls ----
 
         /// <summary>
-        /// 14.1/14.4 节。语法层面"标识符(...)"一律搭建成 <see cref="CustomBlockCallExpressionSyntax"/>
-        /// （阶段 5 的既有设计），因此这里既要处理带 <c>_</c> 前缀的正常调用，也要识别"漏写前缀"
-        /// （PEVT7111）——如果去掉/补上前缀能在已知块名集合里找到匹配，说明用户大概率是想调用那个块。
+        /// 14.1/14.4 节。语法层面"标识符(...)"一律搭建成 <see cref="CustomBlockCallExpressionSyntax"/>，
+        /// 所以这里既处理带 <c>_</c> 前缀的正常调用，也识别去掉或补上前缀就能匹配已知块名的"漏写前缀"（PEVT7111）。
         /// </summary>
         private PevtType BindCustomBlockCall(CustomBlockCallExpressionSyntax call, BoundEnvironment env, bool isStatementContext)
         {
@@ -848,11 +826,9 @@ namespace Polaris.Pevt.Binding
         // ---- 11: builtin (@) calls ----
 
         /// <summary>
-        /// 11.2/11.3 节的签名重载匹配：先按参数数量筛出候选，数量都不对就是 PEVT7005；数量对了但
-        /// 没有任何候选的参数类型逐一精确匹配，单一候选时是 PEVT7006（类型不对这一件事很明确），
-        /// 多个候选时降级为更笼统的 PEVT7007（找不到完全匹配的签名——具体是哪个候选、哪个参数不对
-        /// 已经不唯一了）。真实 API 表本身要等阶段 13 才会被登记；本阶段调用方通过构造函数传入
-        /// <see cref="BuiltinApiTable"/>，未传入时默认为空表，任何 <c>@</c> 名称都会被判定为未登记。
+        /// 11.2/11.3 节的签名重载匹配：参数数量都不对是 PEVT7005，数量对而类型不匹配时单一候选报 PEVT7006、
+        /// 多候选降级为更笼统的 PEVT7007。真实 API 表由调用方通过构造函数传入 <see cref="BuiltinApiTable"/>，
+        /// 未传入时为空表，任何 <c>@</c> 名称都会被判定为未登记。
         /// </summary>
         private PevtType BindBuiltinCall(BuiltinCallExpressionSyntax call, BoundEnvironment env, bool isStatementContext)
         {
@@ -917,33 +893,55 @@ namespace Polaris.Pevt.Binding
 
         // ---- 12.2: $raw cs argument copies ----
 
-        /// <summary>12.2 节："$raw cs 的变量传入列表只能包含已定义且已初始化的 PEVT 变量"，且不能
-        /// 重复；文件是否声明了 <c>enable cs</c>（2.1 节）也在这里统一核对（PEVT8015）。</summary>
-        private void BindRawCs(RawCsExpressionSyntax node, BoundEnvironment env)
+        /// <summary>
+        /// 12.2 节：<c>$raw cs</c> 的变量传入列表只能包含已定义且已初始化的 PEVT 变量且不能重复，
+        /// 文件是否声明 <c>enable cs</c> 也在这里统一核对（PEVT8015）。传入列表绑定完成后再把代码块交给宿主的
+        /// C# 分析器决定 PEVT8007–8010 与表达式类型；没有分析器时返回 <see cref="PevtType.Error"/>，不假装知道类型。
+        /// </summary>
+        private PevtType BindRawCs(RawCsExpressionSyntax node, BoundEnvironment env, bool isStatementContext)
         {
             if (!_hasCsCapability)
                 Report("PEVT8015", node.Span);
 
-            if (node.Arguments == null)
-                return;
-
-            var seen = new HashSet<string>();
-            foreach (SyntaxToken identifier in node.Arguments.Identifiers)
+            var parameters = new List<Runtime.Raw.PevtRawCsParameter>();
+            if (node.Arguments != null)
             {
-                if (identifier.IsMissing)
-                    continue;
-
-                if (!seen.Add(identifier.Text))
+                var seen = new HashSet<string>();
+                foreach (SyntaxToken identifier in node.Arguments.Identifiers)
                 {
-                    Report("PEVT8013", identifier.Span);
-                    continue;
-                }
+                    if (identifier.IsMissing)
+                        continue;
 
-                if (!env.TryGetSymbol(identifier.Text, out Symbol symbol) || !(symbol is VariableSymbol or ConstantSymbol or ParameterSymbol))
-                    Report("PEVT8014", identifier.Span);
-                else
+                    if (!seen.Add(identifier.Text))
+                    {
+                        Report("PEVT8013", identifier.Span);
+                        continue;
+                    }
+
+                    if (!env.TryGetSymbol(identifier.Text, out Symbol symbol) || !(symbol is VariableSymbol or ConstantSymbol or ParameterSymbol))
+                    {
+                        Report("PEVT8014", identifier.Span);
+                        continue;
+                    }
+
                     BindNameRead(identifier, env); // 仍然按普通读取核对是否已经初始化（PEVT6003）。
+
+                    if (symbol.Type.IsOrdinaryType())
+                        parameters.Add(new Runtime.Raw.PevtRawCsParameter(identifier.Text, symbol.Type));
+                }
             }
+
+            if (_rawCsAnalyzer == null || node.Content.IsMissing)
+                return PevtType.Error;
+
+            var request = new Runtime.Raw.PevtRawCsRequest(
+                node.Content.Value.Kind == TokenValueKind.String ? node.Content.Value.AsString : string.Empty,
+                parameters,
+                isStatementContext ? Runtime.Raw.PevtRawCsUsage.Statement : Runtime.Raw.PevtRawCsUsage.Expression,
+                Runtime.Raw.PevtRawCsSourceMap.Create(_source, node.Content.Text, node.Content.Span.Start));
+
+            PevtType? returnType = _rawCsAnalyzer.Analyze(request, _diagnostics);
+            return returnType ?? PevtType.Error;
         }
     }
 }

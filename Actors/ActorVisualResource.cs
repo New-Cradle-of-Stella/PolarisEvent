@@ -42,9 +42,8 @@ namespace Polaris.Pevt.Actors
     }
 
     /// <summary>
-    /// 一条视觉资源引用。<see cref="ActorVisualProvider.GamePxls"/> 保存原版 Bundle 逻辑路径（<c>Asset</c>），
-    /// <see cref="ActorVisualProvider.PolarisRes"/> 保存 C# 静态字段引用（<c>Resource</c>）。两者互斥：
-    /// 目录里不存在既是原版借用又是模组字段的资源。
+    /// 一条视觉资源引用：<see cref="ActorVisualProvider.GamePxls"/> 保存原版 Bundle 逻辑路径（<c>Asset</c>），
+    /// <see cref="ActorVisualProvider.PolarisRes"/> 保存 C# 静态字段引用（<c>Resource</c>）。两者互斥，目录里不存在既是原版借用又是模组字段的资源。
     /// </summary>
     public sealed class ActorVisualResource : IEquatable<ActorVisualResource>
     {

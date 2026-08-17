@@ -3,15 +3,12 @@ using System.Collections.Generic;
 using System.Reflection;
 using Polaris.Pevt.Registration;
 using Polaris.Pevt.Runtime;
+using Polaris.Pevt.Runtime.Raw;
 
 namespace Polaris.Event.Game
 {
     /// <summary>
     /// PolarisEvent 的游戏侧运行时：注册、宿主、每帧更新点与事件模式切换都收在这里。
-    ///
-    /// 初始化顺序是固定的：先建 <see cref="PevtRegistryScanner"/>（它的构造函数就已经把内置
-    /// <c>aic</c> 人物目录登记进去了），再扫描外部程序集的人物与事件 registrar，最后 Seal。
-    /// 顺序反过来的话，外部目录就有机会抢占 <c>aic</c> 命名空间。
     /// </summary>
     public sealed class PevtGameRuntime
     {
@@ -22,9 +19,27 @@ namespace Polaris.Event.Game
 
         public PevtGameRuntime()
         {
-            Registry = new PevtRegistryScanner();
+            // 两个逃生口都是进程级的：原版 EV 是单套静态执行器，所以会话通道必须跨事件共享；
+            // `$raw cs` 的编译缓存同理，每个事件一份等于每次启动事件都重编一遍同一段 C#。
+            RawCommands = new PevtRawCommandChannel(new RawCmd.PevtGameRawCommandBridge());
+
+            // Roslyn 延迟加载：整套编译器程序集只在真的遇到第一个 `$raw cs` 时才进入进程。
+            // 绝大多数事件一行 `$raw cs` 都没有，没理由让它们为这个逃生口付启动成本。
+            RawCs = new PevtRawCsExecutor(new PevtLazyRawCsCompiler(
+                () => PevtRoslynRawCsCompiler.FromLoadedAssemblies()));
+
+            // 扫描器拿到同一个执行器当分析器：嵌入源在游戏侧重校时，`$raw cs` 的 C# 内容也要过
+            // PEVT8007–8010，而且那一次编译的结果直接进缓存，运行时不必再编一遍。
+            Registry = new PevtRegistryScanner(null, null, RawCs);
+
             Host = new PevtEventHost(Registry, _clock, CreateServices);
         }
+
+        /// <summary><c>$raw cmd</c> 的进程级原版会话通道。</summary>
+        public PevtRawCommandChannel RawCommands { get; }
+
+        /// <summary><c>$raw cs</c> 的受信任执行器，同时也是加载期的 C# 分析器。</summary>
+        public PevtRawCsExecutor RawCs { get; }
 
         public PevtRegistryScanner Registry { get; }
 
@@ -85,7 +100,12 @@ namespace Polaris.Event.Game
         /// <summary>停止当前根事件并级联清理。没有事件在跑时是空操作。</summary>
         public IReadOnlyList<Exception> Stop()
         {
-            IReadOnlyList<Exception> failures = Host.Stop();
+            var failures = new List<Exception>(Host.Stop());
+
+            // 必须排在 FinishSession 之前：ExitEventMode 以 `EV.isActive()` 为闸门决定要不要恢复 GMain / GHandle。
+            // 一个还留在原版栈上的 raw reader 会让它误判成"原版事件在跑"而跳过恢复，游戏就停在暂停状态。
+            failures.AddRange(RawCommands.ReleaseAll());
+
             FinishSession();
             return failures;
         }
@@ -109,7 +129,11 @@ namespace Polaris.Event.Game
         /// <summary>插件卸载：停掉全部事件、清理会话并退出事件模式。</summary>
         public IReadOnlyList<Exception> Shutdown()
         {
-            IReadOnlyList<Exception> failures = Host.Shutdown();
+            var failures = new List<Exception>(Host.Shutdown());
+
+            // 同 Stop：先把原版栈上的 reader 收掉，再让 ExitEventMode 判断要不要恢复游戏主循环。
+            failures.AddRange(RawCommands.ReleaseAll());
+
             FinishSession();
             return failures;
         }
@@ -118,7 +142,7 @@ namespace Polaris.Event.Game
 
         private PevtServices CreateServices(string eventId)
         {
-            _session = new PevtGameSessionServices(Registry.Actors, _clock, eventId);
+            _session = new PevtGameSessionServices(Registry.Actors, _clock, eventId, RawCommands, RawCs);
             return _session.Services;
         }
 

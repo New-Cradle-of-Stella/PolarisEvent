@@ -45,7 +45,7 @@ namespace Polaris.Pevt.Runtime
     }
 
     /// <summary>
-    /// 一条运行诊断。编号必须来自 <see cref="RuntimeDiagnosticCatalog"/>——运行时不允许临时另造编号。
+    /// 一条运行诊断，编号必须来自 <see cref="RuntimeDiagnosticCatalog"/>，运行时不允许临时另造编号。
     /// 保存源码调用栈和内部异常链，使运行错误能回溯到事件 ID、相对路径、源码行列和事件/块/协程调用栈。
     /// </summary>
     public sealed class PevtRuntimeDiagnostic

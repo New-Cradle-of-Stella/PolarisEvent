@@ -31,11 +31,6 @@ namespace Polaris.Pevt.Runtime
 
     /// <summary>
     /// 一个异步协程的底层驱动。
-    ///
-    /// 存在两种实现：一次 <c>@</c> 组合（复用同步调用用的同一个 <see cref="PevtCommandFrame"/>），
-    /// 以及一段 PEVT 指令流（<c>async block</c> 与 <c>callevt</c> 的子事件，复用同一个解释器）。
-    /// 抽象成接口是为了让调度器只认"推进一步 / 请求取消 / 确认停下"，从而无论哪种来源都走同一套
-    /// 状态机、所有权和诊断路径——规范明确禁止同步版与异步版各写一份业务代码。
     /// </summary>
     internal interface IPevtAsyncDriver
     {
@@ -59,10 +54,6 @@ namespace Polaris.Pevt.Runtime
 
     /// <summary>
     /// 一个由事件拥有的异步协程。
-    ///
-    /// <c>status</c>、<c>await</c> 和 <c>kill</c> 全部按 ID 查这里的唯一状态，句柄本身不保存副本
-    /// （第 8 节）。<see cref="Observed"/> 记录失败是否已被观察，事件结束时未被观察的失败产生
-    /// <c>PEVTR5005</c> 警告。
     /// </summary>
     public sealed class PevtAsyncRoutine
     {
@@ -248,7 +239,6 @@ namespace Polaris.Pevt.Runtime
 
     /// <summary>
     /// 一个事件拥有的子协程调度器。
-    ///
     /// 与根事件调度器同一套规则：ID 稳定递增，每帧按 ID 升序推进，因此同一份输入必然得到同一条
     /// 执行轨迹——"同一帧多个句柄同时成功"这种竞争也就有了确定的解决顺序。
     /// </summary>

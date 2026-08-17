@@ -95,6 +95,18 @@ namespace Polaris.Pevt.Runtime
 
         /// <summary><c>exec</c>：弹出片段源码字符串，运行时解析、绑定并执行。</summary>
         Exec,
+
+        /// <summary>
+        /// <c>$raw cmd</c>：把 <c>Constant</c> 里的原版 DSL 文本提交给进程级原版会话通道。
+        /// 永远不产生值。
+        /// </summary>
+        RawCmd,
+
+        /// <summary>
+        /// <c>$raw cs</c>：执行 <c>Constant</c> 里的 C# 代码块。<c>Names</c> 是按顺序传入的
+        /// PEVT 变量名，<c>Flag</c> 为 true 表示用在表达式位置、结果要压栈。
+        /// </summary>
+        RawCs,
     }
 
     /// <summary>一条已绑定的不可变指令。跳转目标在编译期解析，运行期不再查找。</summary>
@@ -239,13 +251,6 @@ namespace Polaris.Pevt.Runtime
 
     /// <summary>
     /// 已绑定程序定义的线性执行形式。
-    ///
-    /// 把语法树编译成指令序列有两个理由，都是计划里的硬要求：跳转目标必须"预绑定"，
-    /// 而事件与块调用必须使用显式帧而不是 C# 递归。线性指令天然满足两者，而且让
-    /// "表达式中间出现一个会跨帧的 <c>@</c> 调用"变成可恢复的——求值栈保存在帧上，
-    /// 协程挂起后可以从同一条指令继续。
-    ///
-    /// 编译是纯函数：同一份定义永远得到同一份指令。
     /// </summary>
     public sealed class PevtCompiledProgram
     {
@@ -489,8 +494,8 @@ namespace Polaris.Pevt.Runtime
                         Emit(PevtOpCode.Kill, kill.Span, name: kill.Handle.Text);
                         return;
 
-                    case RawCmdStatementSyntax _:
-                        Unsupported("`$raw cmd`");
+                    case RawCmdStatementSyntax rawCmd:
+                        Emit(PevtOpCode.RawCmd, rawCmd.Span, constant: RawContentOf(rawCmd.Content));
                         return;
 
                     case UnknownStatementSyntax unknown:
@@ -640,6 +645,13 @@ namespace Polaris.Pevt.Runtime
                     return;
                 }
 
+                // 语句位置的 `$raw cs` 是纯调用：代码块可能根本没有返回类型，压完再 Pop 会让求值栈欠一格。
+                if (statement.Expression is RawCsExpressionSyntax rawCsStatement)
+                {
+                    EmitRawCs(rawCsStatement, producesValue: false);
+                    return;
+                }
+
                 EmitExpression(statement.Expression);
 
                 // 语句位置的调用如果有返回值，结果直接丢弃。
@@ -693,9 +705,8 @@ namespace Polaris.Pevt.Runtime
                     case UnaryExpressionSyntax unary:
                         if (IsFoldedIntegerMinValue(unary))
                         {
-                            // 解析器把 `-2147483648` 的负号折进了字面量的值里（见 Parser 的
-                            // CloseUnaryMinusOperandIntegerBoundary），但语法树上仍然留着外面那层
-                            // 一元负号。照常再取一次负会立刻越界，所以这里只压已经折好的字面量。
+                            // 解析器把 `-2147483648` 的负号折进了字面量的值里（见 Parser 的 CloseUnaryMinusOperandIntegerBoundary），
+                            // 但语法树上仍然留着外面那层一元负号；照常再取一次负会立刻越界，所以这里只压已经折好的字面量。
                             Emit(PevtOpCode.PushLiteral, unary.Span, constant: PevtValue.FromInt(int.MinValue));
                             return;
                         }
@@ -731,8 +742,8 @@ namespace Polaris.Pevt.Runtime
                         EmitExec(exec);
                         return;
 
-                    case RawCsExpressionSyntax _:
-                        Unsupported("`$raw cs`");
+                    case RawCsExpressionSyntax rawCs:
+                        EmitRawCs(rawCs, producesValue: true);
                         return;
 
                     case StatusExpressionSyntax status:
@@ -755,6 +766,38 @@ namespace Polaris.Pevt.Runtime
                         Unsupported(expression.GetType().Name);
                         return;
                 }
+            }
+
+            /// <summary>
+            /// 取原始文本块的解码内容。词法器已经把 <c>\'''</c> 折成 <c>'''</c>，这里拿到的就是
+            /// 该提交给原版解释器或 C# 编译器的文本；缺失的内容 token 退化成空串。
+            /// </summary>
+            private static PevtValue RawContentOf(SyntaxToken content) =>
+                PevtValue.FromString(
+                    !content.IsMissing && content.Value.Kind == TokenValueKind.String ? content.Value.AsString : string.Empty);
+
+            /// <summary>
+            /// <c>$raw cs</c>。传入变量名保存在 <c>Names</c> 里，运行时按名字从当前环境取值快照——
+            /// 不预先压栈，因为形参类型要在执行点按环境里的声明类型确定（缓存键含参数类型）。
+            /// </summary>
+            private void EmitRawCs(RawCsExpressionSyntax node, bool producesValue)
+            {
+                var names = new List<string>();
+                if (node.Arguments != null)
+                {
+                    foreach (SyntaxToken identifier in node.Arguments.Identifiers)
+                    {
+                        if (!identifier.IsMissing)
+                            names.Add(identifier.Text);
+                    }
+                }
+
+                Emit(
+                    PevtOpCode.RawCs,
+                    node.Span,
+                    constant: RawContentOf(node.Content),
+                    flag: producesValue,
+                    names: new ReadOnlyCollection<string>(names));
             }
 
             private void EmitBuiltinCall(BuiltinCallExpressionSyntax call)
@@ -797,9 +840,8 @@ namespace Polaris.Pevt.Runtime
             }
 
             /// <summary>
-            /// <c>handler h = ...</c>：初始化器照常求值实参，然后按初始化器种类启动异步操作，
-            /// 并把句柄名带给指令。三种合法初始化器（异步 <c>@</c>、<c>async block</c>、<c>callevt</c>）
-            /// 复用的都是同步调用那条路径上的同一份描述条目或块定义。
+            /// <c>handler h = ...</c>：照常求值实参，再按初始化器种类启动异步操作并把句柄名带给指令。
+            /// 三种合法初始化器（异步 <c>@</c>、<c>async block</c>、<c>callevt</c>）复用的都是同步调用那条路径上的同一份描述条目或块定义。
             /// </summary>
             private void EmitAsyncStart(ExpressionSyntax initializer, string handlerName)
             {

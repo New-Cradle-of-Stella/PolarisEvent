@@ -6,11 +6,8 @@ using Polaris.Pevt.Actors;
 namespace Polaris.Pevt.Registration
 {
     /// <summary>
-    /// 全局人物空间。与 `/event` 事件表完全分离：人物冲突不会覆盖事件，事件冲突也不会覆盖人物，
-    /// 两者分开 Seal 和查询（PEVT-嵌入注册与ID冲突规范.md 第 10 节）。
-    ///
-    /// 内置 `AliceInCradle.BuiltinActors.pactor` 由本类型在构造时先行登记，因此 `aic` 命名空间
-    /// 永远先于任何外部程序集占位。
+    /// 全局人物空间，与 `/event` 事件表完全分离：两者分开 Seal 和查询，人物冲突不会覆盖事件，事件冲突也不会覆盖人物。
+    /// 内置 `AliceInCradle.BuiltinActors.pactor` 由本类型在构造时先行登记，因此 `aic` 命名空间永远先于任何外部程序集占位。
     /// </summary>
     public sealed class PevtActorRegistry
     {
@@ -85,8 +82,6 @@ namespace Polaris.Pevt.Registration
         /// <summary>
         /// 取一个视觉的延迟资源访问器，键为 <c>&lt;actorId&gt;/&lt;visualKey&gt;</c>。
         /// 只有 <c>polaris-res</c> 视觉有访问器；原版 <c>game-pxls</c> 借用由资源桥直接解析。
-        ///
-        /// 本方法只把委托交出去，不调用它——真正解析要等首次演出。
         /// </summary>
         public bool TryGetVisualAccessor(string actorId, string visualKey, out Func<object> accessor) =>
             _visualAccessors.TryGetValue((actorId ?? string.Empty) + "/" + (visualKey ?? string.Empty), out accessor);

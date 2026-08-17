@@ -9,15 +9,9 @@ using Polaris.Pevt.Runtime;
 namespace Polaris.Event.Game
 {
     /// <summary>
-    /// 人物立绘适配器。
-    ///
-    /// 站位坐标由 PolarisEvent 自己保存：内置语义站位在 <see cref="Anchors"/> 里是一张数值表，
-    /// 人物专用站位直接取 `.pactor` 里的 <see cref="ActorAnchor"/>。两者都不会被翻译回原版的
-    /// <c>L/R/C</c> 组合键交给原版解释器（PEVT-人物目录与原版别名规范.md 第 8 节）。
-    ///
-    /// 唯一用到原版位置键的地方是 <see cref="EvDrawerContainer.activateTalker"/> 的创建参数——
-    /// 它要求一个已定义的位置键才肯建出 <see cref="TalkDrawer"/>。这里固定用中立的 <c>C</c>
-    /// 引导，紧接着就用 PEVT 自己的坐标覆盖，所以屏幕上的位置始终来自 PEVT。
+    /// 人物立绘适配器。站位坐标由 PolarisEvent 自己保存，不会被翻译回原版的 <c>L/R/C</c> 组合键；
+    /// 唯一用到原版位置键的地方是 <see cref="EvDrawerContainer.activateTalker"/> 的创建参数，那里固定用中立的 <c>C</c> 引导，
+    /// 紧接着就用 PEVT 自己的坐标覆盖。
     /// </summary>
     internal sealed class PevtGamePortrait : IPevtPortrait
     {

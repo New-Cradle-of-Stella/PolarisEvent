@@ -9,8 +9,8 @@ using Xunit;
 namespace Polaris.Pevt.Core.Tests.Flow
 {
     /// <summary>
-    /// 阶段 10 的 golden 测试：控制流分析（PEVT4xxx 与之前遗留的标签/goto 语义诊断 PEVT3xxx）
-    /// 覆盖嵌套结构、向后 goto、switch 专用 goto 和不可达警告（语法设计草案第 6.5/7/16 节）。
+    /// 阶段 10 的 golden 测试：控制流分析（PEVT4xxx 与之前遗留的标签/goto 语义诊断 PEVT3xxx），
+    /// 覆盖嵌套结构、向后 goto、switch 专用 goto 和不可达警告。
     /// </summary>
     public class ControlFlowAnalyzerTests
     {

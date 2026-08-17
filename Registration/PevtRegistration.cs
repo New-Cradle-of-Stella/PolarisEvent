@@ -84,14 +84,9 @@ namespace Polaris.Pevt.Registration
 
         /// <param name="catalogHash">`.pactor` 源文件的内容哈希，只用于冲突报告。</param>
         /// <param name="visualAccessors">
-        /// 延迟资源访问器，键为 <c>&lt;actorId&gt;/&lt;visualKey&gt;</c>。
-        ///
-        /// 值故意是 <c>Func&lt;object&gt;</c>：Core 不引用游戏程序集，看不到 <c>PxlsCharacterHandle</c>
-        /// 或 <c>MImage</c>，只能把访问器原样存着，交给游戏侧适配器按自己知道的类型取用。
-        /// 类型正确性在生成期就由共享的 <see cref="ActorResourceBinding"/> 判定过，而生成代码里
-        /// 那个 lambda 直接引用真实字段，模组自己的编译是第二道保险。
-        ///
-        /// 注册期绝不调用这些访问器——扫描期不得触发资源加载。
+        /// 延迟资源访问器，键为 <c>&lt;actorId&gt;/&lt;visualKey&gt;</c>，值是 <c>Func&lt;object&gt;</c>——
+        /// Core 看不到 <c>PxlsCharacterHandle</c> 或 <c>MImage</c>，只能原样存着交给游戏侧适配器取用。
+        /// 注册期绝不调用这些访问器，扫描期不得触发资源加载。
         /// </param>
         public void Register(
             ActorCatalog catalog,

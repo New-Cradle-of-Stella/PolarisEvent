@@ -36,10 +36,6 @@ namespace Polaris.Pevt.Loading
 
     /// <summary>
     /// PEVT 源文本到不可变程序定义的唯一公开编译入口。
-    ///
-    /// 词法、语法、绑定、控制流四道静态门在这里按固定顺序全部执行，调用方无法只跑其中一部分就拿到
-    /// <see cref="PevtProgramDefinition"/>——工具侧和游戏侧都走这一条路径，因此对同一份源文本必然
-    /// 得到相同的 AST、绑定结果和 PEVTxxxx。游戏侧对嵌入源仍然重新执行本入口，不信任工具侧结果。
     /// </summary>
     public static class PevtSourceCompiler
     {
@@ -47,13 +43,14 @@ namespace Polaris.Pevt.Loading
             SourceText source,
             BuiltinApiTable builtinApi = null,
             CancellationToken cancellationToken = default,
-            IEnumerable<Symbol> seedSymbols = null)
+            IEnumerable<Symbol> seedSymbols = null,
+            Runtime.Raw.IPevtRawCsAnalyzer rawCsAnalyzer = null)
         {
             if (source == null)
                 throw new ArgumentNullException(nameof(source));
 
             var diagnostics = new DiagnosticBag();
-            return Compile(source, diagnostics, builtinApi, cancellationToken, seedSymbols);
+            return Compile(source, diagnostics, builtinApi, cancellationToken, seedSymbols, rawCsAnalyzer);
         }
 
         /// <summary>把诊断累加到调用方自己的包里的重载，供已经在收集诊断的宿主使用。</summary>
@@ -62,7 +59,8 @@ namespace Polaris.Pevt.Loading
             DiagnosticBag diagnostics,
             BuiltinApiTable builtinApi = null,
             CancellationToken cancellationToken = default,
-            IEnumerable<Symbol> seedSymbols = null)
+            IEnumerable<Symbol> seedSymbols = null,
+            Runtime.Raw.IPevtRawCsAnalyzer rawCsAnalyzer = null)
         {
             if (source == null)
                 throw new ArgumentNullException(nameof(source));
@@ -71,7 +69,7 @@ namespace Polaris.Pevt.Loading
 
             IReadOnlyList<SyntaxToken> tokens = Lexer.Tokenize(source, diagnostics, cancellationToken);
             DocumentSyntax document = new Parser(tokens, diagnostics, source).ParseDocument();
-            new Binder(diagnostics, source, builtinApi).BindDocument(document, seedSymbols);
+            new Binder(diagnostics, source, builtinApi, rawCsAnalyzer).BindDocument(document, seedSymbols);
             new ControlFlowAnalyzer(diagnostics, source).AnalyzeDocument(document);
 
             PevtProgramDefinition definition = PevtProgramDefinition.TryBuild(document, source, diagnostics);
@@ -84,7 +82,8 @@ namespace Polaris.Pevt.Loading
             string filePath,
             BuiltinApiTable builtinApi = null,
             CancellationToken cancellationToken = default,
-            IEnumerable<Symbol> seedSymbols = null)
+            IEnumerable<Symbol> seedSymbols = null,
+            Runtime.Raw.IPevtRawCsAnalyzer rawCsAnalyzer = null)
         {
             if (utf8Bytes == null)
                 throw new ArgumentNullException(nameof(utf8Bytes));
@@ -93,7 +92,7 @@ namespace Polaris.Pevt.Loading
             if (!loaded.Success)
                 return new PevtCompilation(null, null, null, loaded.Diagnostics);
 
-            return Compile(loaded.Text, builtinApi, cancellationToken, seedSymbols);
+            return Compile(loaded.Text, builtinApi, cancellationToken, seedSymbols, rawCsAnalyzer);
         }
     }
 }

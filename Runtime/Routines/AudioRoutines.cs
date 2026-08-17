@@ -5,9 +5,6 @@ namespace Polaris.Pevt.Runtime.Routines
 {
     /// <summary>
     /// 音频组合，对应同步指令中间层规范第 9 节。
-    ///
-    /// BGM 与环境声属于事件临时状态：替换、暂停和音量缩放都登记会话恢复，事件结束、替换或异常时
-    /// 一并还原。预载与等待统一走资源票据，缺失资源由 <see cref="PevtResourceWait"/> 报 PEVTR4403。
     /// </summary>
     internal static class AudioRoutines
     {

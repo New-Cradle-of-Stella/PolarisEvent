@@ -360,9 +360,8 @@ namespace Polaris.Pevt.Runtime
         // ---- callevt ----
 
         /// <summary>
-        /// <c>callevt</c>：运行时按 ID 查全局事件表。同步调用把当前流程挂在子事件上，
-        /// 异步调用要求目标声明了 <c>enable async</c>（否则 PEVTR4303）并返回句柄。
-        /// 两种形式都进入同一棵所有权树与同一份预算。
+        /// <c>callevt</c>：运行时按 ID 查全局事件表，同步调用把当前流程挂在子事件上，
+        /// 异步调用要求目标声明了 <c>enable async</c>（否则 PEVTR4303）并返回句柄。两种形式都进入同一棵所有权树与同一份预算。
         /// </summary>
         private PevtExecutionResult ExecuteCallEvent(PevtFrame frame, PevtInstruction instruction)
         {
@@ -432,10 +431,6 @@ namespace Polaris.Pevt.Runtime
 
         /// <summary>
         /// <c>exec</c>：运行时解析、绑定并执行一段 PEVT 片段。
-        ///
-        /// 片段的静态校验完整重做一遍（失败 → PEVTR1201），禁止语句单独判定（PEVTR1202），
-        /// 嵌套层数受限（PEVTR1203），步数计入同一份总预算。片段环境以调用点环境为父：
-        /// 可以读写授权的外层变量，但新声明的变量只活在临时环境里，随片段一起销毁。
         /// </summary>
         private PevtExecutionResult ExecuteExec(PevtFrame frame, PevtInstruction instruction)
         {
@@ -518,7 +513,10 @@ namespace Polaris.Pevt.Runtime
                 new UTF8Encoding(false).GetBytes(builder.ToString()),
                 EventId + "#exec",
                 _commands?.Catalog.ToBuiltinApiTable(),
-                seedSymbols: AuthorizedOuterSymbols(hostEnvironment));
+                seedSymbols: AuthorizedOuterSymbols(hostEnvironment),
+                // 片段里的 `$raw cs` 也要过 PEVT8007–8010：不接分析器的话，一段不合法的 C# 会
+                // 通过片段校验、然后在执行点以 PEVTR4102 冒出来，而它本该是 PEVTR1201。
+                rawCsAnalyzer: _services.RawCs);
 
             // 先查禁止语句：它有自己的编号，不应该被笼统的 PEVTR1201 盖掉。
             if (compilation.Document != null)
@@ -552,10 +550,6 @@ namespace Polaris.Pevt.Runtime
 
         /// <summary>
         /// 片段里禁止出现的语句（运行诊断表 PEVTR1202）。
-        ///
-        /// 我们自己给片段加了 <c>id</c>、可能的 <c>enable</c> 和收尾的 <c>end</c>，它们都落在
-        /// <paramref name="bodyStart"/>..<paramref name="bodyEnd"/> 这段区间之外。只看区间内的语句，
-        /// 才不会把包装本身当成作者写的禁止语句——尤其是那个补上去的 <c>end</c>。
         /// </summary>
         private static string FindForbiddenDynamicStatement(DocumentSyntax document, int bodyStart, int bodyEnd)
         {
@@ -591,7 +585,6 @@ namespace Polaris.Pevt.Runtime
 
         /// <summary>
         /// 片段可以读写的外层名字。
-        ///
         /// 只交出"授权的外层变量"——常量不交（片段写不了它，交出去只会把 PEVT6002 变成运行期困惑），
         /// 句柄也不交（<c>await</c>/<c>kill</c>/<c>status</c> 的目标必须留在宿主流程里）。
         /// </summary>

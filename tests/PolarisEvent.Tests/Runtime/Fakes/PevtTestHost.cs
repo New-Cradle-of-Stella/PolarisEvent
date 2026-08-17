@@ -39,6 +39,34 @@ namespace Polaris.Pevt.Core.Tests.Runtime.Fakes
 
         public FakeStage Stage { get; } = new FakeStage();
 
+        // ---- P1/P2 与两个逃生口 ----
+
+        public FakeWorld World { get; } = new FakeWorld();
+
+        public FakeEntity Entity { get; } = new FakeEntity();
+
+        public FakeState State { get; } = new FakeState();
+
+        public FakeInventory Inventory { get; } = new FakeInventory();
+
+        public FakeQuest Quest { get; } = new FakeQuest();
+
+        public FakePlayer Player { get; } = new FakePlayer();
+
+        public FakeBattle Battle { get; } = new FakeBattle();
+
+        public FakeRawCommandBridge RawCommandBridge { get; } = new FakeRawCommandBridge();
+
+        public Polaris.Pevt.Runtime.Raw.PevtRawCommandChannel RawCommands { get; }
+
+        /// <summary>
+        /// <c>$raw cs</c> 的执行器。默认接真正的 Roslyn 编译器，引用集合就是测试宿主自己加载的程序集——
+        /// 这样 PEVT8007–8010 与实际执行都是真实行为，而不是又一个替身。
+        /// </summary>
+        public Polaris.Pevt.Runtime.Raw.PevtRawCsExecutor RawCs { get; set; } =
+            new Polaris.Pevt.Runtime.Raw.PevtRawCsExecutor(
+                Polaris.Pevt.Runtime.Raw.PevtRoslynRawCsCompiler.FromLoadedAssemblies());
+
         public PevtEventSession Session { get; private set; }
 
         public PevtServices Services { get; private set; }
@@ -58,6 +86,14 @@ namespace Polaris.Pevt.Core.Tests.Runtime.Fakes
         {
             Commands = new PevtCommandRegistry(CommandDescriptorCatalog.Builtin);
             Scheduler = new PevtScheduler(Clock);
+            RawCommands = new Polaris.Pevt.Runtime.Raw.PevtRawCommandChannel(RawCommandBridge);
+        }
+
+        /// <summary>把 P0/P1/P2 全部内置处理器挂上。默认注册表是空的，只有需要的测试才挂。</summary>
+        public PevtTestHost WithBuiltinRoutines()
+        {
+            Polaris.Pevt.Runtime.Routines.PevtBuiltinRoutines.RegisterAll(Commands);
+            return this;
         }
 
         /// <summary>登记一个同步 <c>@</c> 处理器。类型序列必须与描述目录里的某个重载完全一致。</summary>
@@ -70,8 +106,7 @@ namespace Polaris.Pevt.Core.Tests.Runtime.Fakes
         /// <summary>把一段源码编译成可执行程序。静态诊断有 Error 时抛出，测试里就是写错了源码。</summary>
         public PevtCompiledProgram Compile(string source, string filePath = "test.pevt")
         {
-            SourceText text = SourceText.FromUtf8(new UTF8Encoding(false).GetBytes(source), filePath).Text;
-            PevtCompilation compilation = PevtSourceCompiler.Compile(text, CommandDescriptorCatalog.Builtin.ToBuiltinApiTable());
+            PevtCompilation compilation = CompileFrontend(source, filePath);
 
             if (!compilation.Success)
                 throw new InvalidOperationException("源码有静态错误：" + string.Join("; ", Describe(compilation.Diagnostics)));
@@ -86,12 +121,26 @@ namespace Polaris.Pevt.Core.Tests.Runtime.Fakes
         /// <summary>只做编译，不要求成功——用于验证"本阶段尚未支持"的构造。</summary>
         public PevtCompileResult TryCompile(string source, string filePath = "test.pevt")
         {
-            SourceText text = SourceText.FromUtf8(new UTF8Encoding(false).GetBytes(source), filePath).Text;
-            PevtCompilation compilation = PevtSourceCompiler.Compile(text, CommandDescriptorCatalog.Builtin.ToBuiltinApiTable());
+            PevtCompilation compilation = CompileFrontend(source, filePath);
             if (!compilation.Success)
                 throw new InvalidOperationException("源码有静态错误：" + string.Join("; ", Describe(compilation.Diagnostics)));
 
             return PevtCompiledProgram.Compile(compilation.Definition);
+        }
+
+        /// <summary>
+        /// 只跑前端，把诊断原样交回来。<c>$raw cs</c> 的 C# 分析器一并接上，因此
+        /// PEVT8007–8010 在测试里是真实 Roslyn 判定的结果。
+        /// </summary>
+        public PevtCompilation CompileFrontend(string source, string filePath = "test.pevt")
+        {
+            SourceText text = SourceText.FromUtf8(new UTF8Encoding(false).GetBytes(source), filePath).Text;
+            return PevtSourceCompiler.Compile(
+                text,
+                CommandDescriptorCatalog.Builtin.ToBuiltinApiTable(),
+                default,
+                null,
+                RawCs);
         }
 
         public PevtExecution Start(string source, string filePath = "test.pevt") => Start(Compile(source, filePath));
@@ -103,7 +152,10 @@ namespace Polaris.Pevt.Core.Tests.Runtime.Fakes
                 Clock, Session,
                 new FakeActorCatalogService(Actors),
                 Resources, Dialogue, Choice, Portrait,
-                Stage, Stage, Stage, Stage, Stage, Stage, Stage, Stage);
+                Stage, Stage, Stage, Stage, Stage, Stage, Stage, Stage,
+                new PevtDomainServices(World, Entity, State, Inventory, Quest, Player, Battle),
+                RawCommands,
+                RawCs);
 
             return new PevtExecution(program, Services, Commands, Limits) { SubEvents = SubEvents };
         }

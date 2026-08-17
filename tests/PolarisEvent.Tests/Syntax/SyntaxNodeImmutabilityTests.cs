@@ -6,9 +6,8 @@ using Xunit;
 namespace Polaris.Pevt.Core.Tests.Syntax
 {
     /// <summary>
-    /// 阶段 10A 补正的 G5 深不可变门：每个持有集合的语法节点都必须防御"调用者事后修改自己手里的
-    /// List/array"这种别名攻击，而不能只有 get-only 属性。这里用可变 <see cref="List{T}"/> 直接构造
-    /// 节点，构造后修改原始列表，验证节点内容、枚举结果都保持不变。
+    /// G5 深不可变门：每个持有集合的语法节点都必须防御"调用者事后修改自己手里的 List/array"这种别名攻击，
+    /// 而不能只有 get-only 属性。这里用可变 <see cref="List{T}"/> 直接构造节点，构造后修改原始列表，验证节点内容与枚举结果都不变。
     /// </summary>
     public class SyntaxNodeImmutabilityTests
     {

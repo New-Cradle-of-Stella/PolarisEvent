@@ -3,10 +3,9 @@ using Polaris.Pevt.Syntax;
 namespace Polaris.Pevt.Binding
 {
     /// <summary>
-    /// 8.2 节的五种普通类型，加上两个绑定阶段专用的辅助值：<see cref="Void"/>（无返回值调用/语句
-    /// 结果，不是合法操作数）和 <see cref="Error"/>（某个子表达式已经报过错，绑定器据此避免连锁重复
-    /// 报告——绝不是语言里的第六个"真"类型）。<see cref="Handler"/> 对应全局不变量里"句柄是运行时
-    /// 专用包装，不进入普通类型系统"的那一类值；本阶段只声明这个占位，句柄自身的绑定规则留给阶段 9。
+    /// 8.2 节的五种普通类型，加上两个绑定阶段专用的辅助值：<see cref="Void"/>（无返回值调用，不是合法操作数）
+    /// 和 <see cref="Error"/>（子表达式已经报过错，据此避免连锁重复报告）。<see cref="Handler"/> 对应
+    /// "句柄是运行时专用包装，不进入普通类型系统"的那一类值。
     /// </summary>
     public enum PevtType
     {

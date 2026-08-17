@@ -53,8 +53,12 @@ namespace Polaris.Pevt.Core.Tests.Runtime
                 Assert.True(registry.TryGetRoutine(descriptor, out _), $"`@{descriptor}` 没有登记处理器。");
         }
 
+        /// <summary>
+        /// P0 那张表只挂 P0。功能阶段 F 之后 P1/P2 也有处理器了，但它们属于各自的表——
+        /// 混进 P0 会让"只想要 P0 的宿主"悄悄拿到地图与存档能力。
+        /// </summary>
         [Fact]
-        public void NoP1OrP2DescriptorIsRegisteredYet()
+        public void P0RegistryContainsOnlyP0Descriptors()
         {
             PevtCommandRegistry registry = P0CommandRoutines.CreateRegistry();
 

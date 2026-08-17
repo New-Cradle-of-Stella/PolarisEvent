@@ -50,8 +50,8 @@ namespace Polaris.Pevt.Registration
     }
 
     /// <summary>
-    /// 一条事件 ID 冲突记录。跨程序集重复是致命冲突；同程序集重复只是警告，后注册覆盖先注册
-    /// （PEVT-嵌入注册与ID冲突规范.md 第 6 节）。两种情况都必须同时列出两个项目相对源路径。
+    /// 一条事件 ID 冲突记录：跨程序集重复是致命冲突，同程序集重复只是警告且后注册覆盖先注册。
+    /// 两种情况都必须同时列出两个项目相对源路径。
     /// </summary>
     public sealed class PevtEventConflict
     {
@@ -105,11 +105,8 @@ namespace Polaris.Pevt.Registration
     }
 
     /// <summary>
-    /// `/event` 运行时虚拟事件空间。由 PolarisEvent 在内存中管理，不是原版 `StreamingAssets/evt`、
-    /// 不是 `.cmd` 目录，也不是磁盘缓存。
-    ///
-    /// 注册通过 <see cref="PevtRegistryScanner"/> 完成；本类型只负责保存候选、按冲突规则派生生效集合，
-    /// 并支持按 owner 卸载。卸载后会重新派生——原本因冲突被忽略的定义可以重新生效。
+    /// `/event` 运行时虚拟事件空间，由 PolarisEvent 在内存中管理，不是原版 `StreamingAssets/evt`、`.cmd` 目录或磁盘缓存。
+    /// 本类型只保存候选、按冲突规则派生生效集合并支持按 owner 卸载；卸载后重新派生，原本因冲突被忽略的定义可以重新生效。
     /// </summary>
     public sealed class PevtEventRegistry
     {

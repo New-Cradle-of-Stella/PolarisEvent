@@ -8,11 +8,9 @@ using Xunit;
 namespace Polaris.Event.Tests.Binding
 {
     /// <summary>
-    /// 15.6 节集合等待的绑定规则。最要紧的一条是"结果绑定声明的是新的普通变量"——
-    /// 不登记它们的话，后面正常使用这些变量会被误报成 PEVT6001，也就是合法源码被判错。
-    ///
-    /// 用带返回值的 <c>async block</c> 当句柄来源，而不是内置 <c>_start</c> API：P0 里可并行的
-    /// API 全是无返回值的，用它们根本走不到"有结果可绑定"这条路径。
+    /// 15.6 节集合等待的绑定规则，最要紧的一条是"结果绑定声明的是新的普通变量"——不登记它们，
+    /// 后面正常使用这些变量就会被误报成 PEVT6001。句柄来源用带返回值的 <c>async block</c> 而不是内置
+    /// <c>_start</c> API，因为 P0 里可并行的 API 全是无返回值的。
     /// </summary>
     public class AggregateAwaitBinderTests
     {

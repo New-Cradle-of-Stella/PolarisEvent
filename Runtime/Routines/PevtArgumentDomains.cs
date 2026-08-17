@@ -7,12 +7,6 @@ namespace Polaris.Pevt.Runtime.Routines
 {
     /// <summary>
     /// 组合处理器共用的参数域与 ID 验证。
-    ///
-    /// 同步指令中间层规范第 4 节要求"先完成参数类型、参数域、对象 ID 与资源 ID 校验；校验失败时
-    /// 不得产生任何副作用"，所以每个组合都在第一个 <c>yield</c> 之前把该查的全查完。
-    ///
-    /// 越界值是运行时参数错误，不静默截断（内置事件语句表「参数域」一节）。运行诊断表没有为
-    /// "实参取值非法"单列编号，因此统一使用 <c>PEVTR4001</c>，不另造编号。
     /// </summary>
     public static class PevtArgumentDomains
     {

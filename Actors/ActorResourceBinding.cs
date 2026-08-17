@@ -15,9 +15,8 @@ namespace Polaris.Pevt.Actors
     }
 
     /// <summary>
-    /// 一个 PolarisRes 静态资源字段的中立描述。Core 是 netstandard 前端，不引用游戏程序集，
-    /// 也不做反射：字段事实由调用方（工具侧的源码扫描、游戏侧的注册器）填好后传进来，
-    /// 判定规则只有这一份，避免工具和运行时得到不同结论。
+    /// 一个 PolarisRes 静态资源字段的中立描述。Core 是 netstandard 前端，不引用游戏程序集也不做反射，
+    /// 字段事实由调用方（工具侧源码扫描、游戏侧注册器）填好后传进来，判定规则只有这一份。
     /// </summary>
     public sealed class ActorResourceFieldInfo
     {
@@ -53,9 +52,6 @@ namespace Polaris.Pevt.Actors
     /// <summary>
     /// `.pactor` 资源字段的绑定判定：类型是否匹配视觉分类（PEVT9111）、字段是否满足自动绑定条件
     /// （PEVT9117），以及编辑器暂时读不到字段时的降级警告（PEVT9118）。
-    ///
-    /// 这里只判定字段的静态事实，不读取字段值——按规范，扫描期不得触发资源加载，
-    /// 真正的 PXLS 解析要等到首次演出。
     /// </summary>
     public static class ActorResourceBinding
     {
@@ -89,9 +85,8 @@ namespace Polaris.Pevt.Actors
             type == ActorResourceType.PxlsCharacterHandle ? PxlsCharacterHandleTypeName : MImageTypeName;
 
         /// <summary>
-        /// 校验一条 <c>polaris-res</c> 引用。<paramref name="field"/> 为 null 表示当前上下文暂时解析不到该字段
-        /// （编辑器未编译、程序集未加载等），此时只降级为 PEVT9118 警告，失效引用保持可见可修复。
-        /// <c>game-pxls</c> 引用不经过本判定：原版资源的存在性由游戏侧资源桥在运行期确认。
+        /// 校验一条 <c>polaris-res</c> 引用。<paramref name="field"/> 为 null 表示当前上下文暂时解析不到该字段，
+        /// 只降级为 PEVT9118 警告；<c>game-pxls</c> 引用不走本判定，原版资源的存在性由游戏侧资源桥在运行期确认。
         /// </summary>
         public static void Validate(
             ActorVisualResource resource,

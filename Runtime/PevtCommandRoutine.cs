@@ -98,10 +98,6 @@ namespace Polaris.Pevt.Runtime
 
     /// <summary>
     /// 处理器主动报告一个具体的运行诊断。
-    ///
-    /// 没有它的话，处理器抛出的任何异常都只能被调度边界笼统翻成 PEVTR4001；而人物不存在
-    /// （PEVTR4401）、视觉未登记（PEVTR4402）、资源加载失败（PEVTR4403）这些情况规范已经分配了
-    /// 专门编号，必须能原样报出来。编号在构造时就对着目录校验，处理器不能临时另造。
     /// </summary>
     public sealed class PevtRoutineFailureException : Exception
     {
@@ -115,8 +111,8 @@ namespace Polaris.Pevt.Runtime
     }
 
     /// <summary>
-    /// 逆序执行的临时清理栈。为当前组合建立但尚未释放的临时资源或占用登记在这里；
-    /// 失败、取消或事件终止时按后进先出顺序执行。持久状态修改不进入这里，也不参与回滚。
+    /// 逆序执行的临时清理栈：为当前组合建立但尚未释放的临时资源或占用登记在这里，失败、取消或事件终止时按后进先出顺序执行。
+    /// 持久状态修改不进入这里，也不参与回滚。
     /// </summary>
     public sealed class PevtCleanupStack
     {

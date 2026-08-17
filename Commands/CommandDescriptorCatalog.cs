@@ -7,13 +7,6 @@ namespace Polaris.Pevt.Commands
 {
     /// <summary>
     /// 唯一权威的 <c>@</c> API 描述目录。
-    ///
-    /// 建表时强制两条不变量：
-    /// 1. 同名重载必须由「参数数量 + 完整参数类型」唯一确定，否则建表即失败；
-    /// 2. 每个「等待／可并行」条目自动派生同参数的 <c>_start</c> 签名，且派生名不能与已登记名冲突。
-    ///
-    /// 绑定器用的 <see cref="BuiltinApiTable"/> 由本目录投影产生（<see cref="ToBuiltinApiTable"/>），
-    /// 不存在第二份并行注册表。
     /// </summary>
     public sealed class CommandDescriptorCatalog
     {

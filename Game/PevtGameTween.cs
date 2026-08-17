@@ -5,13 +5,6 @@ namespace Polaris.Event.Game
 {
     /// <summary>
     /// 一段由 PEVT 自己推进的数值补间。
-    ///
-    /// 原版图层动画只覆盖"移动"和几种预设特殊动作，缩放、旋转和着色没有对应的动画状态机，
-    /// 但这些字段（<c>pz</c>/<c>prot</c>/<c>gcol</c>）本身是每帧被重绘逻辑读取的，所以由 PEVT
-    /// 在自己的等待里逐帧写值是最直接也最可控的做法：取消时立即停在当前值，不会留下一个
-    /// 还在跑的原版动画。
-    ///
-    /// 缓动曲线只支持规范里列出的几种，未知值在组合层已经被参数域拦下。
     /// </summary>
     internal sealed class PevtTweenWait : PevtWait
     {

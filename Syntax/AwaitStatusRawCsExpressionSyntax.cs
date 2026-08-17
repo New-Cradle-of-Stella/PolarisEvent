@@ -60,9 +60,8 @@ namespace Polaris.Pevt.Syntax
     }
 
     /// <summary>
-    /// <c>$raw cs</c> 用作表达式时的占位节点（12.2/13.1 节，raw-cs-expression 是 primary-expression 的
-    /// 一员）。本阶段只搭出结构骨架——参数列表、原始文本块三个 token；返回类型一致性等深入语义校验
-    /// 留给后续处理 <c>$raw</c> 语句形式的阶段一起做。
+    /// <c>$raw cs</c> 用作表达式时的节点（12.2/13.1 节），只承载参数列表与原始文本块三个 token。
+    /// 返回类型一致性等语义校验由处理 <c>$raw</c> 语句形式的阶段负责。
     /// </summary>
     public sealed class RawCsExpressionSyntax : ExpressionSyntax
     {

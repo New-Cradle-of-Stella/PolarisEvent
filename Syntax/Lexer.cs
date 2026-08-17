@@ -8,10 +8,8 @@ using Polaris.Pevt.Text;
 namespace Polaris.Pevt.Syntax
 {
     /// <summary>
-    /// 基础词法器：把 SourceText 切成 token 序列，附带精确 trivia 与源码跨度，并完成贴近词法本身的
-    /// 字面量校验（整数/浮点范围、字符长度、标准转义）。不解析语法结构、不做名称或类型绑定——
-    /// 那些留给后续阶段。语法错误按 <see cref="SyntaxKind.BadToken"/> 恢复：诊断包记录原因，
-    /// token 序列仍然连续，方便后续阶段继续扫描。
+    /// 基础词法器：把 SourceText 切成带 trivia 与源码跨度的 token 序列，并完成字面量校验，不解析语法结构也不做绑定。
+    /// 语法错误按 <see cref="SyntaxKind.BadToken"/> 恢复，token 序列保持连续，方便后续阶段继续扫描。
     /// </summary>
     public sealed class Lexer
     {
@@ -80,13 +78,6 @@ namespace Polaris.Pevt.Syntax
         /// 每个真正产出的 token（跳过 EOF）都要在这里登记：更新相邻 token 判定所需的状态
         /// （PEVT1006 悬空运算符、PEVT8016 raw 块左侧紧贴）。<see cref="_pending"/> 里预先算好的
         /// token 同样要经过这里。
-        ///
-        /// "一行一语句"（PEVT1005）不在这里检测：只凭 token 种类判断"是不是语句起始"必然是一份
-        /// 不完整的关键字清单——<c>await</c>/<c>callevt</c>/<c>async</c>/<c>#</c>/<c>$raw</c> 等
-        /// token 既可能起始一条新语句，也可能合法地出现在另一条语句内部（如
-        /// <c>handler h = callevt "X"</c>），词法器没有语法结构信息，无法区分这两种情况。真正的
-        /// "同一物理行是否出现了不止一条完整语句"由 <see cref="Parser"/> 在语句解析完成、知道每条
-        /// 语句真实边界之后判断（见 Parser.Statements.cs 的 CheckOneStatementPerLine）。
         /// </summary>
         private SyntaxToken Track(SyntaxToken token)
         {
@@ -135,9 +126,8 @@ namespace Polaris.Pevt.Syntax
             ConsumeLineBreak();
             var span = TextSpan.FromBounds(start, _position);
 
-            // 未闭合的括号，或紧跟在"还需要右操作数"的运算符之后换行，都不是 8.9 节允许的续行形式：
-            // PEVT1006。字符串续接的换行由 TryContinueMultilineString 单独消化，不会走到这里，
-            // 因此不用在此额外排除它，也就不会和这里重复报告。
+            // 未闭合的括号，或紧跟在"还需要右操作数"的运算符之后换行，都不是 8.9 节允许的续行形式：PEVT1006。
+            // 字符串续接的换行由 TryContinueMultilineString 单独消化，不会走到这里。
             if (_parenDepth > 0)
                 ReportError("PEVT1006", span);
             else if (ImpliesContinuation(_lastRealTokenKind))
@@ -235,10 +225,8 @@ namespace Polaris.Pevt.Syntax
         }
 
         /// <summary>
-        /// 12.1/12.2 节：<c>cmd</c> 和不带参数列表的 <c>cs</c> 后面必须紧接着是原始文本块。
-        /// 带参数列表的 <c>cs (a, b)'''</c> 需要先跳过整个参数列表才知道漏没漏写，那需要类似解析器
-        /// 的能力，超出本阶段逐 token 判断的范围，留给后续阶段补齐——这里只处理无歧义的两种情形。
-        /// 只做前瞻，不产生诊断以外的副作用，因此看错了也不会影响真正的 token 流。
+        /// 12.1/12.2 节：<c>cmd</c> 和不带参数列表的 <c>cs</c> 后面必须紧接着原始文本块。
+        /// 带参数列表的形式需要解析器能力才能判断，这里只做前瞻、只处理无歧义的两种情形。
         /// </summary>
         private void CheckRawBlockFollows(SyntaxKind precedingKind, TextSpan precedingSpan)
         {
@@ -326,11 +314,8 @@ namespace Polaris.Pevt.Syntax
         }
 
         /// <summary>
-        /// int32 的二进制补码范围是非对称的：裸露的 2147483648 单独出现时，既可能是超范围的正数
-        /// 字面量，也可能是 -2147483648 的一部分（8.9 节：按应用一元负号后的结果做范围检查）。词法
-        /// 阶段不解析一元负号所在的语法位置（那是解析器的工作），因此这一个边界幅值既不报错也不
-        /// 产出 Value——留给识别到相邻一元负号的后续阶段决定它到底是不是合法的 int.MinValue。
-        /// 严格大于这个幅值的任何数字，无论正负都不可能合法，在这里直接报 PEVT5017。
+        /// int32 补码范围非对称：裸露的 2147483648 既可能是超范围正数，也可能是 -2147483648 的一部分，
+        /// 因此这一个边界幅值既不报错也不产出 Value，留给解析器定夺；严格大于它的数字一律报 PEVT5017。
         /// </summary>
         private SyntaxToken LexIntegerLiteral(TextSpan span, string text, IReadOnlyList<SyntaxTrivia> leading)
         {
@@ -406,10 +391,8 @@ namespace Polaris.Pevt.Syntax
         }
 
         /// <summary>
-        /// 8.9 节字符串加号续接：字符串后只跟空格的行末 "+" 才会触发续接；一旦触发，不论后续成功还是
-        /// 失败，都由这里把加号、换行乃至续接行的开头一并消化掉，绝不留下裸 "+" 给外层 dispatch 或
-        /// <see cref="LexLineBreak"/> 重复报出 PEVT1006——这正是 PEVT1006 检查不必关心字符串续接的原因。
-        /// 失败时只消费到能判定失败为止，不吞掉续接行本身，让它按正常 token 重新参与词法分析。
+        /// 8.9 节字符串加号续接：一旦触发，加号、换行和续接行开头都由这里消化掉，绝不留下裸 "+" 让外层重复报 PEVT1006。
+        /// 失败时只消费到能判定失败为止，不吞掉续接行本身。
         /// </summary>
         private (string Value, bool HasError, int End) TryContinueMultilineString(string firstValue, bool hasEscapeError, int firstColumn)
         {
@@ -493,10 +476,8 @@ namespace Polaris.Pevt.Syntax
         }
 
         /// <summary>
-        /// 12.1/12.2/12.4 节的原始文本块：开始分隔符必须紧贴 cmd/cs/参数列表右括号（PEVT8016），
-        /// 内容原样保留、只认 <c>\'''</c> 一种转义（12.4 节），不闭合则 PEVT8004。一次调用直接产出
-        /// 开始分隔符、内容和结束分隔符三个 token——内容和结束分隔符先放进 <see cref="_pending"/>，
-        /// 本方法只返回开始分隔符，交给 <see cref="NextToken"/> 的取号循环按顺序吐出。
+        /// 12.1/12.2/12.4 节的原始文本块：开始分隔符必须紧贴 cmd/cs 或参数列表右括号（PEVT8016），内容原样保留，不闭合则 PEVT8004。
+        /// 一次调用产出三个 token，内容与结束分隔符先放进 <see cref="_pending"/>。
         /// </summary>
         private SyntaxToken LexTripleQuoteAndRawBlock(IReadOnlyList<SyntaxTrivia> leading)
         {
@@ -628,10 +609,7 @@ namespace Polaris.Pevt.Syntax
             return new SyntaxToken(SyntaxKind.CharLiteralToken, span, text, TokenValue.FromChar(decoded[0]), leading);
         }
 
-        /// <summary>
-        /// 字符串允许 <c>\\ \" \n \r \t \0</c>；字符允许 <c>\\ \' \n \r \t \0</c>（8.9 节，两者的引号
-        /// 转义互斥）。其他形式一律 PEVT5021。调用方吞掉反斜杠及其后一个字符后据此继续扫描。
-        /// </summary>
+        /// <summary>字符串允许 <c>\\ \" \n \r \t \0</c>，字符允许 <c>\\ ' \n \r \t \0</c>（8.9 节，两者的引号转义互斥），其他形式一律 PEVT5021。</summary>
         private bool TryLexEscape(bool isCharLiteral, out char decoded)
         {
             int start = _position;

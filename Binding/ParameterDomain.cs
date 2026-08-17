@@ -6,9 +6,6 @@ namespace Polaris.Pevt.Binding
 {
     /// <summary>
     /// 参数域：一个 <c>@</c> 形参在其普通类型之上的取值语义，例如"这是一个人物 ID"。
-    ///
-    /// 参数域不是 PEVT 类型——语言的普通类型仍然只有 int、float、bool、char、string（实现总纲全局不变量）。
-    /// 它只影响工具补全、快速信息与可选的静态提示，不改变绑定阶段的类型判定。
     /// </summary>
     public sealed class ParameterDomain
     {

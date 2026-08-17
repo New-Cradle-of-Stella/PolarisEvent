@@ -10,7 +10,6 @@ namespace Polaris.Pevt.Runtime
 {
     /// <summary>
     /// 一个正在运行（或已经结束）的事件实例的只读视图。
-    ///
     /// 调用方拿到它只能查询，不能直接推进或改状态——推进由宿主的更新点统一负责，
     /// 否则两个调用方各推一次就会破坏"每帧按例程 ID 升序"的确定性。
     /// </summary>
@@ -64,9 +63,6 @@ namespace Polaris.Pevt.Runtime
 
     /// <summary>
     /// PolarisEvent 的公开事件宿主：唯一的 <c>Start</c>/<c>Change</c>/<c>Stop</c> 入口和唯一的更新点。
-    ///
-    /// 插件初始化顺序固定为"先登记内置人物，再扫描人物与事件 registrar"，因此 <c>aic</c> 命名空间
-    /// 永远先占位；这个顺序由 <see cref="PevtRegistryScanner"/> 的构造保证，宿主只负责接过它的结果。
     /// </summary>
     public sealed class PevtEventHost : IPevtSubEventProvider
     {
@@ -98,7 +94,9 @@ namespace Polaris.Pevt.Runtime
         {
             Registry = registry ?? throw new ArgumentNullException(nameof(registry));
             _servicesFactory = servicesFactory ?? throw new ArgumentNullException(nameof(servicesFactory));
-            _commands = commands ?? Routines.P0CommandRoutines.CreateRegistry(CommandDescriptorCatalog.Builtin);
+            // 默认挂满 P0/P1/P2：只挂 P0 会让 `@flag_set` 这类调用通过全部静态检查，
+            // 却在运行时报"没有登记处理器"。
+            _commands = commands ?? Routines.PevtBuiltinRoutines.CreateRegistry(CommandDescriptorCatalog.Builtin);
             Limits = limits ?? PevtBudgetLimits.Default;
             _scheduler = new PevtScheduler(clock ?? throw new ArgumentNullException(nameof(clock)));
         }
@@ -108,7 +106,6 @@ namespace Polaris.Pevt.Runtime
 
         /// <summary>
         /// 当前保留的实例（含已结束的），按 ID 升序。
-        ///
         /// 已结束实例只保留最近 <see cref="FinishedHistoryLimit"/> 条：它们的价值是事后查诊断，
         /// 而一次游戏会话里事件会启动成千上万次，无上限保留就是一条稳定增长的内存占用。
         /// </summary>
@@ -207,10 +204,6 @@ namespace Polaris.Pevt.Runtime
 
         /// <summary>
         /// 把已结束实例的保留量压回 <see cref="FinishedHistoryLimit"/>，最旧的先丢。
-        ///
-        /// 必须由更新点主动调用：调度器与宿主都按 ID 保存实例，每条还挂着执行状态、所有权节点和
-        /// 一份编译产物引用。当前根事件即使已经结束也先留着，让 <see cref="Root"/> 与
-        /// <see cref="Update"/> 的"本帧结束了哪些事件"在同一帧内保持一致。
         /// </summary>
         private void PruneFinished()
         {
@@ -284,7 +277,6 @@ namespace Polaris.Pevt.Runtime
 
         /// <summary>
         /// <c>callevt</c> 的运行时目标解析。
-        ///
         /// 跨来源冲突的 ID 先判 <see cref="PevtSubEventStatus.Ambiguous"/>：那种情况下"保留先注册项"
         /// 只是为了让同一次启动的结果稳定，并不表示它是唯一合法目标，不能拿它当调用目标。
         /// </summary>

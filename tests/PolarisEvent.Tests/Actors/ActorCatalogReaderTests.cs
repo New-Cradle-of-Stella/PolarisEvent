@@ -6,8 +6,8 @@ using Xunit;
 namespace Polaris.Pevt.Core.Tests.Actors
 {
     /// <summary>
-    /// `.pactor` 严格读取器的逐编号测试。每个 PEVT91xx 至少有一个直接断言，并且都配一个不会误报同一编号
-    /// 的合法邻近样例（<c>ValidExternalCatalog_*</c> 与各测试内的对照分支），避免读取器靠"一律报错"通过。
+    /// `.pactor` 严格读取器的逐编号测试：每个 PEVT91xx 至少有一个直接断言，
+    /// 并且都配一个不会误报同一编号的合法邻近样例，避免读取器靠"一律报错"通过。
     /// </summary>
     public class ActorCatalogReaderTests
     {

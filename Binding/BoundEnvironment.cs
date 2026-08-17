@@ -3,12 +3,9 @@ using System.Collections.Generic;
 namespace Polaris.Pevt.Binding
 {
     /// <summary>
-    /// 9.4 节的一个独立词法环境（外层事件一个，每个自定义事件块定义各自独立一个——彼此不共享，
-    /// 也不构成父子链；块不会隐式捕获外层变量）。<c>if</c>/<c>elif</c>/<c>else</c>/<c>while</c>/
-    /// <c>switch</c>/<c>case</c> 不创建新环境，但它们的正文各自是一条独立的执行路径，所以本类型把
-    /// "这个名称永久存在于当前环境"（<see cref="_symbols"/>，只用于 PEVT6007 重复声明检查和类型查找，
-    /// 一旦声明就不会因为分支而撤销）和"这个名称在当前路径上是否已经声明/初始化"
-    /// （<see cref="_initialized"/>，随分支克隆、合并）分成两套独立状态维护。
+    /// 9.4 节的一个独立词法环境：外层事件一个，每个自定义事件块定义各自一个，彼此不共享也不构成父子链。
+    /// 分支语句不创建新环境，所以"名称永久存在于本环境"（<see cref="_symbols"/>）与"当前路径上是否已声明、已初始化"
+    /// （<see cref="_initialized"/>，随分支克隆合并）分成两套独立状态维护。
     /// </summary>
     public sealed class BoundEnvironment
     {
@@ -53,10 +50,8 @@ namespace Polaris.Pevt.Binding
         }
 
         /// <summary>
-        /// 9.4 节"每条可达路径都……才视为已定义/已初始化"的合并规则：一个名称合并后仍然存在，
-        /// 当且仅当它在全部分支里都存在；仍然是"已初始化"，当且仅当它在全部分支里都已初始化。
-        /// <paramref name="isExhaustive"/> 为 false（没有 <c>else</c>/<c>default</c>）时，"什么都不做"
-        /// 本身也是一条合法路径，等价于再拿 <paramref name="preState"/> 参与一次合并。
+        /// 9.4 节的路径合并规则：一个名称合并后仍然存在当且仅当它在全部分支里都存在，仍然已初始化当且仅当在全部分支里都已初始化。
+        /// <paramref name="isExhaustive"/> 为 false 时"什么都不做"本身也是一条合法路径，等价于让 <paramref name="preState"/> 再参与一次合并。
         /// </summary>
         public static Dictionary<string, bool> Merge(IReadOnlyList<Dictionary<string, bool>> branchStates, bool isExhaustive, Dictionary<string, bool> preState)
         {

@@ -6,9 +6,8 @@ using Polaris.Pevt.Text;
 namespace Polaris.Pevt.Syntax
 {
     /// <summary>
-    /// 语句与文档解析：文件头（id/enable）、声明（var/const/赋值）、结构化流程
-    /// （if/elif/else/endif、while/endwhile、switch/case/default/endswitch）、标签与 goto、end。
-    /// 恢复策略统一以物理行或对应闭合符为同步点（阶段 6 要求），保证一次加载能报告多处错误。
+    /// 语句与文档解析：文件头、声明、结构化流程、标签与 goto、end。
+    /// 恢复策略统一以物理行或对应闭合符为同步点，保证一次加载能报告多处错误。
     /// </summary>
     public sealed partial class Parser
     {
@@ -86,9 +85,8 @@ namespace Polaris.Pevt.Syntax
                 SkipRestOfLine(idKeyword);
             }
 
-            // 2 节：事件 ID 不能是空字符串（PEVT1110），也只能包含 ASCII 字母数字或 Unicode 中文汉字
-            // （PEVT1111）。转义出错的字符串字面量 Value.Kind 为 None，内容本身不可靠，不在这里重复判断
-            // ——那种情形已经由词法阶段的 PEVT5021 覆盖。
+            // 2 节：事件 ID 不能是空字符串（PEVT1110），也只能包含 ASCII 字母数字或 Unicode 中文汉字（PEVT1111）。
+            // 转义出错的字面量内容不可靠，已由词法阶段的 PEVT5021 覆盖，这里不重复判断。
             if (value.Value.Kind == TokenValueKind.String)
             {
                 string content = value.Value.AsString;
@@ -202,10 +200,8 @@ namespace Polaris.Pevt.Syntax
             var statements = new List<StatementSyntax>();
             while (!Check(SyntaxKind.EndOfFileToken) && !IsAnyOf(Current.Kind, terminators))
             {
-                // 10A-R02：不跳过第一条语句的检测。<see cref="_lastConsumedTokenEnd"/> 在进入这个
-                // 列表之前就已经正确反映了外层结构（if/while/switch 的头部条件、case 的表达式等）
-                // 真正消费到的位置，因此第一条 body 语句和头部同行时（比如 "if true @a()"）同样能被
-                // 检出，不需要单独区分"这是不是列表里的第一条"。
+                // 不跳过第一条语句的检测：进入这个列表之前 _lastConsumedTokenEnd 已经反映了外层结构真正消费到的位置，
+                // 所以第一条 body 语句和头部同行时（比如 "if true @a()"）同样能被检出。
                 CheckOneStatementPerLine();
                 statements.Add(ParseStatement());
             }
@@ -214,17 +210,9 @@ namespace Polaris.Pevt.Syntax
         }
 
         /// <summary>
-        /// PEVT1005（10A 补正）：按完整语句边界判断"同一物理行是否出现了不止一条语句"——只要
-        /// 上一条语句真正消费到的最后一个 token（<see cref="_lastConsumedTokenEnd"/>，不是
-        /// 语句节点的 <see cref="SyntaxNode.Span"/>：很多恢复路径会把缺失 token 的零长度位置钉在
-        /// 隔了一整行的下一个真实 token 上，用 Span.End 会把这一行错误地"拖"过去）所在的物理行，
-        /// 和下一条语句起始 token 所在的物理行相同，就报告。覆盖全部语句起始形态（内置调用、赋值、
-        /// await、标签、callevt、raw 语句等），不再依赖一份只登记部分关键字的 StatementLeaders 清单。
-        ///
-        /// 这个基于语句边界而非 token 种类的判定天然不会误报既有的几组"看起来像两个语句起始，
-        /// 实际只是同一条语句内部形状"的合法组合——它们从来都只走一次 <see cref="ParseStatement"/>：
-        /// <c>async block ...</c>、<c>goto #Label</c>、<c>handler h = callevt ...</c>、
-        /// <c>var x : bool = await a</c>。
+        /// PEVT1005：按语句边界判断同一物理行是否出现了不止一条语句，依据上一条语句真正消费到的
+        /// <see cref="_lastConsumedTokenEnd"/>，而不是会被恢复路径拖偏的节点 Span。这样既覆盖全部语句起始形态，
+        /// 也不会误报 <c>async block ...</c>、<c>var x : bool = await a</c> 这类同一语句内部的形状。
         /// </summary>
         private void CheckOneStatementPerLine()
         {
@@ -257,9 +245,10 @@ namespace Polaris.Pevt.Syntax
 
         // ---- end ----
 
-        /// <summary>14.2/14.3 节：<c>end</c> 只终止文件外层事件；出现在任何自定义事件块内部时
-        /// （即使嵌套在块内的 if/while/switch 里）只形成一个错误节点（PEVT7120），不终止块，
-        /// 也不消费掉块体继续解析的能力——外层 <see cref="ParseStatementList"/> 循环照常继续。</summary>
+        /// <summary>
+        /// 14.2/14.3 节：<c>end</c> 只终止文件外层事件。出现在自定义事件块内部时只形成一个错误节点（PEVT7120），
+        /// 不终止块，外层 <see cref="ParseStatementList"/> 循环照常继续。
+        /// </summary>
         private StatementSyntax ParseEndOrBlockErrorStatement()
         {
             if (_blockStack.Count > 0)
@@ -274,9 +263,10 @@ namespace Polaris.Pevt.Syntax
 
         // ---- if/elif/else/endif ----
 
-        /// <summary>流程语句的条件表达式必须存在（PEVT2001/2004/2101/2401）；判断标准与
-        /// <see cref="CanStartExpression"/> 一致，避免退化成泛泛的 PEVT5001。不消费任何 token，
-        /// 让调用方紧接着按各自的语句列表继续解析，交给统一的恢复机制处理。</summary>
+        /// <summary>
+        /// 流程语句的条件表达式必须存在（PEVT2001/2004/2101/2401），判断标准与 <see cref="CanStartExpression"/> 一致，
+        /// 避免退化成泛泛的 PEVT5001。不消费任何 token，交给统一的恢复机制处理。
+        /// </summary>
         private ExpressionSyntax ParseRequiredCondition(string missingDiagnosticId)
         {
             if (!CanStartExpression(Current.Kind))
@@ -288,9 +278,10 @@ namespace Polaris.Pevt.Syntax
             return ParseExpression();
         }
 
-        /// <summary><c>else</c>/<c>default</c> 后不允许出现表达式或其他参数（PEVT2008/2411）：
-        /// 只在关键字所在物理行发现能起始表达式的内容时才报告，报告后跳到行尾，避免这段多余内容
-        /// 被外层循环当成一条全新的、同样莫名其妙的语句再报一次错。</summary>
+        /// <summary>
+        /// <c>else</c>/<c>default</c> 后不允许出现表达式或其他参数（PEVT2008/2411）。只在关键字所在物理行发现能起始表达式的内容时才报告，
+        /// 报告后跳到行尾，避免多余内容被外层循环当成一条新语句再报一次。
+        /// </summary>
         private void CheckNoTrailingExpression(SyntaxToken keyword, string diagnosticId)
         {
             if (!Check(SyntaxKind.EndOfFileToken) && LineOf(Current) == LineOf(keyword) && CanStartExpression(Current.Kind))
@@ -349,10 +340,8 @@ namespace Polaris.Pevt.Syntax
                 }
             }
 
-            // 10A-R02："@a() endif" 一类的正文最后一条语句和闭合关键字同行：只在正文/elif/else
-            // 里确实有过内容时才检查——如果全都是空的（比如 "if a endif"，条件直接跟着闭合关键字，
-            // 中间连一条语句都没有），_lastConsumedTokenEnd 还停留在条件表达式上，那不是"两条语句"
-            // 挤在一行，是空产生式，已经由 PEVT2301 等空正文警告覆盖，不应该被误判成 PEVT1005。
+            // 只在正文/elif/else 确实有过内容时才检查末条语句与闭合关键字是否同行：正文全空时（比如 "if a endif"）
+            // _lastConsumedTokenEnd 还停在条件表达式上，那是空产生式，已由 PEVT2301 覆盖，不该误判成 PEVT1005。
             bool ifBodyHadContent = body.Count > 0 || elifClauses.Any(e => e.Body.Count > 0) || (elseClause != null && elseClause.Body.Count > 0);
             if (ifBodyHadContent)
                 CheckOneStatementPerLine();
@@ -493,10 +482,8 @@ namespace Polaris.Pevt.Syntax
                 return new UnknownStatementSyntax(gotoKeyword);
             }
 
-            // 7.2 节：不在 switch 内部时，goto 只能使用 "#LabelName" 形式；裸表达式形式的
-            // "goto 表达式"（6.5 节）语法上只在 switch 内部才被允许，PEVT3111 是 Flow 阶段针对
-            // 同一根因的语义复核，这里先在语法层面就报出来（PEVT3102），但仍然按集合等待/case-goto
-            // 的通常形状继续解析，让恢复保持一致。
+            // 7.2 节：不在 switch 内部时 goto 只能用 "#LabelName" 形式，裸表达式形式在语法层面就报 PEVT3102
+            // （PEVT3111 是 Flow 阶段对同一根因的语义复核）。仍按通常形状继续解析，让恢复保持一致。
             if (_switchDepth == 0)
                 ReportError("PEVT3102", Current.Span);
 
@@ -568,11 +555,8 @@ namespace Polaris.Pevt.Syntax
         }
 
         /// <summary>
-        /// 8.9 节："布尔字面量只能是全小写的 true 或 false；其他大小写或数值形式均无效"（PEVT5023）。
-        /// 大小写变体（<c>True</c>/<c>TRUE</c>）在词法阶段就已经变成普通标识符，语法层面无法区分
-        /// "打算写布尔字面量却拼错大小写"和"引用一个碰巧叫这个名字的变量"——那需要环境绑定信息，
-        /// 留给后续阶段。这里只处理不需要绑定就能确定违规的形状：声明类型是 <c>bool</c>，
-        /// 初始化器却是裸的数值字面量。声明类型和初始化器在同一条语句内，不需要跨语句查找。
+        /// 8.9 节：布尔字面量只能是全小写的 true 或 false（PEVT5023）。大小写变体在词法阶段已变成普通标识符，
+        /// 这里只处理不需要绑定就能确定违规的形状——声明类型是 <c>bool</c>，初始化器却是裸的数值字面量。
         /// </summary>
         private void CheckBooleanLiteralForm(SyntaxToken type, ExpressionSyntax initializer)
         {
@@ -585,13 +569,9 @@ namespace Polaris.Pevt.Syntax
         }
 
         /// <param name="recoveredWholeLine">
-        /// true 表示名称候选本身不可挽救（PEVT6013）：已经把这个 token 连同它所在物理行剩余部分
-        /// 一起消费掉，调用方必须直接放弃 colon/type/初始化器的解析，不能再尝试——否则那些 Expect
-        /// 会对着一个已经跳过的位置重复报错，而真正的病灶 token（比如 <c>var if : int</c> 里的
-        /// <c>if</c>）如果不在这里连带同步掉，会原样留在流里，被外层循环当成一条全新的语句，
-        /// 让 <c>if</c> 被重新解析成一个虚假的 <see cref="IfStatementSyntax"/>。
-        /// 类型关键字写在名称位置（PEVT6006）不受这个字段影响：既有测试依赖它保持"不消费"，
-        /// 让这个 token 继续留给 <see cref="ParseDeclaredTypeOrRecover"/> 当作类型识别出来。
+        /// true 表示名称候选不可挽救（PEVT6013），已经连同所在物理行剩余部分一起消费掉，
+        /// 调用方必须直接放弃 colon/type/初始化器的解析。类型关键字写在名称位置（PEVT6006）不受影响，
+        /// 那个 token 仍留给 <see cref="ParseDeclaredTypeOrRecover"/> 当作类型识别出来。
         /// </param>
         private SyntaxToken ParseDeclarationName(out bool recoveredWholeLine)
         {
@@ -618,12 +598,8 @@ namespace Polaris.Pevt.Syntax
         }
 
         /// <summary>
-        /// 形参列表和自定义事件块返回类型共用的类型解析（<see cref="ParseTypeNameOrMissing"/>）不能
-        /// 在遇到无效类型时消费掉整行——那两个位置的"整行"往往还包含后续形参或事件块正文，消费掉
-        /// 会连带吞掉完全无关的合法内容。var/const 声明的类型位置没有这个顾虑：它右边只可能是可选
-        /// 的 <c>= 初始化器</c>，一旦类型本身就不合法，整条声明已经不可能再被正确解读，因此在这里
-        /// 消费掉无效候选并同步到物理行结束（PEVT5010），避免它（比如 <c>var x : foo</c> 里的
-        /// <c>foo</c>）原样留在流里，被外层循环当成一条全新的、同样莫名其妙的语句。
+        /// var/const 的类型位置可以在类型非法时消费掉整行并同步到行尾（PEVT5010）：它右边只可能是可选的 <c>= 初始化器</c>。
+        /// 形参列表和块返回类型不能这么做，那里的"整行"往往还包含后续形参或事件块正文。
         /// </summary>
         private SyntaxToken ParseDeclaredTypeOrRecover(SyntaxToken declarationKeyword, out bool recoveredWholeLine)
         {
@@ -750,10 +726,8 @@ namespace Polaris.Pevt.Syntax
         // ---- $raw cmd / $raw cs as a statement ----
 
         /// <summary>
-        /// 12.1/12.2 节的语句形态。<c>$raw cmd</c> 永远只是语句（没有对应表达式形态）；
-        /// <c>$raw cs</c> 作为纯调用语句时同样合法（12.2 节："没有返回值的 $raw cs 是纯调用"），
-        /// 复用既有的 <see cref="RawCsExpressionSyntax"/> 节点，只是外层包一层
-        /// <see cref="ExpressionStatementSyntax"/> 丢弃其可能的返回值。
+        /// 12.1/12.2 节的语句形态。<c>$raw cmd</c> 永远只是语句；<c>$raw cs</c> 作为纯调用语句时复用
+        /// <see cref="RawCsExpressionSyntax"/>，外层包一层 <see cref="ExpressionStatementSyntax"/> 丢弃返回值。
         /// </summary>
         private StatementSyntax ParseRawStatement()
         {
@@ -778,10 +752,8 @@ namespace Polaris.Pevt.Syntax
         // ---- async prefix ----
 
         /// <summary>
-        /// 15.1 节：<c>async</c> 合法的唯一目标是紧跟的 <c>block</c>（自定义事件块定义）。
-        /// 用在别处时按诊断表已分配的最具体编号报告——<c>callevt</c>/<c>exec</c> 各有专属编号
-        /// （PEVT7305/7405），<c>@</c>/<c>_</c> 调用位置合用 PEVT7215，其余任意目标落回通用的
-        /// PEVT7201。这是诊断表里几个编号明显重叠时的一次显式取舍：优先用范围更窄的编号。
+        /// 15.1 节：<c>async</c> 唯一合法的目标是紧跟的 <c>block</c>。用在别处时按诊断表最具体的编号报告——
+        /// <c>callevt</c>/<c>exec</c> 用 PEVT7305/7405，<c>@</c>/<c>_</c> 调用用 PEVT7215，其余落回 PEVT7201。
         /// </summary>
         private StatementSyntax ParseAsyncPrefixedStatement()
         {
@@ -819,8 +791,7 @@ namespace Polaris.Pevt.Syntax
             }
             else
             {
-                // 调用方（PEVT7119 的识别路径，见 LooksLikeBlockSignatureMissingKeyword）已经确认
-                // 这其实是一份遗漏了 block 关键字的定义签名，而不是一次普通的自定义事件块调用——
+                // 调用方已经确认这是一份漏写 block 关键字的定义签名，而不是普通的块调用（见 LooksLikeBlockSignatureMissingKeyword）。
                 // 报告后补一个缺失 token，继续按完整定义签名解析名称、参数、返回类型、正文和 endblock。
                 ReportError("PEVT7119", Current.Span);
                 blockKeyword = SyntaxToken.CreateMissing(SyntaxKind.BlockKeyword, Current.Span.Start);
@@ -849,9 +820,8 @@ namespace Polaris.Pevt.Syntax
         }
 
         /// <summary>
-        /// PEVT7119：识别"看起来是自定义事件块定义签名，只是漏写了 block 关键字"的形状——
-        /// 调用参数是普通表达式，定义参数却是 "名 : 类型" 或声明了返回类型的 "() : 类型"，
-        /// 两者在语法上不会混淆。只在这个形状出现时才把它当定义处理，否则仍按普通调用解析。
+        /// PEVT7119：识别漏写 block 关键字的定义签名——调用参数是普通表达式，定义参数却是 "名 : 类型" 或声明了返回类型。
+        /// 只在这个形状出现时才当定义处理，否则仍按普通调用解析。
         /// </summary>
         private bool LooksLikeBlockSignatureMissingKeyword()
         {

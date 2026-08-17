@@ -9,10 +9,6 @@ namespace Polaris.Pevt.Loading
     /// <summary>
     /// 一个 PEVT 嵌入包：与模组一起编译进程序集的压缩原始源文本，不是 PEVT 字节码，也不是原版命令文本
     /// （PEVT-嵌入注册与ID冲突规范.md 第 2 节）。
-    ///
-    /// 本类型只是一个不可变的数据载体：它不校验自己的内容。全部语义校验都由
-    /// <see cref="PevtEmbeddedSourceLoader"/> 在加载时执行，这样生成代码就无法通过构造一个"看起来
-    /// 合法"的包来绕过检查。
     /// </summary>
     public sealed class PevtEmbeddedSource
     {

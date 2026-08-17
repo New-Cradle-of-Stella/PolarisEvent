@@ -3,9 +3,6 @@ namespace Polaris.Pevt.Actors
     /// <summary>
     /// 延迟视觉访问器的键格式。生成器按 <c>&lt;actorId&gt;/&lt;visualKey&gt;</c> 登记访问器，
     /// 运行时按同一格式回查；两侧必须用同一份规则，否则模组自定义立绘会在演出时静默查不到。
-    ///
-    /// 放在共享核心而不是游戏侧，是因为工具侧（PolarisTools 的 `.pactor` 生成器）与游戏侧
-    /// 各自拼一遍字符串正是这条规则最容易漂移的地方。
     /// </summary>
     public static class ActorVisualKeys
     {

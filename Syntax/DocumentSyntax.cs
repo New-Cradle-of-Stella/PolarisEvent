@@ -5,9 +5,8 @@ using Polaris.Pevt.Text;
 namespace Polaris.Pevt.Syntax
 {
     /// <summary>
-    /// 整份 .pevt 源文件的解析结果：<c>id</c> 声明（可能因为缺失/错位而为 null）、紧随其后的
-    /// <c>enable</c> 声明区，以及文件外层事件的语句列表。<see cref="IdDeclaration"/> 为 null 时，
-    /// 诊断包里已经有对应的 PEVT1101/1102 说明原因——本节点不重复编码"为什么"。
+    /// 整份 .pevt 源文件的解析结果：<c>id</c> 声明、紧随其后的 <c>enable</c> 声明区，以及文件外层事件的语句列表。
+    /// <see cref="IdDeclaration"/> 为 null 的原因由诊断包里的 PEVT1101/1102 说明。
     /// </summary>
     public sealed class DocumentSyntax : SyntaxNode
     {

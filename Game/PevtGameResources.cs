@@ -12,11 +12,6 @@ namespace Polaris.Event.Game
 {
     /// <summary>
     /// 一份中立视觉租约：把"原版借用"和"模组 PolarisRes 字段"两种来源统一成同一个东西交给演出层。
-    ///
-    /// 之所以要这层，是因为 Core 的 <see cref="IPevtResources"/> 只认字符串 ID 和
-    /// <see cref="PevtWait"/>，而两种来源的就绪判定完全不同：原版靠轮询全局 title 字典，
-    /// 模组靠 <see cref="PxlsCharacterHandle"/> 的 Ready/Faulted 事件。统一之后，演出层不需要
-    /// 知道一个立绘到底来自哪边。
     /// </summary>
     public sealed class PevtVisualLease
     {
@@ -85,10 +80,6 @@ namespace Polaris.Event.Game
     /// <summary>
     /// 游戏侧的资源服务：把人物目录里的视觉声明变成真实的借用或模组资源等待，
     /// 并为图层图像与音频提供同一套 <see cref="PevtResourceWait"/> 票据。
-    ///
-    /// 原版 <c>game-pxls</c> 是借用——事件退场和结束只清 PolarisEvent 自己的显示实例与租约；
-    /// 自定义 <c>polaris-res</c> 资源由注册来源的 PolarisRes owner 持有，事件只持临时租约。
-    /// 两者缺失都以 <c>PEVTR4403</c> 结束。
     /// </summary>
     public sealed class PevtGameResources : IPevtResources
     {
@@ -96,9 +87,8 @@ namespace Polaris.Event.Game
         private const string BgmLoadKey = "EV_BGM";
 
         /// <summary>
-        /// 音频就绪等待的上限。必须有一个上限：<c>WaitAudio</c> 的返回值是"有没有备好"，
-        /// 组合层靠 false 才能报 PEVTR4403；不设上限的话，一条永远备不好的 cue 会让事件
-        /// 停在那里，最后只能得到一条定位不到原因的 PEVTR1002 停滞诊断。
+        /// 音频就绪等待的上限。<c>WaitAudio</c> 的返回值是"有没有备好"，组合层靠 false 才能报 PEVTR4403；
+        /// 不设上限时一条永远备不好的 cue 会让事件停在那里，最后只得到一条定位不到原因的 PEVTR1002 停滞诊断。
         /// </summary>
         private const int AudioReadyTimeoutFrames = 300;
 
@@ -199,8 +189,7 @@ namespace Polaris.Event.Game
 
         /// <summary>
         /// 解析 <c>actorId</c> + <c>appearanceId</c> 到具体 portrait 视觉后再借用。
-        /// appearance 只是"哪个 portrait 的哪个 pose/frame"的数据映射，资源边界仍在 portrait 上，
-        /// 所以同一 portrait 的多个 appearance 共用一份租约。
+        /// appearance 只是"哪个 portrait 的哪个 pose/frame"的数据映射，资源边界仍在 portrait 上，所以同一 portrait 的多个 appearance 共用一份租约。
         /// </summary>
         public PevtWait RequirePortrait(string actorId, string appearanceId)
         {
@@ -327,8 +316,8 @@ namespace Polaris.Event.Game
         // ---- 清理 ----
 
         /// <summary>
-        /// 释放本次事件持有的全部租约与事件专用 BGM sheet。事件结束、替换、异常和插件卸载都必须
-        /// 走这里，否则借用计数会一直挂在原版资源上。标记为常驻的视觉按目录声明不撤销借用。
+        /// 释放本次事件持有的全部租约与事件专用 BGM sheet；事件结束、替换、异常和插件卸载都必须走这里，
+        /// 否则借用计数会一直挂在原版资源上。标记为常驻的视觉按目录声明不撤销借用。
         /// </summary>
         public int ReleaseAll()
         {
@@ -372,8 +361,7 @@ namespace Polaris.Event.Game
 
         /// <summary>
         /// cue 存在性检查。走 <see cref="SND.GetCue(string, SndPlayer)"/> 而不是取 <c>CueInfo</c> 的重载，
-        /// 是为了不让 CRI 的类型出现在 PolarisEvent 的引用集合里——组件只需要一个 bool。
-        /// 探针播放器是本服务私有的，被写入的 cue 不会影响任何真正在响的声音。
+        /// 是为了不让 CRI 的类型出现在 PolarisEvent 的引用集合里；探针播放器是本服务私有的，不影响任何真正在响的声音。
         /// </summary>
         private bool CueExists(string cue)
         {

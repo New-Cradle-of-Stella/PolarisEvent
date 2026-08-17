@@ -67,10 +67,6 @@ namespace Polaris.Pevt.Commands
     /// <summary>
     /// 一条 <c>@</c> API 的权威描述。这是全项目唯一的 API 目录条目类型——绑定器用的
     /// <see cref="BuiltinApiTable"/> 由本目录投影产生，不是另一份平行注册表。
-    ///
-    /// <c>_start</c> 异步变体不在这里单独登记：它由等待类别为
-    /// <see cref="CommandWaitKind.WaitParallel"/> 的条目按同一份参数和返回契约派生
-    /// （<see cref="CreateStartVariant"/>），因此描述数据只有一份，不会两边改歪。
     /// </summary>
     public sealed class CommandDescriptor
     {

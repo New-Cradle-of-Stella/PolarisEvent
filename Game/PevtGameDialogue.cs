@@ -10,15 +10,8 @@ using XX;
 namespace Polaris.Event.Game
 {
     /// <summary>
-    /// 对话适配器。
-    ///
-    /// 文本走的是 <see cref="NelMSG.makeMessage(List{string}, EvPerson, bool, bool)"/>——直接交一组
-    /// 字符串，而不是原版 <c>MSG</c> 命令那条"事件名 + 标签 → 从 .cmd 里回读内容"的路径。
-    /// PEVT 的真相是它自己的源文本，任何回到 <see cref="EvReader"/> 的做法都会把内容所有权
-    /// 交还给原版解释器。
-    ///
-    /// 推进逻辑复刻原版 <c>EV.progressMsg</c> 的判定顺序（先把字全部显示出来，再等下一次确认键
-    /// 才翻页），但由 PEVT 自己的等待驱动，因为 <c>EV.state</c> 不会进入 MESSAGE。
+    /// 对话适配器。文本直接交一组字符串给 <see cref="NelMSG.makeMessage(List{string}, EvPerson, bool, bool)"/>，
+    /// 不走原版"从 .cmd 回读内容"的路径；推进逻辑复刻 <c>EV.progressMsg</c> 的判定顺序，但由 PEVT 自己的等待驱动。
     /// </summary>
     internal sealed class PevtGameDialogue : IPevtDialogue
     {
@@ -60,10 +53,6 @@ namespace Polaris.Event.Game
 
         /// <summary>
         /// 把 PEVT 人物 ID 映射到原版 <see cref="EvPerson"/> 的键。
-        ///
-        /// 内置人物用目录里声明的原版短键（<c>aic:noel</c> → <c>n</c>），这样原版立绘、语音和
-        /// 名字配色都能直接复用；模组人物没有短键，就以最终人物 ID 本身建一个新的 EvPerson。
-        /// 短键只在这里出现一次——它不会成为公开参数，也不会写回人物注册表。
         /// </summary>
         private string ResolvePersonKey(string actorId)
         {
@@ -257,11 +246,6 @@ namespace Polaris.Event.Game
 
         /// <summary>
         /// 保持当前消息不被下一条自动收起。
-        ///
-        /// 走的不是 <see cref="IMessageContainer.hold"/>——那个方法在 ver029 的
-        /// <see cref="NelMSGContainer"/> 里是个空实现，调它等于什么都没做。真正控制这件事的是
-        /// <c>auto_msg_hide</c>：它决定新消息出现时是否顺手隐藏上一条，所以"保持"就是把它关掉。
-        /// 这个开关是双向的，<c>@dialogue_hold(false)</c> 与会话恢复都能真正还原。
         /// </summary>
         public void SetHold(bool enabled) =>
             PevtGameHost.Guard("SetHold", () =>

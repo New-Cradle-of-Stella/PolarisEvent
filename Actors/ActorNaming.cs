@@ -59,9 +59,8 @@ namespace Polaris.Pevt.Actors
         }
 
         /// <summary>
-        /// 局部 ID（人物、portrait、ui-portrait、appearance、anchor）：以小写字母开头，
-        /// 其余为小写字母、数字、<c>-</c> 或 <c>_</c>，且不以 <c>-</c> 结尾。内置目录里的
-        /// <c>noel-father</c>、<c>first-human</c> 就是这条规则的实例。
+        /// 局部 ID（人物、portrait、ui-portrait、appearance、anchor）：以小写字母开头，其余为小写字母、数字、<c>-</c> 或 <c>_</c>，
+        /// 且不以 <c>-</c> 结尾。内置目录里的 <c>noel-father</c>、<c>first-human</c> 就是这条规则的实例。
         /// </summary>
         public static bool IsValidLocalId(string value)
         {

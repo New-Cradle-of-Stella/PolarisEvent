@@ -7,9 +7,6 @@ namespace Polaris.Pevt.Core.Tests.Diagnostics
 {
     /// <summary>
     /// 扫仓库源码，找出"目录里登记了但生产代码里从来没出现过"的诊断编号。
-    ///
-    /// 这是计划要求的反向审计里最容易漏掉的一条：编号登记进目录很轻，真正发射它却可能一直没写。
-    /// 用文本扫描而不是反射——发射点是散在各处的字符串常量，反射看不到。
     /// </summary>
     internal static class DiagnosticSourceScan
     {

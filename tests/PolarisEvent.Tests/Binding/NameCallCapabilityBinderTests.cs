@@ -10,9 +10,8 @@ using Xunit;
 namespace Polaris.Pevt.Core.Tests.Binding
 {
     /// <summary>
-    /// 阶段 9 的 golden 测试：名称、调用与能力绑定——自定义事件块签名/参数/返回路径、<c>@</c> 内置
-    /// 事件语句签名重载、<c>enable cs</c>/<c>$raw cs</c> 参数副本、<c>handler</c> 专属规则，逐编号
-    /// 覆盖 PEVT7xxx/8xxx（语法设计草案第 10–15 节）。
+    /// 阶段 9 的 golden 测试：名称、调用与能力绑定，逐编号覆盖 PEVT7xxx/8xxx——自定义事件块签名与返回路径、
+    /// <c>@</c> 内置事件语句签名重载、<c>enable cs</c>/<c>$raw cs</c> 参数副本、<c>handler</c> 专属规则。
     /// </summary>
     public class NameCallCapabilityBinderTests
     {
@@ -215,9 +214,8 @@ namespace Polaris.Pevt.Core.Tests.Binding
         [Fact]
         public void BuiltinCall_ArgumentMatchesInvalidHandlerTypedParameter_ReportsPEVT7010()
         {
-            // 参数类型是 Handler——不属于 11.2 节允许的五种普通类型，是 API 表条目自身的问题
-            // （PEVT7010）。句柄名称读取会产生 Handler 类型的值（本阶段尚未实现 PEVT7209 拦截
-            // "句柄被用作普通实参"，见类顶部范围说明），因此能让实参类型精确匹配到这个非法签名。
+            // 参数类型是 Handler，不属于 11.2 节允许的五种普通类型，所以是 API 表条目自身的问题（PEVT7010）。
+            // 句柄名称读取会产生 Handler 类型的值，因此实参类型能精确匹配到这个非法签名。
             var table = new BuiltinApiTable();
             table.Register(new BuiltinSignature("loadAsync", true, new List<BuiltinParameter>(), null));
             table.Register(new BuiltinSignature("bad", false, new List<BuiltinParameter> { new BuiltinParameter("h", PevtType.Handler) }, null));

@@ -19,7 +19,7 @@ namespace Polaris.Pevt.Actors
     }
 
     /// <summary>
-    /// 一个已完整校验的 `.pactor` 人物目录。构造函数复制人物列表，人物元素本身不可变，因此整体深不可变。
+    /// 一个已完整校验的 `.pactor` 人物目录，构造函数复制人物列表且人物元素本身不可变，因此整体深不可变。
     /// 最终人物 ID 由 <see cref="Namespace"/> 与人物局部 ID 组成，比较固定使用序数比较。
     /// </summary>
     public sealed class ActorCatalog

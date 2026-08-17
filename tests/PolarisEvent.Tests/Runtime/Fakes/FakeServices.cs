@@ -312,6 +312,10 @@ namespace Polaris.Pevt.Core.Tests.Runtime.Fakes
         public void HideTutorial(string tutorialId) => Calls.Add($"HideTutorial({tutorialId})");
         public void ClearTutorials() => Calls.Add("ClearTutorials()");
 
+        public void NotifyItemChange(string itemId, int delta, int count) => Calls.Add($"NotifyItemChange({itemId},{delta},{count})");
+        public void NotifyMoneyChange(int delta, int amount) => Calls.Add($"NotifyMoneyChange({delta},{amount})");
+        public void NotifySkillChange(string skillId, bool owned) => Calls.Add($"NotifySkillChange({skillId},{owned})");
+
         // IPevtInput
         public bool ValidateCapability(string capability) => capability == "skip" || capability == "log" || capability == "fast_travel";
         public void SetCapability(string capability, bool enabled) => Calls.Add($"SetCapability({capability},{enabled})");

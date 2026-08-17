@@ -46,8 +46,7 @@ namespace Polaris.Pevt.Syntax
 
     /// <summary>
     /// 自定义事件块定义 <c>[async] block _名(参数...) [: 返回类型] 正文 endblock</c>（14.1/14.2 节）。
-    /// 定义本身不由外层事件顺序执行——它只是被顺序解析出来的一个语法节点，真正的"顺序执行"发生在
-    /// 调用它的 <see cref="CustomBlockCallExpressionSyntax"/> 处，绑定阶段才需要关心这个区别。
+    /// 定义本身不被外层事件顺序执行，真正的执行发生在调用它的 <see cref="CustomBlockCallExpressionSyntax"/> 处。
     /// </summary>
     public sealed class BlockDefinitionStatementSyntax : StatementSyntax
     {
@@ -86,8 +85,7 @@ namespace Polaris.Pevt.Syntax
 
     /// <summary>
     /// <c>return [目标]</c>（14.3 节）：<see cref="Target"/> 为 null 表示无返回值的 <c>return</c>，
-    /// 也用于恢复路径（缺失/非法目标时不强行编造一个占位标识符）。目标类型是否与块声明的返回值类型
-    /// 匹配（PEVT7109）需要类型绑定，留给后续阶段。
+    /// 也用于缺失或非法目标时的恢复路径。
     /// </summary>
     public sealed class ReturnStatementSyntax : StatementSyntax
     {

@@ -8,26 +8,19 @@ using Polaris.Pevt.Text;
 namespace Polaris.Pevt.Flow
 {
     /// <summary>
-    /// 阶段 10：静态控制流分析。不产出一棵独立的"控制流图"对象——语句索引/分支边/循环边已经就是
-    /// 语法树本身（if/elif/else/while/switch 的正文列表就是分支/循环边），本类只是在这棵树上做两趟
-    /// 递归遍历：(1) 按"外层事件"和每个自定义事件块各自独立的环境收集标签、解析 <c>goto</c> 目标、
-    /// 校验 7.2/6.5 节的边界规则；(2) 用同一套"这段语句列表是否保证终止"算法，分别检测外层事件的
-    /// 所有路径是否到达 <c>end</c>（PEVT4001/4002）和每个有返回值声明的块是否每条路径都返回
-    /// （PEVT7117）。
-    ///
-    /// 明确不做的事（16 节原文与计划本阶段要求）：不证明 <c>while</c>/<c>goto</c> 是否构成死循环——
-    /// <c>while</c> 之后永远视为可达（循环体可能一次也不执行），<c>goto</c> 落地之后到底会不会真正
-    /// 返回值也不追踪，只把它当成"这条路径到此为止，不再继续往下掉"的终结点，交给它跳转到的目标
-    /// 自己的上下文去满足条件——这与语法设计草案对 while 死循环的保守立场一致。
+    /// 静态控制流分析：收集标签并解析 <c>goto</c> 目标，再用同一套"这段语句列表是否保证终止"算法检测外层事件
+    /// 是否每条路径都到达 <c>end</c>（PEVT4001/4002）、每个有返回值声明的块是否每条路径都返回（PEVT7117）。
+    /// 不证明 <c>while</c>/<c>goto</c> 是否死循环：<c>while</c> 之后永远视为可达，<c>goto</c> 只当成这条路径的终结点。
     /// </summary>
     public sealed class ControlFlowAnalyzer
     {
         private readonly DiagnosticBag _diagnostics;
         private readonly SourceText _source;
 
-        /// <summary>整份文件里（含每个块内部）出现过的全部标签名——只用来把 PEVT3104（哪里都没有这个
-        /// 标签）和 PEVT3106（标签存在，只是在另一个事件/块环境里）区分开，与阶段 9 的
-        /// <c>_everDeclaredAnywhere</c> 是同一种设计。</summary>
+        /// <summary>
+        /// 整份文件里（含每个块内部）出现过的全部标签名，只用来把 PEVT3104（哪里都没有这个标签）和
+        /// PEVT3106（标签存在，只是在另一个事件或块环境里）区分开。
+        /// </summary>
         private readonly HashSet<string> _allLabelNamesEverywhere = new HashSet<string>();
 
         public ControlFlowAnalyzer(DiagnosticBag diagnostics, SourceText source)
@@ -91,10 +84,9 @@ namespace Polaris.Pevt.Flow
         }
 
         /// <summary>
-        /// 递归判断一段语句列表，从第一条语句开始，是否在每条可达路径落到列表末尾之前都遇到了
-        /// <paramref name="isTerminator"/> 认定的终结语句。同时（当 <paramref name="unreachableDiagnosticId"/>
-        /// 非空时）标记并报告"终结语句或无条件 goto 之后、且不是任何 goto 目标"的不可达语句
-        /// （PEVT4002）——一旦遇到属于 <paramref name="jumpTargets"/> 的标签，可达性重新恢复。
+        /// 递归判断一段语句列表是否在每条可达路径落到列表末尾之前都遇到了 <paramref name="isTerminator"/> 认定的终结语句。
+        /// 同时报告终结语句或无条件 goto 之后、且不是任何 goto 目标的不可达语句（PEVT4002），
+        /// 一旦遇到属于 <paramref name="jumpTargets"/> 的标签，可达性重新恢复。
         /// </summary>
         private bool AnalyzeSequence(IReadOnlyList<StatementSyntax> statements, System.Func<StatementSyntax, bool> isTerminator,
             HashSet<LabelStatementSyntax> jumpTargets, string unreachableDiagnosticId)

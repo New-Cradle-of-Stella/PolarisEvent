@@ -10,7 +10,7 @@ namespace Polaris.Pevt.Core.Tests.Diagnostics
 {
     /// <summary>
     /// 把 DiagnosticCatalog 与仓库中的权威文档 PEVT-静态诊断表.md 逐项核对。快照就是文档本身——
-    /// 不在测试里再抄一份 194 条诊断，那样两份副本谁改谁忘改都发现不了；直接解析文档表格才会真正防漂移。
+    /// 在测试里再抄一份诊断，两份副本谁改谁忘改都发现不了，直接解析文档表格才会真正防漂移。
     /// </summary>
     public class DiagnosticCatalogTests
     {

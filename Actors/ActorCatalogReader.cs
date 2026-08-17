@@ -12,12 +12,8 @@ using Polaris.Pevt.Text;
 namespace Polaris.Pevt.Actors
 {
     /// <summary>
-    /// 严格的 `.pactor` 读取器。工具侧与游戏侧共用本类型，对同一份字节必须得到同一个目录和同一组诊断
-    /// （PEVT-人物目录与原版别名规范.md 第 6 节）。
-    ///
-    /// `.pactor` 是纯数据：禁止 DTD 与外部实体，禁止未知元素与未知属性，禁止元素正文，
-    /// 也不接受任意 C# 类型名、方法名或条件——<c>Resource</c> 只能是点分字段路径，
-    /// <c>Asset</c> 只能是原版 Bundle 逻辑路径。
+    /// 严格的 `.pactor` 读取器，工具侧与游戏侧共用，对同一份字节必须得到同一个目录和同一组诊断。
+    /// `.pactor` 是纯数据：禁止 DTD、外部实体、未知元素与属性、元素正文，也不接受任意 C# 类型名、方法名或条件。
     /// </summary>
     public static class ActorCatalogReader
     {
@@ -833,8 +829,8 @@ namespace Polaris.Pevt.Actors
                 return null;
             }
 
-            // NumberStyles.Float 不含 AllowThousands，且 InvariantCulture 下 "NaN"/"Infinity" 仍可能被接受，
-            // 因此解析后再做一次有限值判定，保证“非有限 anchor”有确定结果。
+            // NumberStyles.Float 不含 AllowThousands，但 InvariantCulture 下 "NaN"/"Infinity" 仍可能被接受，
+            // 因此解析后再做一次有限值判定，保证"非有限 anchor"有确定结果。
             if (!float.TryParse(attribute.Value, NumberStyles.Float, CultureInfo.InvariantCulture, out float value)
                 || !ActorAnchor.IsFinite(value))
             {

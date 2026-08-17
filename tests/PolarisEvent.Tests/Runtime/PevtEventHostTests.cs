@@ -47,12 +47,17 @@ namespace Polaris.Pevt.Core.Tests.Runtime
 
             public List<string> StartedSessions { get; } = new List<string>();
 
+            public FakeRawCommandBridge RawBridge { get; } = new FakeRawCommandBridge();
+
+            public Polaris.Pevt.Runtime.Raw.PevtRawCommandChannel RawCommands { get; }
+
             public PevtRegistryScanner Scanner { get; }
 
             public PevtEventHost Host { get; }
 
             public Fixture(params PevtEmbeddedSource[] events)
             {
+                RawCommands = new Polaris.Pevt.Runtime.Raw.PevtRawCommandChannel(RawBridge);
                 Scanner = new PevtRegistryScanner(null, CommandDescriptorCatalog.Builtin.ToBuiltinApiTable());
                 if (events.Length > 0)
                     Scanner.Register(new Registrar(events), "TestMod", "Test Mod");
@@ -70,9 +75,10 @@ namespace Polaris.Pevt.Core.Tests.Runtime
                             Clock, new PevtEventSession(eventId),
                             new FakeActorCatalogService(actors),
                             Resources, Dialogue, Choice, Portrait,
-                            Stage, Stage, Stage, Stage, Stage, Stage, Stage, Stage);
+                            Stage, Stage, Stage, Stage, Stage, Stage, Stage, Stage,
+                            rawCommands: RawCommands);
                     },
-                    P0CommandRoutines.CreateRegistry());
+                    PevtBuiltinRoutines.CreateRegistry());
             }
 
             public void Advance(int frames = 1)
@@ -133,17 +139,28 @@ namespace Polaris.Pevt.Core.Tests.Runtime
             Assert.Null(fixture.Host.Root);
         }
 
+        /// <summary>
+        /// 原始桥事件在功能阶段 F 之后能真正从注册表跑到收尾。
+        /// </summary>
         [Fact]
-        public void Pevtr4304_StartingAnEventThatUsesConstructsThisRuntimeCannotRunYet()
+        public void RawCommandEventRunsThroughTheHostAndReleasesTheVanillaSession()
         {
-            // 用功能阶段 F 的原始桥：异步与 callevt 从功能阶段 E 起已经能跑了。
-            var fixture = new Fixture(Event("Raw", "enable cs\n$raw cs'''return 1;'''\n"));
+            var fixture = new Fixture(Event("Raw", "$raw cmd'''MSG a'''\n"));
 
-            // 载入期能通过，是运行时编译阶段拒绝的。
             Assert.True(fixture.Scanner.Events.Contains("Raw"));
 
-            PevtEventStartException error = Assert.Throws<PevtEventStartException>(() => fixture.Host.Start("Raw"));
-            Assert.Equal("PEVTR4304", error.Diagnostic.Id);
+            PevtEventInstance instance = fixture.Host.Start("Raw");
+            fixture.Advance();
+
+            Assert.Equal(new[] { "MSG a" }, fixture.RawBridge.Started);
+            Assert.True(fixture.RawCommands.IsBusy);
+
+            fixture.RawBridge.FinishCurrent();
+            fixture.RunToCompletion();
+
+            Assert.Equal(PevtExecutionStatus.Completed, instance.Status);
+            Assert.False(fixture.RawCommands.IsBusy);
+            Assert.Equal(1, fixture.RawBridge.ReleaseCount);
         }
 
         [Fact]

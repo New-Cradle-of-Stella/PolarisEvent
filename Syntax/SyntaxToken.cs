@@ -43,9 +43,8 @@ namespace Polaris.Pevt.Syntax
             Text = text ?? throw new ArgumentNullException(nameof(text));
             Value = value;
             IsMissing = isMissing;
-            // G5：不能直接持有调用者的 List/array 引用——否则调用者事后清空或替换原始集合会
-            // 反过来改写这个本应不可变的 token。leadingTrivia/trailingTrivia 为 null 时才退回共享的
-            // 空数组，避免每个不带 trivia 的 token 都分配一次。
+            // G5：不能直接持有调用者的 List/array 引用，否则调用者事后清空或替换原始集合会改写这个本应不可变的 token。
+            // trivia 为 null 时才退回共享的空数组，避免每个不带 trivia 的 token 都分配一次。
             LeadingTrivia = leadingTrivia == null ? NoTrivia : SyntaxCollections.Freeze(leadingTrivia);
             TrailingTrivia = trailingTrivia == null ? NoTrivia : SyntaxCollections.Freeze(trailingTrivia);
         }

@@ -13,7 +13,6 @@ namespace Polaris.Pevt.Core.Tests.Diagnostics
 {
     /// <summary>
     /// 补上那些"已经登记也已经有发射路径、但没有任何测试直接断言"的编号。
-    ///
     /// 计划把「登记、发射、断言」列为三件独立的事，缺任何一件都不算交付；这个文件专门盯住第三件，
     /// 每条都用一个会真正触发它的最小源码来断言。
     /// </summary>
@@ -108,9 +107,8 @@ end
         [Fact]
         public void Pevt7202_IsUnreachableBecauseTheLexerMergesTheTwoKeywords()
         {
-            // `async` 与 `block` 之间没有分隔符时，词法器把它们合成一个标识符 `asyncblock`，
-            // 于是报的是 PEVT1201 而不是 PEVT7202。解析器里那道判断因此是防御性的死分支，
-            // 这里把这个事实钉住：真出现分隔符缺失时用户看到的是哪一条。
+            // `async` 与 `block` 之间没有分隔符时，词法器把它们合成一个标识符 `asyncblock`，于是报的是 PEVT1201 而不是 PEVT7202。
+            // 解析器里那道判断因此是防御性的死分支，这里把用户真正会看到的那一条钉住。
             AssertReports("id \"T\"\nenable async\nasyncblock _work()\nendblock\nend\n", "PEVT1201");
             AssertDoesNotReport("id \"T\"\nenable async\nasync block _work()\nendblock\nend\n", "PEVT7202");
         }
@@ -144,9 +142,6 @@ end
                 // PEVT7403（exec 实参的静态字符串类型核对）归 13.4 节描述的动态执行阶段：
                 // 片段内容只有运行时才知道，静态侧只保证实参本身是 string，其余全部在运行时重做。
                 "PEVT7403",
-
-                // 功能阶段 F：`$raw cs` 的 C# 分析（计划 17 -> 39 交界）。
-                "PEVT8007", "PEVT8008", "PEVT8009", "PEVT8010",
             };
 
             IReadOnlyCollection<string> actual = DiagnosticSourceScan.WithoutProductionEmitter(
@@ -164,8 +159,9 @@ end
                 // 功能阶段 D 的游戏侧适配器：视觉契约要等真实 PXLS pose/frame 才能核对。
                 "PEVTR4405",
 
-                // 功能阶段 F：原始桥与 C# 回调。
-                "PEVTR4101", "PEVTR4102", "PEVTR4201",
+                // PEVTR4201（自定义 C# 回调抛出未处理异常）没有对应能力：`@` 处理器的异常归 PEVTR4001，`$raw cs` 的异常归 PEVTR4102。
+                // 它为宿主登记的 C# 回调预留，而 PEVT 目前不提供那种入口。
+                "PEVTR4201",
             };
 
             IReadOnlyCollection<string> actual = DiagnosticSourceScan.WithoutProductionEmitter(

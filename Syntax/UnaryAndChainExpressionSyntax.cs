@@ -35,9 +35,8 @@ namespace Polaris.Pevt.Syntax
     }
 
     /// <summary>
-    /// PEVT 8.8 节的线性从左到右二元链：没有运算符优先级，第一个操作数后面挂着任意多个
-    /// "运算符 + 操作数"节；<c>a + b * c</c> 是这一个节点、两段的平铺链，绝不会因为 <c>*</c>
-    /// 而把 <c>b</c>、<c>c</c> 单独聚成一个嵌套子节点——那只有显式括号才会发生。
+    /// PEVT 8.8 节的线性从左到右二元链：没有运算符优先级，第一个操作数后面挂着任意多个"运算符 + 操作数"节。
+    /// <c>a + b * c</c> 是这一个节点、两段的平铺链，只有显式括号才会形成嵌套子节点。
     /// </summary>
     public sealed class ChainedBinaryExpressionSyntax : ExpressionSyntax
     {

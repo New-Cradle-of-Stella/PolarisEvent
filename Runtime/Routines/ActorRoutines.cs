@@ -5,10 +5,6 @@ namespace Polaris.Pevt.Runtime.Routines
 {
     /// <summary>
     /// 角色立绘与演出图层组合，对应同步指令中间层规范第 7 节。
-    ///
-    /// 规范第 9 节固定了执行顺序：解析人物 ID、解析 appearance/anchor、等待资源、验证 pose/frame、
-    /// 创建或更新演出实例。任何一步失败都不得留下半创建的图层，因此全部校验都排在第一个副作用之前。
-    /// 原版 <c>LegacyPerson</c> 只用于在内置目录里挑选视觉源，绝不把 TALKER/PIC 文本交回原版解释器。
     /// </summary>
     internal static class ActorRoutines
     {

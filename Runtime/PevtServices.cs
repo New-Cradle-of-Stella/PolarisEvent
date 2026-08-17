@@ -5,10 +5,6 @@ using Polaris.Pevt.Actors;
 namespace Polaris.Pevt.Runtime
 {
     // 本文件定义同步指令中间层规范第 5 节的中立原子服务边界。
-    //
-    // 全部接口只使用 PEVT 自己的类型：字符串 ID、数值、PevtWait 和人物目录里的不可变数据。
-    // 不出现 EvPerson、PxlCharacter、MImage、Unity 或任何游戏内部对象——游戏侧适配器负责
-    // 把这些接口实现到真实引擎上，Core 只知道接口。
 
     /// <summary>帧等待、输入等待和受管动作聚合等待。</summary>
     public interface IPevtClock
@@ -272,6 +268,15 @@ namespace Polaris.Pevt.Runtime
         void HideTutorial(string tutorialId);
 
         void ClearTutorials();
+
+        // ---- 持久状态变更提示（同步指令中间层规范第 12 节的 notify 分支）----
+        // 提示归 UI、改数量归 Inventory：放在 UI 服务而不是 Inventory 上，"静默改数量"才不必绕过一个硬编码的通知。
+
+        void NotifyItemChange(string itemId, int delta, int count);
+
+        void NotifyMoneyChange(int delta, int amount);
+
+        void NotifySkillChange(string skillId, bool owned);
     }
 
     /// <summary>输入策略。</summary>
@@ -370,6 +375,21 @@ namespace Polaris.Pevt.Runtime
 
         public IPevtInput Input { get; }
 
+        /// <summary>P1/P2 领域服务包。宿主没有接时是 <see cref="PevtDomainServices.Empty"/>，不为 null。</summary>
+        public PevtDomainServices Domains { get; }
+
+        /// <summary>
+        /// <c>$raw cmd</c> 的进程级通道；宿主没有接时为 null，此时任何 <c>$raw cmd</c> 都以
+        /// PEVTR9001 结束（编译出了指令却没有执行器，属于宿主接线不变量被破坏）。
+        /// </summary>
+        public IPevtRawCommands RawCommands { get; }
+
+        /// <summary>
+        /// <c>$raw cs</c> 的执行器；宿主没有接时为 null。它和 <see cref="RawCommands"/> 一样是
+        /// 进程级共享对象——编译缓存必须跨事件复用，否则每次启动事件都要重编一遍同一段 C#。
+        /// </summary>
+        public Raw.PevtRawCsExecutor RawCs { get; }
+
         /// <summary>当前事件会话的临时状态恢复表。</summary>
         public PevtEventSession Session { get; }
 
@@ -388,7 +408,10 @@ namespace Polaris.Pevt.Runtime
             IPevtAudio audio = null,
             IPevtMusic music = null,
             IPevtUi ui = null,
-            IPevtInput input = null)
+            IPevtInput input = null,
+            PevtDomainServices domains = null,
+            IPevtRawCommands rawCommands = null,
+            Raw.PevtRawCsExecutor rawCs = null)
         {
             Clock = clock ?? throw new ArgumentNullException(nameof(clock));
             Session = session ?? throw new ArgumentNullException(nameof(session));
@@ -405,6 +428,9 @@ namespace Polaris.Pevt.Runtime
             Music = music;
             Ui = ui;
             Input = input;
+            Domains = domains ?? PevtDomainServices.Empty;
+            RawCommands = rawCommands;
+            RawCs = rawCs;
         }
     }
 }

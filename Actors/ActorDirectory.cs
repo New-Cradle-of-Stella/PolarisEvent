@@ -34,9 +34,8 @@ namespace Polaris.Pevt.Actors
     }
 
     /// <summary>
-    /// 一条最终人物 ID 冲突记录。同一所有者内的重复是静态错误 <c>PEVT9106</c>；不同所有者之间的重复
-    /// 是加载期致命冲突 <c>PEVTR4404</c>。两种情况都保留先注册项，只为让同一次启动的结果稳定，
-    /// 不表示后注册方被接受。
+    /// 一条最终人物 ID 冲突记录：同一所有者内的重复是静态错误 <c>PEVT9106</c>，不同所有者之间是加载期致命冲突 <c>PEVTR4404</c>。
+    /// 两种情况都保留先注册项，只为让同一次启动的结果稳定，不表示后注册方被接受。
     /// </summary>
     public sealed class ActorConflict
     {
@@ -176,7 +175,7 @@ namespace Polaris.Pevt.Actors
         private bool _sealed;
 
         /// <summary>
-        /// 加入一个目录。<paramref name="owner"/> 由扫描器固定，目录自身不能伪造。
+        /// 加入一个目录，<paramref name="owner"/> 由扫描器固定，目录自身不能伪造。
         /// 返回本次加入产生的冲突记录，调用方据此决定报静态错误还是致命加载冲突。
         /// </summary>
         public IReadOnlyList<ActorConflict> Add(ActorCatalog catalog, string owner, string catalogHash = null)

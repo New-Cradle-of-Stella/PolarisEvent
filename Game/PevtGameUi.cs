@@ -9,11 +9,6 @@ namespace Polaris.Event.Game
 {
     /// <summary>
     /// 全局 UI、标题与教程。
-    ///
-    /// 每一项都用原版事件命令走的同一个开关：黑边是 <c>UIBase.draw_letter_box</c>，
-    /// 状态栏是 <c>UIStatus.FlgStatusHide</c>，模糊是 <c>BlurScreen</c> 的标记，
-    /// 提示是 <c>UILog.AddAlertTX</c>，区域标题是 <c>M2AreaTitle</c>，教程是 <see cref="ITutorialBox"/>。
-    /// 所有标记都用 PolarisEvent 自己的名字，不会误清掉原版事件加的同名标记。
     /// </summary>
     internal sealed class PevtGameUi : IPevtUi
     {
@@ -194,6 +189,25 @@ namespace Polaris.Event.Game
             });
         }
 
+        // ---- 持久状态变更提示 ----
+        // 走的是 UI 日志框的提示行（<see cref="UILog.AddAlertTX"/>），和 @alert 同一条通道。刻意不用原版
+        // <c>UILog.AddGetItem</c> / <c>AddMoney</c>，因为那两个入口要求传入原版 <c>NelItem</c> / <c>CoinEntry</c> 对象，
+        // 而中立服务边界上只有字符串 ID 和数值。
+
+        public void NotifyItemChange(string itemId, int delta, int count) =>
+            Alert(delta >= 0
+                ? $"{itemId} +{delta} ({count})"
+                : $"{itemId} {delta} ({count})");
+
+        public void NotifyMoneyChange(int delta, int amount) =>
+            Alert(delta >= 0 ? $"+{delta} ({amount})" : $"{delta} ({amount})");
+
+        public void NotifySkillChange(string skillId, bool owned) =>
+            Alert(owned ? $"{skillId} +" : $"{skillId} -");
+
+        private void Alert(string text) =>
+            PevtGameHost.Guard("Notify", () => Ui?.LogBox?.AddAlertTX(text, UILogRow.TYPE.ALERT));
+
         /// <summary>
         /// 事件结束、替换或异常时把本事件改过的 UI 临时状态全部还原。
         /// 会话恢复表本来也会逐条还原，这里是最后一道兜底：会话恢复失败时不至于把黑边留在屏幕上。
@@ -226,11 +240,8 @@ namespace Polaris.Event.Game
     }
 
     /// <summary>
-    /// 输入策略。
-    ///
-    /// 能力是 PEVT 自己的一小组名字，逐个映射到原版对应的开关；按键则直接对应
-    /// <see cref="KEY.SIMKEY"/>，通过 <see cref="EV.addAllocEvHandleKey"/> 分配给事件。
-    /// 这里只改事件期间的临时策略，不动任何持久设置。
+    /// 输入策略。能力是 PEVT 自己的一小组名字，逐个映射到原版对应的开关；按键直接对应 <see cref="KEY.SIMKEY"/>，
+    /// 通过 <see cref="EV.addAllocEvHandleKey"/> 分配给事件，且只改事件期间的临时策略，不动任何持久设置。
     /// </summary>
     internal sealed class PevtGameInput : IPevtInput
     {
