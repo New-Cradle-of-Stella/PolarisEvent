@@ -161,13 +161,13 @@ end
             var expected = new HashSet<string>
             {
                 // 功能阶段 E：exec、事件间调用与异步句柄。
+                // PEVTR4301/4304 已经由公开宿主发射；4302/4303 要等 callevt 才有意义。
                 "PEVTR1201", "PEVTR1202", "PEVTR1203",
-                "PEVTR4301", "PEVTR4302", "PEVTR4303", "PEVTR4304",
+                "PEVTR4302", "PEVTR4303",
                 "PEVTR5001", "PEVTR5002", "PEVTR5003", "PEVTR5004", "PEVTR5005",
 
-                // 功能阶段 D：真实人物演出适配器。功能阶段 C 只提供中立服务接口，
-                // 这些编号目前只由测试替身里的组合协程抛出，生产代码还没有发射点。
-                "PEVTR4401", "PEVTR4402", "PEVTR4405",
+                // 功能阶段 D 的游戏侧适配器：视觉契约要等真实 PXLS pose/frame 才能核对。
+                "PEVTR4405",
 
                 // 功能阶段 F：原始桥与 C# 回调。
                 "PEVTR4101", "PEVTR4102", "PEVTR4201",
