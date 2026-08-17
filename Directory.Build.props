@@ -1,10 +1,23 @@
 <Project>
 
   <!--
-    PolarisEvent's netstandard2.0 PEVT frontend has no game/Unity/BepInEx dependency.
-    An empty Directory.Build.props here stops MSBuild's directory walk before
-    it reaches ..\Directory.Build.props, so this project never inherits the parent's
-    AicGameDir/AicManagedDir check.
+    这里刻意不 Import 上一级的 ..\Directory.Build.props：那份文件对所有项目无条件要求游戏程序集
+    目录存在，而 PolarisEvent 的 netstandard2.0 前端必须能在没装游戏的机器上（PolarisTools 的
+    构建环境）编译。所以在本仓库自己解析游戏目录，并且只在游戏侧目标上校验它。
   -->
+
+  <Import Project="Directory.Build.props.user" Condition="Exists('Directory.Build.props.user')" />
+
+  <PropertyGroup>
+    <AicGameDir Condition="'$(AicGameDir)' == '' And '$(AIC_GAME_DIR)' != ''">$(AIC_GAME_DIR)</AicGameDir>
+    <AicGameDir Condition="'$(AicGameDir)' == ''">D:\AliceInCradle Win ver029\AliceInCradle_ver029</AicGameDir>
+    <AicManagedDir>$(AicGameDir)\AliceInCradle_Data\Managed</AicManagedDir>
+  </PropertyGroup>
+
+  <Target Name="CheckAicGameDir" BeforeTargets="ResolveAssemblyReferences"
+          Condition="'$(TargetFramework)' == 'netstandard2.1'">
+    <Error Condition="!Exists('$(AicManagedDir)')"
+           Text="找不到游戏程序集目录：$(AicManagedDir)&#xA;请设置环境变量 AIC_GAME_DIR 指向游戏根目录（含 AliceInCradle_Data 的那一层），或在 PolarisEvent 下新建 Directory.Build.props.user 覆盖 AicGameDir。" />
+  </Target>
 
 </Project>

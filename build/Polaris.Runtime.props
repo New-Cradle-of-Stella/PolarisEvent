@@ -1,0 +1,60 @@
+<Project>
+
+  <!--
+    PolarisEvent 是仓库里唯一一个双目标的组件：
+      netstandard2.0  纯 PEVT 前端，PolarisTools 引用它，不能碰游戏、Unity 或 BepInEx；
+      netstandard2.1  游戏侧组件，Game/ 下的原子服务适配器要直接调用原版 evt/XX/nel 类型。
+    因此这份 props 与其它组件仓库的同名文件不同：所有游戏依赖都带 netstandard2.1 条件。
+    条件写在 ItemGroup 上而不是 Import 上，是因为 NuGet 还原本来就按目标框架分别求值，
+    这样 netstandard2.0 的还原图里根本不会出现 Unity 与 BepInEx。
+  -->
+
+  <PropertyGroup>
+    <IsGameTarget Condition="'$(TargetFramework)' == 'netstandard2.1'">true</IsGameTarget>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(IsGameTarget)' == 'true'">
+    <PackageReference Include="BepInEx.Unity.Mono" Version="6.0.0-be.*" IncludeAssets="compile" />
+    <PackageReference Include="UnityEngine.Modules" Version="2022.3.62" IncludeAssets="compile" />
+    <PackageReference Include="Krafs.Publicizer" Version="2.3.0" PrivateAssets="all" />
+  </ItemGroup>
+
+  <Target Name="DropDuplicateIgnoresAccessChecksTo" BeforeTargets="CoreCompile">
+    <ItemGroup>
+      <Compile Remove="@(Compile)" Condition="'%(Filename)' == 'IgnoresAccessChecksToAttribute'" />
+    </ItemGroup>
+  </Target>
+
+  <!--
+    原版事件系统的字段大量是 private static（EV.state、EV.MsgDefault 等）。适配器只读取状态、
+    不改写解释器内部游标，但读取也需要访问权限，所以沿用其它组件一致的 Publicize 集合。
+  -->
+  <ItemGroup Condition="'$(IsGameTarget)' == 'true'">
+    <Publicize Include="Assembly-CSharp" />
+    <Publicize Include="unsafeAssem" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(IsGameTarget)' == 'true'">
+    <Reference Include="Assembly-CSharp">
+      <HintPath>$(AicManagedDir)\Assembly-CSharp.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="unsafeAssem">
+      <HintPath>$(AicManagedDir)\unsafeAssem.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="better">
+      <HintPath>$(AicManagedDir)\better.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="pixelliner">
+      <HintPath>$(AicManagedDir)\pixelliner.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>$(AicManagedDir)\Newtonsoft.Json.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+</Project>

@@ -15,7 +15,13 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\PolarisEvent.csproj" />
+    <!--
+      固定引用 netstandard2.0 前端。net8.0 本来会优先挑 netstandard2.1，那份是游戏侧目标，
+      会把 BepInEx / MonoMod / Unity 一起拖进测试宿主，而这些程序集在测试环境里并不存在——
+      表现是 xUnit 在加载部分测试类时报 "Catastrophic failure" 并静默少跑一批用例。
+      本项目按计划就是"无游戏依赖"的语言与人物目录测试，锁在前端目标上也更贴合它的职责。
+    -->
+    <ProjectReference Include="..\..\PolarisEvent.csproj" SetTargetFramework="TargetFramework=netstandard2.0" />
   </ItemGroup>
 
 </Project>

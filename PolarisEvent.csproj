@@ -27,4 +27,7 @@
     <EmbeddedResource Include="Content\**\*" />
     <Compile Remove="tests\**\*.cs" />
   </ItemGroup>
+
+  <!-- 游戏程序集引用只对 netstandard2.1 生效；条件写在 props 内部的 ItemGroup 上。 -->
+  <Import Project="build\Polaris.Runtime.props" />
 </Project>
