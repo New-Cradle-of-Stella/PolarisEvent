@@ -6,13 +6,21 @@
     <LangVersion>latest</LangVersion>
   </PropertyGroup>
 
-  <!-- 游戏运行时目标作为 Core 组件加载；netstandard2.0 目标是供 PolarisTools 使用的纯 PEVT 前端。 -->
+  <!--
+    netstandard2.0 是供 PolarisTools 使用的纯 PEVT 前端：不引用 PolarisCore、PolarisRes、
+    游戏程序集或 Unity，因此 VS 扩展不需要装游戏也能编译。
+    netstandard2.1 是游戏侧组件目标，额外引用 PolarisCore 与 PolarisRes——游戏原子服务适配器
+    和原版 PXLS 借用桥都在这个目标里。
+  -->
   <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.1'">
     <ProjectReference Include="$(MSBuildThisFileDirectory)..\PolarisCore\PolarisCore.csproj" />
+    <ProjectReference Include="$(MSBuildThisFileDirectory)..\PolarisRes\PolarisRes.csproj" />
   </ItemGroup>
 
+  <!-- 只有游戏侧目标编译 Game/ 与组件入口；前端目标看不到它们，也就不可能意外引入游戏依赖。 -->
   <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
     <Compile Remove="PolarisEventComponent.cs" />
+    <Compile Remove="Game\**\*.cs" />
   </ItemGroup>
 
   <ItemGroup>
