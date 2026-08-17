@@ -22,6 +22,7 @@ namespace Polaris.Pevt.Registration
         }
 
         private readonly List<Entry> _entries = new List<Entry>();
+        private readonly Dictionary<string, Func<object>> _visualAccessors = new Dictionary<string, Func<object>>(StringComparer.Ordinal);
         private ActorDirectory _directory = ActorDirectory.Empty;
 
         public PevtActorRegistry()
@@ -59,7 +60,11 @@ namespace Polaris.Pevt.Registration
             }
         }
 
-        internal void Add(ActorCatalog catalog, string owner, string catalogHash)
+        internal void Add(
+            ActorCatalog catalog,
+            string owner,
+            string catalogHash,
+            IReadOnlyDictionary<string, Func<object>> visualAccessors = null)
         {
             if (IsSealed)
                 throw new InvalidOperationException("人物注册表已 Seal，不能继续注册。");
@@ -67,8 +72,27 @@ namespace Polaris.Pevt.Registration
                 throw new ArgumentNullException(nameof(catalog));
 
             _entries.Add(new Entry { Catalog = catalog, Owner = owner ?? string.Empty, CatalogHash = catalogHash ?? string.Empty });
+
+            if (visualAccessors != null)
+            {
+                foreach (KeyValuePair<string, Func<object>> accessor in visualAccessors)
+                    _visualAccessors[accessor.Key] = accessor.Value;
+            }
+
             Rebuild();
         }
+
+        /// <summary>
+        /// 取一个视觉的延迟资源访问器，键为 <c>&lt;actorId&gt;/&lt;visualKey&gt;</c>。
+        /// 只有 <c>polaris-res</c> 视觉有访问器；原版 <c>game-pxls</c> 借用由资源桥直接解析。
+        ///
+        /// 本方法只把委托交出去，不调用它——真正解析要等首次演出。
+        /// </summary>
+        public bool TryGetVisualAccessor(string actorId, string visualKey, out Func<object> accessor) =>
+            _visualAccessors.TryGetValue((actorId ?? string.Empty) + "/" + (visualKey ?? string.Empty), out accessor);
+
+        /// <summary>已登记的延迟访问器数量。</summary>
+        public int VisualAccessorCount => _visualAccessors.Count;
 
         /// <summary>封闭注册。之后不能继续登记人物目录，但仍可以按 owner 卸载。</summary>
         public IReadOnlyList<ActorConflict> Seal()

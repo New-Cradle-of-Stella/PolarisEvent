@@ -106,7 +106,7 @@ namespace Polaris.Pevt.Registration
             registrar.Register(context);
 
             foreach (ActorCatalogSubmission submission in context.Submitted)
-                Actors.Add(submission.Catalog, context.Owner, submission.CatalogHash);
+                Actors.Add(submission.Catalog, context.Owner, submission.CatalogHash, submission.VisualAccessors);
         }
 
         private void RegisterEvents(IPevtRegistrar registrar, string owner, string displayName, CancellationToken cancellationToken)
