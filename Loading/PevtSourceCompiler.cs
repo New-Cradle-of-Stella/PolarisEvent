@@ -46,13 +46,14 @@ namespace Polaris.Pevt.Loading
         public static PevtCompilation Compile(
             SourceText source,
             BuiltinApiTable builtinApi = null,
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default,
+            IEnumerable<Symbol> seedSymbols = null)
         {
             if (source == null)
                 throw new ArgumentNullException(nameof(source));
 
             var diagnostics = new DiagnosticBag();
-            return Compile(source, diagnostics, builtinApi, cancellationToken);
+            return Compile(source, diagnostics, builtinApi, cancellationToken, seedSymbols);
         }
 
         /// <summary>把诊断累加到调用方自己的包里的重载，供已经在收集诊断的宿主使用。</summary>
@@ -60,7 +61,8 @@ namespace Polaris.Pevt.Loading
             SourceText source,
             DiagnosticBag diagnostics,
             BuiltinApiTable builtinApi = null,
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default,
+            IEnumerable<Symbol> seedSymbols = null)
         {
             if (source == null)
                 throw new ArgumentNullException(nameof(source));
@@ -69,7 +71,7 @@ namespace Polaris.Pevt.Loading
 
             IReadOnlyList<SyntaxToken> tokens = Lexer.Tokenize(source, diagnostics, cancellationToken);
             DocumentSyntax document = new Parser(tokens, diagnostics, source).ParseDocument();
-            new Binder(diagnostics, source, builtinApi).BindDocument(document);
+            new Binder(diagnostics, source, builtinApi).BindDocument(document, seedSymbols);
             new ControlFlowAnalyzer(diagnostics, source).AnalyzeDocument(document);
 
             PevtProgramDefinition definition = PevtProgramDefinition.TryBuild(document, source, diagnostics);
@@ -81,7 +83,8 @@ namespace Polaris.Pevt.Loading
             byte[] utf8Bytes,
             string filePath,
             BuiltinApiTable builtinApi = null,
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default,
+            IEnumerable<Symbol> seedSymbols = null)
         {
             if (utf8Bytes == null)
                 throw new ArgumentNullException(nameof(utf8Bytes));
@@ -90,7 +93,7 @@ namespace Polaris.Pevt.Loading
             if (!loaded.Success)
                 return new PevtCompilation(null, null, null, loaded.Diagnostics);
 
-            return Compile(loaded.Text, builtinApi, cancellationToken);
+            return Compile(loaded.Text, builtinApi, cancellationToken, seedSymbols);
         }
     }
 }

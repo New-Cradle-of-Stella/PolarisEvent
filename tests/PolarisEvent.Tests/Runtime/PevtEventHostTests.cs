@@ -136,12 +136,13 @@ namespace Polaris.Pevt.Core.Tests.Runtime
         [Fact]
         public void Pevtr4304_StartingAnEventThatUsesConstructsThisRuntimeCannotRunYet()
         {
-            var fixture = new Fixture(Event("Async", "enable async\nhandler h = @actor_move_start(\"aic:noel\", \"left\", 1)\n"));
+            // 用功能阶段 F 的原始桥：异步与 callevt 从功能阶段 E 起已经能跑了。
+            var fixture = new Fixture(Event("Raw", "enable cs\n$raw cs'''return 1;'''\n"));
 
             // 载入期能通过，是运行时编译阶段拒绝的。
-            Assert.True(fixture.Scanner.Events.Contains("Async"));
+            Assert.True(fixture.Scanner.Events.Contains("Raw"));
 
-            PevtEventStartException error = Assert.Throws<PevtEventStartException>(() => fixture.Host.Start("Async"));
+            PevtEventStartException error = Assert.Throws<PevtEventStartException>(() => fixture.Host.Start("Raw"));
             Assert.Equal("PEVTR4304", error.Diagnostic.Id);
         }
 

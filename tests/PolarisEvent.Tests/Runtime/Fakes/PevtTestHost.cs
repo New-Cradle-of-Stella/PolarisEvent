@@ -51,6 +51,9 @@ namespace Polaris.Pevt.Core.Tests.Runtime.Fakes
 
         public PevtBudgetLimits Limits { get; set; } = PevtBudgetLimits.Default;
 
+        /// <summary>callevt 的目标表。测试可以在事件启动之后再往里加事件，用来验证晚注册。</summary>
+        public FakeSubEventProvider SubEvents { get; } = new FakeSubEventProvider();
+
         public PevtTestHost()
         {
             Commands = new PevtCommandRegistry(CommandDescriptorCatalog.Builtin);
@@ -102,7 +105,7 @@ namespace Polaris.Pevt.Core.Tests.Runtime.Fakes
                 Resources, Dialogue, Choice, Portrait,
                 Stage, Stage, Stage, Stage, Stage, Stage, Stage, Stage);
 
-            return new PevtExecution(program, Services, Commands, Limits);
+            return new PevtExecution(program, Services, Commands, Limits) { SubEvents = SubEvents };
         }
 
         /// <summary>推进最多 <paramref name="maxFrames"/> 帧，直到执行结束。</summary>
@@ -118,6 +121,13 @@ namespace Polaris.Pevt.Core.Tests.Runtime.Fakes
             }
 
             throw new InvalidOperationException($"执行在 {maxFrames} 帧内没有结束，最后状态 {result}。");
+        }
+
+        /// <summary>把一段源码编译好登记进 callevt 目标表。</summary>
+        public PevtTestHost Event(string eventId, string source)
+        {
+            SubEvents.Add(eventId, Compile(source, eventId + ".pevt"));
+            return this;
         }
 
         /// <summary>推进一帧并让时钟前进，返回本帧结果。</summary>

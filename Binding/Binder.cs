@@ -51,6 +51,15 @@ namespace Polaris.Pevt.Binding
 
         private bool _hasCsCapability;
 
+        /// <summary>
+        /// 当前处于"直接位置"的那个表达式节点：整条语句的表达式，或一个声明/句柄声明的初始化器。
+        ///
+        /// 只有带非空结果绑定的集合等待需要它（PEVT7225）：绑定会在当前环境里引入新变量，
+        /// 所以它必须是整条语句的顶层，不能藏在括号、运算符或调用参数里。用节点身份比较而不是
+        /// 一个布尔标记，正是为了让"括号也算嵌套"这条规则自然成立。
+        /// </summary>
+        private ExpressionSyntax _directExpressionRoot;
+
         public Binder(DiagnosticBag diagnostics, SourceText source, BuiltinApiTable builtinApi = null)
         {
             _diagnostics = diagnostics;
@@ -64,11 +73,24 @@ namespace Polaris.Pevt.Binding
         /// <summary>外层事件用一个全新环境；每个自定义事件块定义各自再用一个全新、互不关联的环境
         /// （9.4 节："自定义事件块不会隐式捕获外层环境"）。绑定前先做一次全文件块名预扫描，
         /// 好让"定义先于调用"（7115）能和"哪里都没定义"（7110）区分开。</summary>
-        public void BindDocument(DocumentSyntax document)
+        /// <param name="seedSymbols">
+        /// 预先存在于外层环境里的符号。只有 <c>exec</c> 片段会用到：片段"允许读写授权的外层变量"，
+        /// 因此静态校验必须先知道这些名字，否则合法片段会被判成 PEVT6001。片段里新声明的名字
+        /// 仍然只进片段自己的环境。
+        /// </param>
+        public void BindDocument(DocumentSyntax document, IEnumerable<Symbol> seedSymbols = null)
         {
             _hasCsCapability = document.EnableDeclarations.Any(e => e.Capability.Kind == SyntaxKind.CsKeyword);
             CollectBlockNames(document.Statements);
-            BindStatements(document.Statements, new BoundEnvironment());
+
+            var env = new BoundEnvironment();
+            if (seedSymbols != null)
+            {
+                foreach (Symbol symbol in seedSymbols)
+                    Declare(env, symbol, initialized: true);
+            }
+
+            BindStatements(document.Statements, env);
         }
 
         private void CollectBlockNames(IReadOnlyList<StatementSyntax> statements)
@@ -119,7 +141,10 @@ namespace Polaris.Pevt.Binding
                 case IfStatementSyntax ifStatement: BindIf(ifStatement, env); break;
                 case WhileStatementSyntax whileStatement: BindWhile(whileStatement, env); break;
                 case SwitchStatementSyntax switchStatement: BindSwitch(switchStatement, env); break;
-                case ExpressionStatementSyntax expressionStatement: BindExpression(expressionStatement.Expression, env, isStatementContext: true); break;
+                case ExpressionStatementSyntax expressionStatement:
+                    _directExpressionRoot = expressionStatement.Expression;
+                    BindExpression(expressionStatement.Expression, env, isStatementContext: true);
+                    break;
                 case BlockDefinitionStatementSyntax block: BindBlockDefinition(block, env); break;
                 case HandlerDeclarationStatementSyntax handler: BindHandlerDeclaration(handler, env); break;
                 case KillStatementSyntax kill: BindHandleOperand(kill.Handle, env, "PEVT7213"); break;
@@ -137,6 +162,7 @@ namespace Polaris.Pevt.Binding
         {
             PevtType declaredType = PevtTypeFacts.FromTypeKeyword(node.Type.Kind);
             bool hasInitializer = node.Initializer != null;
+            _directExpressionRoot = node.Initializer;
             PevtType initializerType = hasInitializer ? BindExpression(node.Initializer, env) : PevtType.Error;
 
             if (!DeclareOrReportDuplicate(node.Name, new VariableSymbol(node.Name.Text, declaredType), hasInitializer, env))
@@ -149,6 +175,7 @@ namespace Polaris.Pevt.Binding
         private void BindConstantDeclaration(ConstantDeclarationSyntax node, BoundEnvironment env)
         {
             PevtType declaredType = PevtTypeFacts.FromTypeKeyword(node.Type.Kind);
+            _directExpressionRoot = node.Initializer;
             PevtType initializerType = BindExpression(node.Initializer, env);
 
             if (!DeclareOrReportDuplicate(node.Name, new ConstantSymbol(node.Name.Text, declaredType), initialized: true, env))
@@ -371,6 +398,7 @@ namespace Polaris.Pevt.Binding
             // 15.1 节：无返回值的异步调用完全可以作为 handler 初始化器（句柄只记录运行状态）；
             // 这不是"值被丢弃的语句"，但同样不要求调用必须有普通返回值，因此按 isStatementContext
             // 的语义传 true，避免误报 PEVT7008/7114。
+            _directExpressionRoot = node.Initializer;
             BindExpression(node.Initializer, env, isStatementContext: true);
             PevtType? asyncReturnType = CheckSynchronousInitializer(node.Initializer);
 
@@ -510,6 +538,10 @@ namespace Polaris.Pevt.Binding
 
             if (bindings.Count == 0)
                 return PevtType.Int;
+
+            // 非空绑定列表会在当前环境引入新变量，因此整个集合等待必须是语句或初始化器的顶层。
+            if (!ReferenceEquals(node, _directExpressionRoot))
+                Report("PEVT7225", node.Span);
 
             if (bindings.Count != handles.Count)
                 Report("PEVT7221", node.Bindings.Span);
@@ -772,9 +804,17 @@ namespace Polaris.Pevt.Binding
             if (_readyBlocks.TryGetValue(calledName, out BlockSignature signature))
             {
                 CheckBlockCallArguments(call, argumentTypes, signature);
+
+                if (signature.IsAsync && !isStatementContext)
+                {
+                    Report("PEVT7203", call.Span);
+                    return PevtType.Error;
+                }
+
                 if (signature.ReturnType == null && !isStatementContext)
                     Report("PEVT7114", call.Span);
-                return signature.ReturnType ?? PevtType.Error;
+
+                return signature.IsAsync ? PevtType.Error : signature.ReturnType ?? PevtType.Error;
             }
 
             string prefixed = calledName.StartsWith("_") ? null : "_" + calledName;
@@ -847,10 +887,19 @@ namespace Polaris.Pevt.Binding
                 return PevtType.Error;
             }
 
+            // 15.2 节 PEVT7203：异步调用产出的是句柄，不是普通值。合法位置只有 handler 初始化器
+            // 和被丢弃的独立语句，两者的 isStatementContext 都是 true。
+            if (match.IsAsync && !isStatementContext)
+            {
+                Report("PEVT7203", call.Span);
+                return PevtType.Error;
+            }
+
             if (match.ReturnType == null && !isStatementContext)
                 Report("PEVT7008", call.Span);
 
-            return match.ReturnType ?? PevtType.Error;
+            // 异步调用的静态类型不是它的普通返回值——那个值只有 await 之后才可用。
+            return match.IsAsync ? PevtType.Error : match.ReturnType ?? PevtType.Error;
         }
 
         private static bool MatchesArgumentTypes(BuiltinSignature signature, IReadOnlyList<PevtType> argumentTypes)

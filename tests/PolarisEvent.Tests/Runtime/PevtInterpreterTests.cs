@@ -629,9 +629,9 @@ end
         // ---- 本阶段范围 ----
 
         [Theory]
-        [InlineData("id \"T\"\nenable async\nhandler h = @actor_move_start(\"aic:noel\", \"left\", 3)\nend\n", "handler")]
-        [InlineData("id \"T\"\ncallevt \"Other\"\nend\n", "callevt")]
+        // 异步、handler 与 callevt 从功能阶段 E 起可以编译；这里只剩功能阶段 F 的两个原始桥。
         [InlineData("id \"T\"\nenable cs\n$raw cs'''return 1;'''\nend\n", "$raw cs")]
+        [InlineData("id \"T\"\n$raw cmd'''MSG a'''\nend\n", "$raw cmd")]
         public void ConstructsDeferredToLaterStagesAreRejectedAtCompileTime(string source, string expectedFragment)
         {
             PevtCompileResult result = Host().TryCompile(source);

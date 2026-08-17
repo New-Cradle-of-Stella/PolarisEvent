@@ -65,6 +65,36 @@ namespace Polaris.Pevt.Runtime
 
         /// <summary>调用自定义事件块，弹出 <c>Index</c> 个实参并压入新帧。</summary>
         CallBlock,
+
+        /// <summary>
+        /// 启动一个异步调用（<c>@name_start</c> 或 <c>async block</c>），立即返回。
+        /// <c>HandlerName</c> 非空时把句柄写进环境；为空表示句柄被丢弃，但协程仍受事件所有权管辖。
+        /// </summary>
+        CallAsync,
+
+        /// <summary>
+        /// <c>callevt</c>：运行时按事件 ID 查全局注册表并压入子事件。
+        /// <c>HandlerName</c> 为空表示同步调用（调用方等它结束），非空表示要一个异步句柄。
+        /// </summary>
+        CallEvent,
+
+        /// <summary>把 <c>Name</c> 句柄的 <c>status</c>（0/1/2）压栈。</summary>
+        Status,
+
+        /// <summary>单句柄 <c>await</c>。<c>Flag</c> 为 true 时把结果压栈。</summary>
+        AwaitHandle,
+
+        /// <summary><c>await all</c>：<c>Names</c> 是句柄列表，<c>Bindings</c> 是结果绑定名。</summary>
+        AwaitAll,
+
+        /// <summary><c>await any</c>：同上，结果是首个成功句柄的序号。</summary>
+        AwaitAny,
+
+        /// <summary><c>kill</c>：取消 <c>Name</c> 句柄并等它确认停下。</summary>
+        Kill,
+
+        /// <summary><c>exec</c>：弹出片段源码字符串，运行时解析、绑定并执行。</summary>
+        Exec,
     }
 
     /// <summary>一条已绑定的不可变指令。跳转目标在编译期解析，运行期不再查找。</summary>
@@ -93,6 +123,15 @@ namespace Polaris.Pevt.Runtime
 
         public bool Flag { get; }
 
+        /// <summary>异步调用要写入的句柄名；丢弃句柄或同步调用时为 null。</summary>
+        public string HandlerName { get; }
+
+        /// <summary>集合等待的句柄名列表；其它指令为 null。</summary>
+        public IReadOnlyList<string> Names { get; }
+
+        /// <summary>集合等待的结果绑定名列表；没有绑定时为空。</summary>
+        public IReadOnlyList<string> Bindings { get; }
+
         internal PevtInstruction(
             PevtOpCode opCode,
             TextSpan span,
@@ -103,7 +142,10 @@ namespace Polaris.Pevt.Runtime
             int index = -1,
             CommandDescriptor descriptor = null,
             SyntaxKind op = SyntaxKind.None,
-            bool flag = false)
+            bool flag = false,
+            string handlerName = null,
+            IReadOnlyList<string> names = null,
+            IReadOnlyList<string> bindings = null)
         {
             OpCode = opCode;
             Span = span;
@@ -115,6 +157,9 @@ namespace Polaris.Pevt.Runtime
             Descriptor = descriptor;
             Operator = op;
             Flag = flag;
+            HandlerName = handlerName;
+            Names = names;
+            Bindings = bindings;
         }
 
         public override string ToString() =>
@@ -133,6 +178,13 @@ namespace Polaris.Pevt.Runtime
                 PevtOpCode.LoadSwitch => $"LoadSwitch {Index}",
                 PevtOpCode.CallBuiltin => $"CallBuiltin @{Descriptor?.Name} /{Index}",
                 PevtOpCode.CallBlock => $"CallBlock #{Index}",
+                PevtOpCode.CallAsync => $"CallAsync {Name} -> {HandlerName ?? "<discard>"}",
+                PevtOpCode.CallEvent => $"CallEvent {Name} -> {HandlerName ?? "<sync>"}",
+                PevtOpCode.Status => $"Status {Name}",
+                PevtOpCode.AwaitHandle => $"AwaitHandle {Name}",
+                PevtOpCode.AwaitAll => $"AwaitAll /{Names?.Count ?? 0}",
+                PevtOpCode.AwaitAny => $"AwaitAny /{Names?.Count ?? 0}",
+                PevtOpCode.Kill => $"Kill {Name}",
                 _ => OpCode.ToString(),
             };
     }
@@ -150,14 +202,18 @@ namespace Polaris.Pevt.Runtime
         /// <summary>返回类型；null 表示无返回值。</summary>
         public PevtType? ReturnType { get; }
 
+        /// <summary>是否声明为 <c>async block</c>。异步块只能作为 handler 初始化器或被丢弃的异步语句启动。</summary>
+        public bool IsAsync { get; }
+
         public TextSpan Span { get; }
 
-        internal PevtBlockInfo(string name, int entryPoint, IReadOnlyList<KeyValuePair<string, PevtType>> parameters, PevtType? returnType, TextSpan span)
+        internal PevtBlockInfo(string name, int entryPoint, IReadOnlyList<KeyValuePair<string, PevtType>> parameters, PevtType? returnType, bool isAsync, TextSpan span)
         {
             Name = name;
             EntryPoint = entryPoint;
             Parameters = parameters;
             ReturnType = returnType;
+            IsAsync = isAsync;
             Span = span;
         }
 
@@ -209,13 +265,21 @@ namespace Polaris.Pevt.Runtime
 
         private readonly Dictionary<string, PevtBlockInfo> _blocksByName;
 
+        /// <summary>源文件是否声明了 <c>enable cs</c>。<c>exec</c> 片段继承它，且不得扩大。</summary>
+        public bool HasCsCapability { get; }
+
+        /// <summary>源文件是否声明了 <c>enable async</c>。<c>callevt</c> 的异步形式与 <c>exec</c> 都要看它。</summary>
+        public bool HasAsyncCapability { get; }
+
         private PevtCompiledProgram(
             string eventId,
             SourceText source,
             IReadOnlyList<PevtInstruction> code,
             IReadOnlyList<PevtBlockInfo> blocks,
             int declarationCount,
-            int switchSlotCount)
+            int switchSlotCount,
+            bool hasCsCapability,
+            bool hasAsyncCapability)
         {
             EventId = eventId;
             Source = source;
@@ -223,6 +287,8 @@ namespace Polaris.Pevt.Runtime
             Blocks = blocks;
             DeclarationCount = declarationCount;
             SwitchSlotCount = switchSlotCount;
+            HasCsCapability = hasCsCapability;
+            HasAsyncCapability = hasAsyncCapability;
 
             _blocksByName = new Dictionary<string, PevtBlockInfo>(StringComparer.Ordinal);
             foreach (PevtBlockInfo block in blocks)
@@ -283,7 +349,9 @@ namespace Polaris.Pevt.Runtime
                     new ReadOnlyCollection<PevtInstruction>(_code),
                     new ReadOnlyCollection<PevtBlockInfo>(_blocks),
                     _declarationCount,
-                    _maxSwitchDepth);
+                    _maxSwitchDepth,
+                    _definition.HasCsCapability,
+                    _definition.HasAsyncCapability);
 
                 return new PevtCompileResult(program, Array.AsReadOnly(Array.Empty<string>()));
             }
@@ -305,11 +373,7 @@ namespace Polaris.Pevt.Runtime
 
             private void EmitBlock(BlockDefinitionStatementSyntax definition)
             {
-                if (definition.AsyncKeyword != null && !definition.AsyncKeyword.IsMissing)
-                {
-                    Unsupported($"`async block {definition.Name.Text}`");
-                    return;
-                }
+                bool isAsync = definition.AsyncKeyword != null && !definition.AsyncKeyword.IsMissing;
 
                 var parameters = new List<KeyValuePair<string, PevtType>>();
                 if (definition.Parameters != null)
@@ -351,6 +415,7 @@ namespace Polaris.Pevt.Runtime
                     entry,
                     new ReadOnlyCollection<KeyValuePair<string, PevtType>>(parameters),
                     returnType,
+                    isAsync,
                     definition.Span));
             }
 
@@ -417,11 +482,11 @@ namespace Polaris.Pevt.Runtime
                         return;
 
                     case HandlerDeclarationStatementSyntax handler:
-                        Unsupported($"`handler {handler.Name.Text}`");
+                        EmitAsyncStart(handler.Initializer, handler.Name.Text);
                         return;
 
                     case KillStatementSyntax kill:
-                        Unsupported($"`kill {kill.Handle.Text}`");
+                        Emit(PevtOpCode.Kill, kill.Span, name: kill.Handle.Text);
                         return;
 
                     case RawCmdStatementSyntax _:
@@ -567,6 +632,14 @@ namespace Polaris.Pevt.Runtime
 
             private void EmitExpressionStatement(ExpressionStatementSyntax statement)
             {
+                // 单句柄 await 作为独立语句时不产出值，所以干脆不压栈，而不是压完再 Pop——
+                // 无返回值的异步定义本来就没有值可压。
+                if (statement.Expression is AwaitExpressionSyntax awaitStatement)
+                {
+                    Emit(PevtOpCode.AwaitHandle, awaitStatement.Span, name: awaitStatement.Handle.Text, flag: false);
+                    return;
+                }
+
                 EmitExpression(statement.Expression);
 
                 // 语句位置的调用如果有返回值，结果直接丢弃。
@@ -581,8 +654,16 @@ namespace Polaris.Pevt.Runtime
                     case BuiltinCallExpressionSyntax builtin:
                         return TryResolveDescriptor(builtin, out CommandDescriptor descriptor) && descriptor.ReturnType.HasValue;
                     case CustomBlockCallExpressionSyntax block:
+                        // 异步块作为语句时只启动、不产出值；同步块看它有没有声明返回类型。
                         return _blockDefinitions.TryGetValue(block.Name.Text, out BlockDefinitionStatementSyntax definition)
+                            && (definition.AsyncKeyword == null || definition.AsyncKeyword.IsMissing)
                             && definition.ReturnType != null && !definition.ReturnType.IsMissing;
+
+                    // callevt 与 exec 作为语句都不留值；集合等待固定产出一个 int。
+                    case EventCallExpressionSyntax _:
+                    case ExecCallExpressionSyntax _:
+                        return false;
+
                     default:
                         return true;
                 }
@@ -642,11 +723,12 @@ namespace Polaris.Pevt.Runtime
                         return;
 
                     case EventCallExpressionSyntax eventCall:
-                        Unsupported($"`callevt {eventCall.Target.Text}`");
+                        // 语句位置的 callevt 是同步子事件调用：HandlerName 为 null 表示调用方要等它。
+                        Emit(PevtOpCode.CallEvent, eventCall.Span, name: EventTargetOf(eventCall));
                         return;
 
-                    case ExecCallExpressionSyntax _:
-                        Unsupported("`exec`");
+                    case ExecCallExpressionSyntax exec:
+                        EmitExec(exec);
                         return;
 
                     case RawCsExpressionSyntax _:
@@ -654,11 +736,15 @@ namespace Polaris.Pevt.Runtime
                         return;
 
                     case StatusExpressionSyntax status:
-                        Unsupported($"`status {status.Handle.Text}`");
+                        Emit(PevtOpCode.Status, status.Span, name: status.Handle.Text);
+                        return;
+
+                    case AwaitExpressionSyntax awaitExpression:
+                        Emit(PevtOpCode.AwaitHandle, awaitExpression.Span, name: awaitExpression.Handle.Text, flag: true);
                         return;
 
                     case AggregateAwaitExpressionSyntax aggregate:
-                        Unsupported($"`await {aggregate.ModeKeyword.Text}`");
+                        EmitAggregateAwait(aggregate);
                         return;
 
                     case MissingExpressionSyntax _:
@@ -682,13 +768,13 @@ namespace Polaris.Pevt.Runtime
                     return;
                 }
 
-                if (descriptor.IsAsync)
-                {
-                    Unsupported($"异步调用 `@{call.Name.Text}`");
-                    return;
-                }
-
-                Emit(PevtOpCode.CallBuiltin, call.Span, index: call.Arguments.Arguments.Count, descriptor: descriptor, name: call.Name.Text);
+                // 没有 handler 接的异步调用仍然启动，句柄丢弃；协程照样归事件所有（第 7 节）。
+                Emit(
+                    descriptor.IsAsync ? PevtOpCode.CallAsync : PevtOpCode.CallBuiltin,
+                    call.Span,
+                    index: call.Arguments.Arguments.Count,
+                    descriptor: descriptor,
+                    name: call.Name.Text);
             }
 
             private void EmitBlockCall(CustomBlockCallExpressionSyntax call)
@@ -696,13 +782,110 @@ namespace Polaris.Pevt.Runtime
                 foreach (ExpressionSyntax argument in call.Arguments.Arguments)
                     EmitExpression(argument);
 
-                if (!_blockDefinitions.ContainsKey(call.Name.Text))
+                if (!_blockDefinitions.TryGetValue(call.Name.Text, out BlockDefinitionStatementSyntax definition))
                 {
                     Unsupported($"未定义的事件块 `{call.Name.Text}`");
                     return;
                 }
 
-                Emit(PevtOpCode.CallBlock, call.Span, index: call.Arguments.Arguments.Count, name: call.Name.Text);
+                bool isAsync = definition.AsyncKeyword != null && !definition.AsyncKeyword.IsMissing;
+                Emit(
+                    isAsync ? PevtOpCode.CallAsync : PevtOpCode.CallBlock,
+                    call.Span,
+                    index: call.Arguments.Arguments.Count,
+                    name: call.Name.Text);
+            }
+
+            /// <summary>
+            /// <c>handler h = ...</c>：初始化器照常求值实参，然后按初始化器种类启动异步操作，
+            /// 并把句柄名带给指令。三种合法初始化器（异步 <c>@</c>、<c>async block</c>、<c>callevt</c>）
+            /// 复用的都是同步调用那条路径上的同一份描述条目或块定义。
+            /// </summary>
+            private void EmitAsyncStart(ExpressionSyntax initializer, string handlerName)
+            {
+                switch (initializer)
+                {
+                    case BuiltinCallExpressionSyntax builtin:
+                    {
+                        foreach (ExpressionSyntax argument in builtin.Arguments.Arguments)
+                            EmitExpression(argument);
+
+                        if (!TryResolveDescriptor(builtin, out CommandDescriptor descriptor))
+                        {
+                            Unsupported($"未登记的 `@{builtin.Name.Text}` 重载");
+                            return;
+                        }
+
+                        Emit(PevtOpCode.CallAsync, builtin.Span,
+                            index: builtin.Arguments.Arguments.Count, descriptor: descriptor,
+                            name: builtin.Name.Text, handlerName: handlerName);
+                        return;
+                    }
+
+                    case CustomBlockCallExpressionSyntax blockCall:
+                    {
+                        foreach (ExpressionSyntax argument in blockCall.Arguments.Arguments)
+                            EmitExpression(argument);
+
+                        if (!_blockDefinitions.ContainsKey(blockCall.Name.Text))
+                        {
+                            Unsupported($"未定义的事件块 `{blockCall.Name.Text}`");
+                            return;
+                        }
+
+                        Emit(PevtOpCode.CallAsync, blockCall.Span,
+                            index: blockCall.Arguments.Arguments.Count,
+                            name: blockCall.Name.Text, handlerName: handlerName);
+                        return;
+                    }
+
+                    case EventCallExpressionSyntax eventCall:
+                        Emit(PevtOpCode.CallEvent, eventCall.Span,
+                            name: EventTargetOf(eventCall), handlerName: handlerName);
+                        return;
+
+                    default:
+                        Unsupported($"`handler {handlerName}` 的初始化器不是异步调用");
+                        return;
+                }
+            }
+
+            /// <summary><c>callevt "ID"</c> 的目标是一个字符串字面量 token；取它的值而不是原始文本。</summary>
+            private static string EventTargetOf(EventCallExpressionSyntax call) =>
+                call.Target.Value.Kind == TokenValueKind.String ? call.Target.Value.AsString : call.Target.Text;
+
+            /// <summary>
+            /// 集合等待。句柄名与结果绑定名都在编译期固定成两份只读列表，运行期不再解析标识符。
+            /// </summary>
+            private void EmitAggregateAwait(AggregateAwaitExpressionSyntax aggregate)
+            {
+                var handles = new List<string>();
+                foreach (SyntaxToken handle in aggregate.Handles.Identifiers)
+                    handles.Add(handle.Text);
+
+                var bindings = new List<string>();
+                if (aggregate.Bindings != null)
+                {
+                    foreach (SyntaxToken binding in aggregate.Bindings.Identifiers)
+                        bindings.Add(binding.Text);
+                }
+
+                bool isAny = aggregate.ModeKeyword.Kind == SyntaxKind.AnyKeyword;
+                Emit(isAny ? PevtOpCode.AwaitAny : PevtOpCode.AwaitAll, aggregate.Span,
+                    names: new ReadOnlyCollection<string>(handles),
+                    bindings: new ReadOnlyCollection<string>(bindings));
+            }
+
+            /// <summary>
+            /// <c>exec</c>：实参照常求值，片段源码是第一个实参。片段内容只有运行时才知道，
+            /// 因此这里不做任何静态分析——它的词法/语法/绑定校验全部在运行时重做一遍。
+            /// </summary>
+            private void EmitExec(ExecCallExpressionSyntax exec)
+            {
+                foreach (ExpressionSyntax argument in exec.Arguments.Arguments)
+                    EmitExpression(argument);
+
+                Emit(PevtOpCode.Exec, exec.Span, index: exec.Arguments.Arguments.Count);
             }
 
             /// <summary>
@@ -787,7 +970,8 @@ namespace Polaris.Pevt.Runtime
                 PevtInstruction original = _code[instructionIndex];
                 _code[instructionIndex] = new PevtInstruction(
                     original.OpCode, original.Span, original.Constant, original.Name, original.Type,
-                    target, original.Index, original.Descriptor, original.Operator, original.Flag);
+                    target, original.Index, original.Descriptor, original.Operator, original.Flag,
+                    original.HandlerName, original.Names, original.Bindings);
             }
 
             private void Emit(
@@ -800,8 +984,11 @@ namespace Polaris.Pevt.Runtime
                 int index = -1,
                 CommandDescriptor descriptor = null,
                 SyntaxKind op = SyntaxKind.None,
-                bool flag = false) =>
-                _code.Add(new PevtInstruction(opCode, span, constant, name, type, target, index, descriptor, op, flag));
+                bool flag = false,
+                string handlerName = null,
+                IReadOnlyList<string> names = null,
+                IReadOnlyList<string> bindings = null) =>
+                _code.Add(new PevtInstruction(opCode, span, constant, name, type, target, index, descriptor, op, flag, handlerName, names, bindings));
 
             private void Unsupported(string feature)
             {

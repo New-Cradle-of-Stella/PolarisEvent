@@ -68,7 +68,7 @@ namespace Polaris.Pevt.Runtime
     /// 插件初始化顺序固定为"先登记内置人物，再扫描人物与事件 registrar"，因此 <c>aic</c> 命名空间
     /// 永远先占位；这个顺序由 <see cref="PevtRegistryScanner"/> 的构造保证，宿主只负责接过它的结果。
     /// </summary>
-    public sealed class PevtEventHost
+    public sealed class PevtEventHost : IPevtSubEventProvider
     {
         private readonly PevtScheduler _scheduler;
         private readonly PevtCommandRegistry _commands;
@@ -246,7 +246,11 @@ namespace Polaris.Pevt.Runtime
         private PevtEventInstance StartCore(PevtProgramDefinition definition, string owner)
         {
             PevtCompiledProgram program = GetOrCompile(definition);
-            var execution = new PevtExecution(program, _servicesFactory(program.EventId), _commands, Limits);
+            var execution = new PevtExecution(program, _servicesFactory(program.EventId), _commands, Limits)
+            {
+                // callevt 的目标解析要查注册表，而解释器不认识注册表；宿主自己就是那个解析器。
+                SubEvents = this,
+            };
 
             PevtRoutineInstance routine = _scheduler.Register(execution);
             var instance = new PevtEventInstance(routine, owner);
@@ -274,6 +278,41 @@ namespace Polaris.Pevt.Runtime
 
             _compiled[key] = result.Program;
             return result.Program;
+        }
+
+        // ---- IPevtSubEventProvider ----
+
+        /// <summary>
+        /// <c>callevt</c> 的运行时目标解析。
+        ///
+        /// 跨来源冲突的 ID 先判 <see cref="PevtSubEventStatus.Ambiguous"/>：那种情况下"保留先注册项"
+        /// 只是为了让同一次启动的结果稳定，并不表示它是唯一合法目标，不能拿它当调用目标。
+        /// </summary>
+        public PevtSubEventStatus TryResolve(string eventId, out PevtCompiledProgram program, out bool declaresAsync)
+        {
+            program = null;
+            declaresAsync = false;
+
+            foreach (PevtEventConflict conflict in Registry.Events.FatalConflicts)
+            {
+                if (string.Equals(conflict.EventId, eventId, StringComparison.Ordinal))
+                    return PevtSubEventStatus.Ambiguous;
+            }
+
+            if (!Registry.Events.TryGet(eventId, out PevtEventCandidate candidate))
+                return PevtSubEventStatus.NotFound;
+
+            try
+            {
+                program = GetOrCompile(candidate.Definition);
+            }
+            catch (PevtEventStartException)
+            {
+                return PevtSubEventStatus.StartFailed;
+            }
+
+            declaresAsync = candidate.Definition.HasAsyncCapability;
+            return PevtSubEventStatus.Found;
         }
     }
 

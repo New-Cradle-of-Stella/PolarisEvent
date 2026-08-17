@@ -69,7 +69,21 @@ namespace Polaris.Pevt.Runtime
         /// <summary>环境所属的事件 ID 或事件块名称，用于诊断展示。</summary>
         public string ScopeName { get; }
 
-        public PevtEnvironment(string scopeName) => ScopeName = scopeName ?? string.Empty;
+        /// <summary>
+        /// 外层环境；只有 <c>exec</c> 的临时片段环境会有。
+        ///
+        /// 普通事件块刻意不设外层（9.4 节的环境隔离），而 <c>exec</c> 的规范要求恰恰相反：
+        /// 片段"允许读写授权的外层变量，新增变量只存在临时环境"。用一条显式父链表达这件事，
+        /// 比让片段直接拿到宿主环境安全——<see cref="Declare"/> 永远只写本地，片段声明的变量
+        /// 随临时环境一起销毁，不可能污染宿主。
+        /// </summary>
+        public PevtEnvironment Parent { get; }
+
+        public PevtEnvironment(string scopeName, PevtEnvironment parent = null)
+        {
+            ScopeName = scopeName ?? string.Empty;
+            Parent = parent;
+        }
 
         public IReadOnlyCollection<string> SlotNames => _slots.Keys;
 
@@ -88,13 +102,38 @@ namespace Polaris.Pevt.Runtime
             return slot;
         }
 
-        public bool TryGetSlot(string name, out PevtSlot slot) => _slots.TryGetValue(name ?? string.Empty, out slot);
+        /// <summary>本地找不到时沿父链继续；没有父链（普通事件与事件块）时行为与以前完全一致。</summary>
+        public bool TryGetSlot(string name, out PevtSlot slot)
+        {
+            string key = name ?? string.Empty;
+            for (PevtEnvironment env = this; env != null; env = env.Parent)
+            {
+                if (env._slots.TryGetValue(key, out slot))
+                    return true;
+            }
+
+            slot = null;
+            return false;
+        }
+
+        /// <summary>该名称是否声明在本环境自身（而不是继承自外层）。</summary>
+        public bool DeclaresLocally(string name) => _slots.ContainsKey(name ?? string.Empty);
 
         /// <summary>句柄与普通值分开存放，因此同名的普通槽位与句柄槽位不会互相覆盖。</summary>
         public void SetHandler(string name, PevtHandlerValue handler) => _handlers[name] = handler;
 
-        public bool TryGetHandler(string name, out PevtHandlerValue handler) =>
-            _handlers.TryGetValue(name ?? string.Empty, out handler);
+        public bool TryGetHandler(string name, out PevtHandlerValue handler)
+        {
+            string key = name ?? string.Empty;
+            for (PevtEnvironment env = this; env != null; env = env.Parent)
+            {
+                if (env._handlers.TryGetValue(key, out handler))
+                    return true;
+            }
+
+            handler = null;
+            return false;
+        }
 
         public IReadOnlyCollection<string> HandlerNames => _handlers.Keys;
 

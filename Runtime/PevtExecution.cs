@@ -132,7 +132,7 @@ namespace Polaris.Pevt.Runtime
     /// 下一帧从同一条指令继续——因此 <c>var x : int = @choose(...)</c> 这种"表达式中间发生跨帧等待"
     /// 也能正确恢复。
     /// </summary>
-    public sealed class PevtExecution
+    public sealed partial class PevtExecution
     {
         private static long _nextId;
 
@@ -141,6 +141,15 @@ namespace Polaris.Pevt.Runtime
         private readonly PevtServices _services;
         private readonly List<PevtFrame> _frames = new List<PevtFrame>();
         private PevtCommandFrame _command;
+
+        /// <summary>本事件拥有的子协程。异步 <c>@</c>、<c>async block</c> 与 <c>callevt</c> 都登记在这里。</summary>
+        private readonly PevtAsyncScheduler _async = new PevtAsyncScheduler();
+
+        /// <summary>当前同步流程正在等的那个等待（<c>await</c>/<c>kill</c>/同步子事件），以及它完成后要做的事。</summary>
+        private PevtWait _pendingWait;
+        private Func<PevtExecutionResult> _pendingContinuation;
+
+        private readonly List<PevtRuntimeDiagnostic> _warnings = new List<PevtRuntimeDiagnostic>();
 
         public long Id { get; }
 
@@ -160,11 +169,32 @@ namespace Polaris.Pevt.Runtime
             PevtServices services,
             PevtCommandRegistry commands = null,
             PevtBudgetLimits limits = null)
+            : this(program, services, commands, new PevtExecutionBudget(limits), null, 0, 0)
+        {
+        }
+
+        /// <summary>
+        /// 子执行实例（<c>async block</c>、<c>callevt</c> 子事件、<c>exec</c> 片段）的构造入口。
+        ///
+        /// 预算是**共享**的：总步数、调用深度和停滞判定必须覆盖整棵调用树，否则一个事件可以靠
+        /// 无限层子事件绕过 PEVTR1001。子事件提供者也一路传下去，让子事件还能再 callevt。
+        /// </summary>
+        private PevtExecution(
+            PevtCompiledProgram program,
+            PevtServices services,
+            PevtCommandRegistry commands,
+            PevtExecutionBudget budget,
+            IPevtSubEventProvider subEvents,
+            int dynamicDepth,
+            int depthOffset)
         {
             _program = program ?? throw new ArgumentNullException(nameof(program));
             _services = services ?? throw new ArgumentNullException(nameof(services));
             _commands = commands;
-            Budget = new PevtExecutionBudget(limits);
+            Budget = budget ?? new PevtExecutionBudget(null);
+            SubEvents = subEvents;
+            DynamicDepth = dynamicDepth;
+            DepthOffset = depthOffset;
             Id = ++_nextId;
 
             _frames.Add(new PevtFrame(
@@ -172,6 +202,37 @@ namespace Polaris.Pevt.Runtime
                 entryPoint: 0, returnIp: -1, producesValue: false, returnType: null,
                 callSpan: new TextSpan(0, 0), switchSlotCount: program.SwitchSlotCount));
         }
+
+        /// <summary>
+        /// <c>callevt</c> 的目标解析入口。由宿主提供；为 null 时任何 <c>callevt</c> 都以
+        /// PEVTR4301 结束（没有注册表可查，等价于目标不存在）。
+        /// </summary>
+        public IPevtSubEventProvider SubEvents { get; set; }
+
+        /// <summary>嵌套 <c>exec</c> 的层数，用于 PEVTR1203。</summary>
+        public int DynamicDepth { get; private set; }
+
+        /// <summary>
+        /// 本实例之外已经占用的帧深度。
+        ///
+        /// 子事件、异步块和 <c>exec</c> 片段各有自己的帧栈，共享预算对象并不会让 <c>_frames.Count</c>
+        /// 变大——不带这个偏移的话，无限递归的 <c>callevt</c> 永远撞不到 PEVTR1003，只会一直挂着。
+        /// </summary>
+        public int DepthOffset { get; }
+
+        /// <summary>整棵调用树上当前的总帧深度。</summary>
+        public int TotalDepth => DepthOffset + _frames.Count;
+
+        /// <summary>本事件拥有的子协程，供只读诊断查询。</summary>
+        public PevtAsyncScheduler AsyncRoutines => _async;
+
+        /// <summary>执行期产生的警告（目前只有 PEVTR5005）。不中断执行。</summary>
+        public IReadOnlyList<PevtRuntimeDiagnostic> Warnings => new ReadOnlyCollection<PevtRuntimeDiagnostic>(_warnings);
+
+        /// <summary>本执行实例的普通返回值；<c>async block</c> 的结果由它带出。</summary>
+        public PevtValue ResultValue { get; private set; }
+
+        public bool HasResultValue { get; private set; }
 
         public IReadOnlyList<PevtFrame> Frames => new ReadOnlyCollection<PevtFrame>(_frames);
 
@@ -195,8 +256,20 @@ namespace Polaris.Pevt.Runtime
             Budget.BeginFrame();
             Status = PevtExecutionStatus.Suspended;
 
+            // 子协程先推进：同步流程这一帧里看到的 status/await 结果，来自同一帧已经推进过的状态，
+            // 而不是上一帧的旧值。
+            _async.Tick(new PevtWaitContext(_services.Clock.Frame));
+
             while (true)
             {
+                if (_pendingWait != null)
+                {
+                    PevtExecutionResult waitResult = AdvancePendingWait();
+                    if (waitResult != null)
+                        return waitResult;
+                    continue;
+                }
+
                 if (_command != null)
                 {
                     PevtExecutionResult commandResult = AdvanceCommand();
@@ -235,6 +308,12 @@ namespace Polaris.Pevt.Runtime
                 failures.AddRange(_command.CancelAndDispose());
                 _command = null;
             }
+
+            CancelPendingWait();
+
+            // 事件被取消时按 ID 逆序 kill 掉它拥有的全部未结束子协程（第 10 节）。
+            failures.AddRange(_async.ForceFinishAll());
+            CollectUnobservedFailures();
 
             failures.AddRange(Cleanup.RunAll());
             failures.AddRange(_services.Session.RestoreAll());
@@ -330,6 +409,28 @@ namespace Polaris.Pevt.Runtime
 
                 case PevtOpCode.CallBuiltin:
                     return ExecuteCallBuiltin(frame, instruction);
+
+                case PevtOpCode.CallAsync:
+                    return ExecuteCallAsync(frame, instruction);
+
+                case PevtOpCode.CallEvent:
+                    return ExecuteCallEvent(frame, instruction);
+
+                case PevtOpCode.Status:
+                    return ExecuteStatus(frame, instruction);
+
+                case PevtOpCode.AwaitHandle:
+                    return ExecuteAwaitHandle(frame, instruction);
+
+                case PevtOpCode.AwaitAll:
+                case PevtOpCode.AwaitAny:
+                    return ExecuteAggregateAwait(frame, instruction);
+
+                case PevtOpCode.Kill:
+                    return ExecuteKill(frame, instruction);
+
+                case PevtOpCode.Exec:
+                    return ExecuteExec(frame, instruction);
 
                 default:
                     return Fault("PEVTR9001", $"未知指令 {instruction.OpCode}。", instruction.Span);
@@ -457,6 +558,18 @@ namespace Polaris.Pevt.Runtime
             if (hasResult)
                 result = Pop(frame);
 
+            // 异步块作为子执行实例运行时，它的块帧就是最外层帧：返回值是整个子执行实例的结果。
+            if (_frames.Count == 1)
+            {
+                if (hasResult)
+                {
+                    ResultValue = result;
+                    HasResultValue = true;
+                }
+
+                return Complete();
+            }
+
             _frames.RemoveAt(_frames.Count - 1);
             PevtFrame caller = _frames[_frames.Count - 1];
 
@@ -476,7 +589,7 @@ namespace Polaris.Pevt.Runtime
             if (!_program.TryGetBlock(instruction.Name, out PevtBlockInfo block))
                 return Fault("PEVTR9001", $"未定义的事件块 `{instruction.Name}`。", instruction.Span);
 
-            if (!Budget.IsWithinCallDepth(_frames.Count + 1))
+            if (!Budget.IsWithinCallDepth(TotalDepth + 1))
                 return Fault("PEVTR1003", $"事件块调用深度超过上限 {Budget.Limits.MaxCallDepth}。", instruction.Span);
 
             var arguments = new PevtValue[instruction.Index];
@@ -613,9 +726,14 @@ namespace Polaris.Pevt.Runtime
 
         private PevtExecutionResult Complete()
         {
+            // 事件正常结束同样要 kill 掉还在跑的子协程，并把没人看过的失败记成 PEVTR5005。
+            var asyncFailures = new List<Exception>(_async.ForceFinishAll());
+            CollectUnobservedFailures();
+
             IReadOnlyList<Exception> failures = Cleanup.RunAll();
             var sessionFailures = new List<Exception>(_services.Session.RestoreAll());
             sessionFailures.AddRange(failures);
+            sessionFailures.AddRange(asyncFailures);
 
             if (sessionFailures.Count > 0)
             {
@@ -644,6 +762,10 @@ namespace Polaris.Pevt.Runtime
                 _command.CancelAndDispose();
                 _command = null;
             }
+
+            CancelPendingWait();
+            _async.ForceFinishAll();
+            CollectUnobservedFailures();
 
             Cleanup.RunAll();
             _services.Session.RestoreAll();
