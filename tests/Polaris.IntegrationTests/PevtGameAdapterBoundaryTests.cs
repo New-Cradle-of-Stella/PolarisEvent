@@ -38,6 +38,8 @@ namespace Polaris.Pevt.IntegrationTests
             "PevtGameState",
             "PevtGameInventory",
             "PevtGameQuest",
+            "PevtGameWorld",
+            "PevtGameEntity",
             "RawCmd.PevtGameRawCommandBridge",
             "RawCmd.PevtGameRawCommandSession",
         };
