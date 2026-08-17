@@ -158,5 +158,13 @@ namespace Polaris.Pevt.Runtime
 
         /// <summary>移除已结束实例的记录。不影响仍在运行的实例。</summary>
         public int PruneFinished() => _instances.RemoveAll(instance => instance.IsFinished);
+
+        /// <summary>
+        /// 只移除 ID 小于 <paramref name="keepFromId"/> 的已结束实例。
+        /// 宿主保留最近一段结束历史供诊断查询，调度器必须跟着同一个窗口，
+        /// 否则两边的实例集合会对不上。
+        /// </summary>
+        public int PruneFinished(long keepFromId) =>
+            _instances.RemoveAll(instance => instance.IsFinished && instance.Id < keepFromId);
     }
 }

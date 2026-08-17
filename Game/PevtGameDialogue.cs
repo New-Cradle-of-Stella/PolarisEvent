@@ -255,12 +255,19 @@ namespace Polaris.Event.Game
             });
         }
 
-        /// <summary>保持当前消息不被自动收起。对应原版 <c>MSG_HOLD</c>。</summary>
+        /// <summary>
+        /// 保持当前消息不被下一条自动收起。
+        ///
+        /// 走的不是 <see cref="IMessageContainer.hold"/>——那个方法在 ver029 的
+        /// <see cref="NelMSGContainer"/> 里是个空实现，调它等于什么都没做。真正控制这件事的是
+        /// <c>auto_msg_hide</c>：它决定新消息出现时是否顺手隐藏上一条，所以"保持"就是把它关掉。
+        /// 这个开关是双向的，<c>@dialogue_hold(false)</c> 与会话恢复都能真正还原。
+        /// </summary>
         public void SetHold(bool enabled) =>
             PevtGameHost.Guard("SetHold", () =>
             {
-                if (enabled)
-                    PevtGameHost.Messages?.hold();
+                if (PevtGameHost.Messages is NelMSGContainer container)
+                    container.auto_msg_hide = !enabled;
             });
 
         public void SetAutoAdvance(bool enabled) => _autoAdvance = enabled;

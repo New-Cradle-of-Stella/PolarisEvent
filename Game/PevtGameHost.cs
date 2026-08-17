@@ -59,16 +59,38 @@ namespace Polaris.Event.Game
             });
         }
 
-        /// <summary>退出事件模式。必须在根事件结束、替换、异常和插件卸载的每一条路径上都走到。</summary>
+        /// <summary>
+        /// 退出事件模式。必须在根事件结束、替换、异常和插件卸载的每一条路径上都走到。
+        ///
+        /// <c>quitEvent</c> / <c>evEnd</c> / <c>deactivateEvent</c> 是原版按"整个事件会话结束"
+        /// 设计的收尾动作。如果此刻恰好有一个原版事件在跑（PEVT 事件是在它中途被启动的），
+        /// 调它们会把原版自己的会话状态一起拆掉，因此这三步以 <see cref="EV.isActive()"/> 为闸门；
+        /// 那种情况下只收 PolarisEvent 自己占用的东西，把会话收尾留给原版的 <c>evEnd</c>。
+        /// </summary>
         public static void ExitEventMode()
         {
             Guard("ExitEventMode", () =>
             {
+                bool vanillaEventRunning = Safe(() => EV.isActive(false), false);
+
                 Messages?.hideMsg(true);
-                Messages?.quitEvent();
-                Selector?.evEnd();
-                Drawers?.deactivateEvent();
+
+                if (!vanillaEventRunning)
+                {
+                    Messages?.quitEvent();
+                    Selector?.evEnd();
+                    Drawers?.deactivateEvent();
+                }
+                else
+                {
+                    Selector?.deactivate();
+                }
+
                 IN.FlgUiUse.Rem(Flag);
+
+                if (vanillaEventRunning)
+                    return;
+
                 EV.setGHandleFlag(true);
                 EV.stopGMain(false);
                 EV.StopGMainDrawFlag(false);

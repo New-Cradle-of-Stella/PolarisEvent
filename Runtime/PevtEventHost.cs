@@ -76,6 +76,9 @@ namespace Polaris.Pevt.Runtime
         private readonly Dictionary<long, PevtEventInstance> _instances = new Dictionary<long, PevtEventInstance>();
         private readonly Dictionary<string, PevtCompiledProgram> _compiled = new Dictionary<string, PevtCompiledProgram>(StringComparer.Ordinal);
 
+        /// <summary>已结束事件实例的保留条数上限，只影响事后诊断的可查窗口。</summary>
+        public const int FinishedHistoryLimit = 32;
+
         private PevtEventInstance _root;
 
         public PevtRegistryScanner Registry { get; }
@@ -103,17 +106,22 @@ namespace Polaris.Pevt.Runtime
         /// <summary>当前的根事件；没有事件在跑时为 null。</summary>
         public PevtEventInstance Root => _root != null && !_root.IsFinished ? _root : null;
 
-        /// <summary>全部已知实例（含已结束的），按 ID 升序。</summary>
+        /// <summary>
+        /// 当前保留的实例（含已结束的），按 ID 升序。
+        ///
+        /// 已结束实例只保留最近 <see cref="FinishedHistoryLimit"/> 条：它们的价值是事后查诊断，
+        /// 而一次游戏会话里事件会启动成千上万次，无上限保留就是一条稳定增长的内存占用。
+        /// </summary>
         public IReadOnlyList<PevtEventInstance> Instances
         {
             get
             {
-                var result = new List<PevtEventInstance>();
-                foreach (PevtRoutineInstance routine in _scheduler.Instances)
-                {
-                    if (_instances.TryGetValue(routine.Id, out PevtEventInstance instance))
-                        result.Add(instance);
-                }
+                var ids = new List<long>(_instances.Keys);
+                ids.Sort();
+
+                var result = new List<PevtEventInstance>(ids.Count);
+                foreach (long id in ids)
+                    result.Add(_instances[id]);
 
                 return new ReadOnlyCollection<PevtEventInstance>(result);
             }
@@ -181,6 +189,7 @@ namespace Polaris.Pevt.Runtime
             if (_root != null && _root.IsFinished)
                 _root = null;
 
+            PruneFinished();
             return new ReadOnlyCollection<PevtEventInstance>(finished);
         }
 
@@ -195,6 +204,44 @@ namespace Polaris.Pevt.Runtime
 
         /// <summary>按 ID 查一个实例。</summary>
         public bool TryGetInstance(long id, out PevtEventInstance instance) => _instances.TryGetValue(id, out instance);
+
+        /// <summary>
+        /// 把已结束实例的保留量压回 <see cref="FinishedHistoryLimit"/>，最旧的先丢。
+        ///
+        /// 必须由更新点主动调用：调度器与宿主都按 ID 保存实例，每条还挂着执行状态、所有权节点和
+        /// 一份编译产物引用。当前根事件即使已经结束也先留着，让 <see cref="Root"/> 与
+        /// <see cref="Update"/> 的"本帧结束了哪些事件"在同一帧内保持一致。
+        /// </summary>
+        private void PruneFinished()
+        {
+            var finished = new List<long>();
+            foreach (KeyValuePair<long, PevtEventInstance> entry in _instances)
+            {
+                if (entry.Value.IsFinished && !ReferenceEquals(entry.Value, _root))
+                    finished.Add(entry.Key);
+            }
+
+            if (finished.Count <= FinishedHistoryLimit)
+                return;
+
+            finished.Sort();
+            for (int i = 0; i < finished.Count - FinishedHistoryLimit; i++)
+                _instances.Remove(finished[i]);
+
+            _scheduler.PruneFinished(_instances.Count > 0 ? MinKey() : long.MaxValue);
+        }
+
+        private long MinKey()
+        {
+            long min = long.MaxValue;
+            foreach (long id in _instances.Keys)
+            {
+                if (id < min)
+                    min = id;
+            }
+
+            return min;
+        }
 
         private PevtEventInstance StartCore(PevtProgramDefinition definition, string owner)
         {
