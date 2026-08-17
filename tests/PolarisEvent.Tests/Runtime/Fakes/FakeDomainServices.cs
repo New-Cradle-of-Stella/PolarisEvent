@@ -335,9 +335,15 @@ namespace Polaris.Pevt.Core.Tests.Runtime.Fakes
 
         public Dictionary<string, int> Steps { get; } = new Dictionary<string, int>(StringComparer.Ordinal);
 
+        /// <summary>未接取。与游戏侧 <c>PevtGameQuest.StatusNotStarted</c> 保持同一套规范化值。</summary>
+        public const int NotStarted = -1;
+
+        /// <summary>已完成。与游戏侧 <c>PevtGameQuest.StatusFinished</c> 保持同一套规范化值。</summary>
+        public const int Finished = -2;
+
         public bool Resolve(string questId) => Quests.Contains(questId);
 
-        public int GetStatus(string questId) => Steps.TryGetValue(questId, out int value) ? value : 0;
+        public int GetStatus(string questId) => Steps.TryGetValue(questId, out int value) ? value : NotStarted;
 
         public void SetStep(string questId, int step)
         {
@@ -348,7 +354,7 @@ namespace Polaris.Pevt.Core.Tests.Runtime.Fakes
         public void Finish(string questId)
         {
             Calls.Add($"Finish({questId})");
-            Steps[questId] = -1;
+            Steps[questId] = Finished;
         }
 
         public void Remove(string questId)

@@ -78,10 +78,13 @@ namespace Polaris.Event.Game
                 Music,
                 Ui,
                 new PevtGameInput(),
-                // P1/P2 领域包目前只接了持久状态，World / Entity / Inventory / Quest / Player / Battle 留空，
-                // 对应的 `@` 以 PEVTR4001「当前宿主没有提供 X 服务」明确失败——那些子系统的原版入口语义还没有经过动态验证，
-                // 猜错一次就会写坏玩家存档。
-                new PevtDomainServices(state: new PevtGameState()),
+                // P1/P2 领域包接到 GameAPI 上能完整表达的部分：持久状态、物品货币技能魔法、任务。
+                // World / Entity / Player / Battle 仍然留空，对应的 `@` 以 PEVTR4001 明确失败——GameAPI 没有地图锚点、
+                // 图层、地图元素、实体姿态与动作、服装、召唤点和魔法特效的入口，硬接只能靠猜原版内部语义。
+                new PevtDomainServices(
+                    state: new PevtGameState(),
+                    inventory: new PevtGameInventory(),
+                    quest: new PevtGameQuest()),
                 rawCommands,
                 rawCs);
 

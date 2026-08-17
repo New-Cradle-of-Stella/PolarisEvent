@@ -34,8 +34,10 @@ namespace Polaris.Pevt.IntegrationTests
             "PevtGameUi",
             "PevtGameInput",
 
-            // 功能阶段 F：持久状态适配器与 `$raw cmd` 专用桥。
+            // 功能阶段 F：P1 领域适配器与 `$raw cmd` 专用桥。
             "PevtGameState",
+            "PevtGameInventory",
+            "PevtGameQuest",
             "RawCmd.PevtGameRawCommandBridge",
             "RawCmd.PevtGameRawCommandSession",
         };

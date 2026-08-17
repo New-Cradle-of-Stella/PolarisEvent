@@ -290,6 +290,30 @@ namespace Polaris.Pevt.Core.Tests.Runtime
             Assert.Equal(new[] { "SetStep(q_main,2)", "Finish(q_main)", "Remove(q_main)" }, host.Quest.Calls);
         }
 
+        /// <summary>
+        /// <c>@quest_status</c> 的三段规范化取值：未接取、阶段号原样透出、已完成。
+        /// 阶段号不重新编号，所以 <c>@quest_set</c> 写进去的数就是 <c>@quest_status</c> 读回来的数。
+        /// </summary>
+        [Fact]
+        public void QuestStatusNormalizesNotStartedPhaseAndFinished()
+        {
+            PevtTestHost host = Host();
+
+            PevtExecution execution = host.Start(
+                "id \"T\"\n" +
+                "var before : int = @quest_status(\"q_main\")\n" +
+                "@quest_set(\"q_main\", 3)\n" +
+                "var during : int = @quest_status(\"q_main\")\n" +
+                "@quest_finish(\"q_main\")\n" +
+                "var after : int = @quest_status(\"q_main\")\n" +
+                "end\n");
+            host.RunToCompletion(execution);
+
+            Assert.Equal(FakeQuest.NotStarted, Slot(execution, "before").AsInt);
+            Assert.Equal(3, Slot(execution, "during").AsInt);
+            Assert.Equal(FakeQuest.Finished, Slot(execution, "after").AsInt);
+        }
+
         // ---- P2 ----
 
         [Fact]
