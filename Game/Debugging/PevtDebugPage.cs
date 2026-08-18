@@ -209,7 +209,7 @@ namespace Polaris.Event.Game.Debugging
 
             GUILayout.Label(
                 string.IsNullOrEmpty(_notice)
-                    ? PevtDebugSettings.DebugPageHotkey + " closes this page"
+                    ? "F8 closes this page"
                     : _notice,
                 string.IsNullOrEmpty(_notice) ? Styles.Dim : Styles.Warning);
 

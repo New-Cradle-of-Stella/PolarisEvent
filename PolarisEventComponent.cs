@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
+using System.Linq;
 using Polaris.Components;
 using Polaris.Event.Game;
 using Polaris.Event.Game.Debugging;
@@ -18,17 +18,32 @@ namespace Polaris.Event
 
         public override int Order => 800;
 
-        /// <summary>
-        /// 组件初始化：先建注册表（构造时就登记了内置 <c>aic</c> 人物目录），
-        /// 再扫描已加载程序集里的事件与人物 registrar，最后封闭注册。
-        /// </summary>
         public override void Awake()
         {
             // 设置项文案必须早于 Start 阶段的设置项扫描注册，绑定配置时要用说明文字查表。
             PevtDebugStrings.Register();
+        }
 
+        /// <summary>
+        /// 注册：先建注册表（构造时就登记了内置 <c>aic</c> 人物目录），
+        /// 再扫描插件与组件程序集里的事件与人物 registrar，最后封闭注册。
+        /// <para>
+        /// 必须在 Start 而不是 Awake：组件的 Awake 跑在 PolarisCore 插件自己的 Awake 里，
+        /// 此时 BepInEx 还没加载排在 Polaris 之后的模组程序集（依赖 Polaris 的模组必然排在后面），
+        /// 在那里扫描只看得到 Polaris 自己，模组的事件一个都进不来。Start 阶段全部插件已完成 Awake，
+        /// 名单才是完整的——Res / Lang / UI 的扫描同理都在 Start。
+        /// </para>
+        /// </summary>
+        public override void Start()
+        {
             _runtime = new PevtGameRuntime();
-            _runtime.Scan(AppDomain.CurrentDomain.GetAssemblies());
+
+            // 只扫插件与 Polaris 组件，不扫整个 AppDomain：后者要连游戏本体和 Unity 的大程序集
+            // 一起反射翻一遍，而 registrar 只可能出现在这两类程序集里。组件不带 BepInPlugin，
+            // 漏掉它们内置事件就没了，所以两边都要。
+            _runtime.Scan(PolarisAPI.Modules.PluginAssemblies
+                .Concat(PolarisAPI.Modules.ComponentAssemblies)
+                .Distinct());
 
             PevtScanReport report = _runtime.Seal();
             if (report.HasFatalConflicts)

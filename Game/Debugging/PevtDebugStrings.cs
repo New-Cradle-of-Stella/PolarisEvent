@@ -10,8 +10,6 @@ namespace Polaris.Event.Game.Debugging
         internal const string Group = "&" + P + "group";
         internal const string DebugPage = "&" + P + "debug_page";
         internal const string DebugPageDesc = "&" + P + "debug_page.desc";
-        internal const string Hotkey = "&" + P + "debug_hotkey";
-        internal const string HotkeyDesc = "&" + P + "debug_hotkey.desc";
 
         private static bool _registered;
 
@@ -47,23 +45,6 @@ namespace Polaris.Event.Game.Debugging
                 ["ja"] = "ゲーム内の PEVT デバッグページを有効にします：実行中イベントのコールスタック、変数、"
                        + "コルーチン、所有権ツリー、ソース、イベント登録表を確認できます。\n"
                        + "MOD制作者向けです。通常プレイではオフのままに。",
-            });
-
-            loc.Register(P + "debug_hotkey", new LocalizedText("Debug page hotkey")
-            {
-                ["zh"] = "调试页热键",
-                ["ja"] = "デバッグページのホットキー",
-            });
-
-            loc.Register(P + "debug_hotkey.desc", new LocalizedText(
-                "The key that opens and closes the debug page.\n"
-                + "F7 and F9 are missing on purpose: the game itself already uses them for the "
-                + "vanilla evt debugger and for reloading.")
-            {
-                ["zh"] = "开关调试页的按键。\n"
-                       + "F7 与 F9 不在列表里：原版分别用它们打开 evt 调试器和重新加载。",
-                ["ja"] = "デバッグページを開閉するキーです。\n"
-                       + "F7 と F9 は一覧にありません：本体が evt デバッガーとリロードに使用しています。",
             });
         }
     }
