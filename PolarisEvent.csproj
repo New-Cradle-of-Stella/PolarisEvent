@@ -32,7 +32,6 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Content\**\*" />
-    <Compile Remove="tests\**\*.cs" />
   </ItemGroup>
 
   <!--
