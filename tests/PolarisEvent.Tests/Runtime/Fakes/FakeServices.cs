@@ -311,8 +311,20 @@ namespace Polaris.Pevt.Core.Tests.Runtime.Fakes
         public void SetSpotlight(string targetId, bool enabled, string style) => Calls.Add($"SetSpotlight({targetId})");
 
         // IPevtCamera
-        bool IPevtCamera.ResolveTarget(string targetId) => true;
-        public PevtWait MoveTo(string targetId, float x, float y, float zoom, int frames, string easing) => Record($"CameraMoveTo({targetId})", frames);
+
+        /// <summary>无法解析的镜头目标。测试往里放 `entity:ghost` 这种键来验证 PEVTR4601。</summary>
+        public HashSet<string> UnresolvableCameraTargets { get; } = new HashSet<string>(StringComparer.Ordinal);
+
+        /// <summary>动作进行中会消失的镜头目标：解析得到，但 `MoveTo` 以 false 结束（PEVTR4602）。</summary>
+        public HashSet<string> VanishingCameraTargets { get; } = new HashSet<string>(StringComparer.Ordinal);
+
+        bool IPevtCamera.ResolveTarget(string targetId) => !UnresolvableCameraTargets.Contains(targetId);
+
+        public PevtWait<bool> MoveTo(string targetId, float x, float y, float zoom, int frames, string easing)
+        {
+            Calls.Add($"CameraMoveTo({targetId})");
+            return new FakeCameraWait(frames, !VanishingCameraTargets.Contains(targetId));
+        }
         public PevtWait Shake(float amplitude, int durationFrames, float frequency) => Record("Shake()", durationFrames);
         public PevtWait RestoreEventSnapshot(int frames) => Record("RestoreEventSnapshot()", frames);
 
@@ -406,6 +418,31 @@ namespace Polaris.Pevt.Core.Tests.Runtime.Fakes
 
             value = PevtQueryValue.FromNumber(Numbers[key]);
             return PevtQueryStatus.Found;
+        }
+    }
+
+    /// <summary>帧数到点后按预设结果完成的镜头等待。</summary>
+    public sealed class FakeCameraWait : PevtWait<bool>
+    {
+        private readonly int _frames;
+        private readonly bool _result;
+        private long _startFrame = -1;
+
+        public FakeCameraWait(int frames, bool result)
+        {
+            _frames = frames < 0 ? 0 : frames;
+            _result = result;
+        }
+
+        public override string ProgressSource => "镜头动作";
+
+        protected override void OnTick(PevtWaitContext context)
+        {
+            if (_startFrame < 0)
+                _startFrame = context.Frame;
+
+            if (context.Frame - _startFrame >= _frames)
+                CompleteSucceeded(_result);
         }
     }
 }

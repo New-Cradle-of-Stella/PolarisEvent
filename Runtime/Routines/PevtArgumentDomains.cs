@@ -86,6 +86,21 @@ namespace Polaris.Pevt.Runtime.Routines
             return value;
         }
 
+        /// <summary>
+        /// 镜头目标（PEVT-E02）。这里只判"写法合不合法"——目标在当前地图上是否存在是运行期事实，
+        /// 由 <c>Camera.ResolveTarget</c> 回答，报的是 PEVTR4601 而不是参数错。
+        /// </summary>
+        public static PevtCameraTarget RequireCameraTarget(string targetId)
+        {
+            if (PevtCameraTarget.TryParse(targetId, out PevtCameraTarget target))
+                return target;
+
+            throw Invalid(
+                $"`targetId` 只接受 `{PevtCameraTarget.PlayerTarget}`、`{PevtCameraTarget.PointTarget}`、"
+                + $"`{PevtCameraTarget.EntityPrefix}<key>`、`{PevtCameraTarget.AnchorPrefix}<id>` 或不带前缀的标签点 ID，"
+                + $"实际为 `{targetId}`。");
+        }
+
         // ---- 人物目录解析 ----
 
         /// <summary>解析人物；目录中不存在时 PEVTR4401。</summary>

@@ -39,6 +39,11 @@ namespace Polaris.Event.Game.Debugging
             Row("Event mode", PevtGameHost.Ready ? "vanilla EV ready" : "vanilla EV not ready");
             Row("Outstanding leases", runtime.OutstandingLeaseCount.ToString());
 
+            Row("Camera follow", runtime.CameraFollowKey ?? "(not following a map entity)");
+            if (runtime.CameraLostFollowKey != null)
+                GUILayout.Label("      follow target lost: " + runtime.CameraLostFollowKey
+                                + " — camera handed back to the event snapshot", Styles.Warning);
+
             IReadOnlyList<string> restores = runtime.PendingRestores;
             Row("Pending restores", restores.Count.ToString());
             foreach (string restore in restores)

@@ -34,6 +34,7 @@ namespace Polaris.Pevt.Commands
         /// <summary>直接显示给玩家看的文案。带这个域的实参在进入处理器前会过一遍本地化解析（`&` 开头 = 本地化键）。</summary>
         private static ParameterDomain Text => ParameterDomain.Text;
         private static ParameterDomain QueryKey => ParameterDomain.GameQueryKey;
+        private static ParameterDomain CameraTarget => ParameterDomain.CameraTarget;
 
         private const CommandWaitKind Immediate = CommandWaitKind.Immediate;
         private const CommandWaitKind Query = CommandWaitKind.Query;
@@ -184,7 +185,7 @@ namespace Polaris.Pevt.Commands
             Cmd("camera_shake", Parallel, null, P0, "camera.shake",
                 P("amplitude", PevtType.Float), P("durationFrames", PevtType.Int), P("frequency", PevtType.Float)),
             Cmd("camera_move", Parallel, null, P0, "camera.move",
-                P("targetId", PevtType.String), P("x", PevtType.Float), P("y", PevtType.Float),
+                P("targetId", PevtType.String, CameraTarget), P("x", PevtType.Float), P("y", PevtType.Float),
                 P("zoom", PevtType.Float), P("frames", PevtType.Int), P("easing", PevtType.String, Easing)),
             Cmd("camera_reset", Parallel, null, P0, "camera.reset", P("frames", PevtType.Int)),
             Cmd("effect_set", Wait, null, P0, "postEffect.set",

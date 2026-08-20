@@ -57,10 +57,16 @@ namespace Polaris.Pevt.Runtime.Routines
             yield return camera.Shake(amplitude, durationFrames, frequency);
         }
 
+        /// <summary>
+        /// <c>ResolveTarget</c> → 登记一次镜头快照恢复 → <c>MoveTo</c>。
+        /// 目标写法由 <see cref="PevtCameraTarget"/> 判定，目标是否存在由适配器回答；
+        /// <c>entity:</c> 目标在动作进行中消失时 <c>MoveTo</c> 以 false 结束，这里转成 PEVTR4602。
+        /// </summary>
         public static IEnumerator<PevtWait> CameraMove(PevtRoutineContext context, PevtArguments args)
         {
             IPevtCamera camera = Camera(context);
-            string targetId = PevtArgumentDomains.RequireId(args.String(0), "targetId");
+            string targetId = args.String(0);
+            PevtCameraTarget target = PevtArgumentDomains.RequireCameraTarget(targetId);
             float x = PevtArgumentDomains.RequireFinite(args.Float(1), "x");
             float y = PevtArgumentDomains.RequireFinite(args.Float(2), "y");
             float zoom = PevtArgumentDomains.RequireFinite(args.Float(3), "zoom");
@@ -71,10 +77,19 @@ namespace Polaris.Pevt.Runtime.Routines
                 throw new PevtRoutineFailureException("PEVTR4001", $"`zoom` 必须为正数，实际为 {zoom}。");
 
             if (!camera.ResolveTarget(targetId))
-                throw new PevtRoutineFailureException("PEVTR4001", $"镜头目标 `{targetId}` 无法解析。");
+                throw new PevtRoutineFailureException("PEVTR4601", $"镜头目标 `{target}` 在当前地图上不存在。");
 
+            // 快照必须在第一次真正改动镜头之前登记好，否则中途失败就没有可恢复的原状。
             RegisterCameraRestore(context, camera);
-            yield return camera.MoveTo(targetId, x, y, zoom, frames, easing);
+
+            PevtWait<bool> move = camera.MoveTo(targetId, x, y, zoom, frames, easing);
+            yield return move;
+
+            if (!move.Result)
+            {
+                throw new PevtRoutineFailureException("PEVTR4602",
+                    $"镜头跟随的 `{target}` 在动作进行中消失。");
+            }
         }
 
         public static IEnumerator<PevtWait> CameraReset(PevtRoutineContext context, PevtArguments args)

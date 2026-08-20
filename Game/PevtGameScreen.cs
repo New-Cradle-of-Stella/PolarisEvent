@@ -234,6 +234,15 @@ namespace Polaris.Event.Game
         private float _snapshotScale;
         private M2Mover _snapshotMover;
 
+        /// <summary>当前正在跟随的地图实体键；没有在跟随实体时为 null。</summary>
+        private string _followEntityKey;
+
+        /// <summary>当前跟随的地图实体键，供 F8 展示。</summary>
+        internal string FollowEntityKey => _followEntityKey;
+
+        /// <summary>最近一次"跟随目标消失、镜头已交回快照"的实体键，供 F8 展示。</summary>
+        internal string LostFollowKey { get; private set; }
+
         public PevtGameCamera(PevtGameClock clock)
         {
             _clock = clock ?? throw new ArgumentNullException(nameof(clock));
@@ -257,49 +266,103 @@ namespace Polaris.Event.Game
         }
 
         /// <summary>
-        /// 镜头目标：<c>player</c> 跟随玩家，<c>point</c> 使用显式坐标，
-        /// 其余当作地图标签点，用 <see cref="Map2d.getPoint"/> 校验存在性——不存在时不产生副作用。
+        /// 镜头目标（PEVT-E02）。写法由 <see cref="PevtCameraTarget"/> 判定，这里只回答"在当前地图上存不存在"：
+        /// <c>entity:</c> 查地图 mover 表，<c>anchor:</c> 与旧的裸写法查标签点。两条查询都不产生副作用。
         /// </summary>
         public bool ResolveTarget(string targetId)
         {
-            if (targetId == "player" || targetId == "point")
-                return true;
+            if (!PevtCameraTarget.TryParse(targetId, out PevtCameraTarget target))
+                return false;
 
-            return PevtGameHost.Safe(
-                () => M2DBase.Instance?.curMap?.getPoint(targetId, true) != null,
-                false);
+            switch (target.Kind)
+            {
+                case PevtCameraTargetKind.Player:
+                case PevtCameraTargetKind.Point:
+                    return true;
+
+                case PevtCameraTargetKind.Entity:
+                    return PevtGameHost.Safe(() => FindMover(target.Key) != null, false);
+
+                default:
+                    return PevtGameHost.Safe(
+                        () => M2DBase.Instance?.curMap?.getPoint(target.Key, true) != null,
+                        false);
+            }
         }
 
-        public PevtWait MoveTo(string targetId, float x, float y, float zoom, int frames, string easing)
+        /// <summary>
+        /// 地图实体按键查找。<see cref="Map2d.getMoverByName"/> 自己会跳过 <c>destructed</c> 的对象，
+        /// 因此"实体还在不在"和"实体叫什么"用的是同一条查询，跟随监视也不会拿到已销毁的引用。
+        /// </summary>
+        private static M2Mover FindMover(string key) =>
+            string.IsNullOrEmpty(key) ? null : M2DBase.Instance?.curMap?.getMoverByName(key, true);
+
+        /// <summary>
+        /// <c>player</c> 与 <c>entity:</c> 是跟随：把镜头基准交给对应 mover，不覆写 <c>x</c>/<c>y</c>。
+        /// <c>point</c> 用显式坐标，<c>anchor:</c>（含旧的裸写法）用标签点。
+        /// </summary>
+        public PevtWait<bool> MoveTo(string targetId, float x, float y, float zoom, int frames, string easing)
         {
+            if (!PevtCameraTarget.TryParse(targetId, out PevtCameraTarget target))
+                return new PevtGameCameraWait(frames, () => false);
+
+            // 实体目标要在真正改动镜头之前拿到 mover：找不到就什么都不做，让等待以 false 结束，
+            // 组合把它转成 PEVTR4602，而不是留下一个指向不存在实体的跟随。
+            M2Mover follow = null;
+            if (target.Kind == PevtCameraTargetKind.Entity)
+            {
+                follow = PevtGameHost.Safe(() => FindMover(target.Key), null);
+                if (follow == null)
+                    return new PevtGameCameraWait(0, () => false);
+            }
+
             PevtGameHost.Guard("CameraMoveTo", () =>
             {
                 M2Camera camera = PevtGameHost.Camera;
                 if (camera == null)
                     return;
 
-                if (targetId == "player")
+                switch (target.Kind)
                 {
-                    // 跟随玩家时不覆写坐标，只把镜头交回给玩家的 mover。
-                    M2Mover player = M2DBase.Instance?.curMap?.getKeyPr() as M2Mover;
-                    if (player != null)
-                        camera.assignBaseMover(player, -1);
-                }
-                else if (targetId == "point")
-                {
-                    camera.assignBaseMover(null, -1);
-                    camera.moveTo(x, y, MoveSpeed(frames), default(Rect));
-                }
-                else
-                {
-                    camera.assignBaseMover(null, -1);
-                    camera.moveToLabelPt(targetId);
+                    case PevtCameraTargetKind.Player:
+                    {
+                        // 跟随玩家时不覆写坐标，只把镜头交回给玩家的 mover。
+                        M2Mover player = M2DBase.Instance?.curMap?.getKeyPr() as M2Mover;
+                        if (player != null)
+                            camera.assignBaseMover(player, -1);
+                        _followEntityKey = null;
+                        break;
+                    }
+
+                    case PevtCameraTargetKind.Entity:
+                        camera.assignBaseMover(follow, -1);
+                        _followEntityKey = target.Key;
+                        break;
+
+                    case PevtCameraTargetKind.Point:
+                        camera.assignBaseMover(null, -1);
+                        camera.moveTo(x, y, MoveSpeed(frames), default(Rect));
+                        _followEntityKey = null;
+                        break;
+
+                    default:
+                        camera.assignBaseMover(null, -1);
+                        camera.moveToLabelPt(target.Key);
+                        _followEntityKey = null;
+                        break;
                 }
 
                 camera.animateScaleTo(zoom, frames);
             });
 
-            return TrackFrames(frames);
+            if (frames > 0)
+            {
+                long deadline = _clock.Frame + frames;
+                _clock.RegisterMotion(() => _clock.Frame >= deadline);
+            }
+
+            string followKey = target.Kind == PevtCameraTargetKind.Entity ? target.Key : null;
+            return new PevtGameCameraWait(frames, followKey == null ? (Func<bool>)null : () => FindMover(followKey) != null);
         }
 
         public PevtWait Shake(float amplitude, int durationFrames, float frequency)
@@ -326,10 +389,43 @@ namespace Polaris.Event.Game
                 camera.Qu.run(1f);
                 camera.callImmediateMove();
             });
+
+            WatchFollowTarget();
+        }
+
+        /// <summary>
+        /// 跟随目标消失的看守。
+        ///
+        /// <c>@camera_move("entity:...")</c> 的等待在 <c>frames</c> 帧后就结束了，但跟随本身会一直持续到
+        /// 事件结束，所以实体可能在动作完成之后才消失。那时不能把已经继续往下演的事件反向掀掉，
+        /// 但也绝不能让 <see cref="M2Camera.MvCenter"/> 停在一个已销毁的对象上——于是把镜头交回事件开始时的快照基准。
+        /// 动作进行中消失是另一回事：那由 <see cref="PevtGameCameraWait"/> 以 false 结束，组合报 PEVTR4602。
+        /// </summary>
+        private void WatchFollowTarget()
+        {
+            string key = _followEntityKey;
+            if (key == null)
+                return;
+
+            PevtGameHost.Guard("WatchCameraFollow", () =>
+            {
+                if (FindMover(key) != null)
+                    return;
+
+                _followEntityKey = null;
+                LostFollowKey = key;
+
+                M2Camera camera = PevtGameHost.Camera;
+                if (camera != null && _hasSnapshot)
+                    camera.assignBaseMover(_snapshotMover, -1);
+            });
         }
 
         public PevtWait RestoreEventSnapshot(int frames)
         {
+            // 恢复快照就是"不再跟随任何本事件指定的实体"，看守随之停掉。
+            _followEntityKey = null;
+
             PevtGameHost.Guard("RestoreCamera", () =>
             {
                 M2Camera camera = PevtGameHost.Camera;
@@ -362,6 +458,41 @@ namespace Polaris.Event.Game
             long deadline = _clock.Frame + frames;
             _clock.RegisterMotion(() => _clock.Frame >= deadline);
             return new PevtFrameWait(frames);
+        }
+    }
+
+    /// <summary>
+    /// 一次镜头动作的等待。结果表示"动作结束时目标是否仍然有效"：
+    /// 只有 <c>entity:</c> 目标会传进 <c>targetAlive</c>，其余目标没有可失效的东西，恒为 true。
+    /// </summary>
+    internal sealed class PevtGameCameraWait : PevtWait<bool>
+    {
+        private readonly int _frames;
+        private readonly Func<bool> _targetAlive;
+        private long _startFrame = -1;
+
+        public PevtGameCameraWait(int frames, Func<bool> targetAlive)
+        {
+            _frames = frames < 0 ? 0 : frames;
+            _targetAlive = targetAlive;
+        }
+
+        public override string ProgressSource => "镜头动作";
+
+        protected override void OnTick(PevtWaitContext context)
+        {
+            if (_startFrame < 0)
+                _startFrame = context.Frame;
+
+            // 目标先检查再计时：0 帧动作也必须发现"目标已经不在了"。
+            if (_targetAlive != null && !PevtGameHost.Safe(_targetAlive, false))
+            {
+                CompleteSucceeded(false);
+                return;
+            }
+
+            if (context.Frame - _startFrame >= _frames)
+                CompleteSucceeded(true);
         }
     }
 

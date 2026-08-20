@@ -61,6 +61,12 @@ namespace Polaris.Event.Game
         public IReadOnlyList<string> PendingRestores =>
             _session?.Services.Session.PendingRestores ?? Array.AsReadOnly(Array.Empty<string>());
 
+        /// <summary>镜头当前跟随的地图实体键（PEVT-E02）；没有在跟随实体时为 null。供只读诊断查询。</summary>
+        public string CameraFollowKey => _session?.Camera.FollowEntityKey;
+
+        /// <summary>最近一次"跟随目标消失、镜头已交回快照"的实体键；没发生过时为 null。供只读诊断查询。</summary>
+        public string CameraLostFollowKey => _session?.Camera.LostFollowKey;
+
         // ---- 注册 ----
 
         /// <summary>扫描一批程序集里的事件与人物 registrar。必须在 <see cref="Seal"/> 之前调用。</summary>

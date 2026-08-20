@@ -148,7 +148,7 @@ C:\Users\Administrator\Documents\polarisDocs\事件技术文档-LLM 可读版.md
 | --- | --- | --- | --- |
 | `camera.shake` | `amplitude : float, duration : int, frequency : float` | Awaitable | `QU_HANDSHAKE`、`QU_VIB` 的规范化形式。 |
 | `camera.oscillate` | `axis : string, amplitude : float, duration : int, frequency : float` | Awaitable | `QU_SINH`、`QU_SINV` |
-| `camera.move` | `targetId : string, x : float, y : float, zoom : float, frames : int, easing : string` | Awaitable, Stateful, Contextual | 无直接原版对应；原版靠镜头跟随目标与固定偏移拼出，这里规范化为一个能力。 |
+| `camera.move` | `targetId : string, x : float, y : float, zoom : float, frames : int, easing : string` | Awaitable, Stateful, Contextual | 无直接原版对应；原版靠镜头跟随目标（`assignBaseMover`）与固定偏移拼出，这里规范化为一个能力。`targetId` 的四种写法见内置事件语句表的参数域一节。 |
 | `camera.reset` | `frames : int` | Awaitable, Stateful, Reversible | 恢复事件开始前保存的镜头状态。 |
 | `postEffect.set` | `effectId : string, enabled : bool, frames : int` | Awaitable, Stateful | `PE` |
 | `postEffect.pulse` | `effectId : string, fadeFrames : int, holdFrames : int` | Awaitable | `PE_FADEINOUT` |

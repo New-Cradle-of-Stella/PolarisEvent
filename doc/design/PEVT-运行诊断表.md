@@ -65,6 +65,8 @@
 | `PEVTR4501` | `GameQueryKeyNotFound` | Runtime Error | 执行 `@game_read_*` 时，宿主的只读查询表中没有登记指定的键，或当前运行时根本没有接查询表。 |
 | `PEVTR4502` | `GameQueryArgumentsInvalid` | Runtime Error | 只读查询键存在，但给定的查询参数数量、取值或格式不满足该键的要求。 |
 | `PEVTR4503` | `GameQueryResultNotConvertible` | Runtime Error | 只读查询成功回报了结果，但该结果无法转换成调用点要求的 PEVT 普通类型。 |
+| `PEVTR4601` | `CameraTargetNotFound` | Runtime Error | `@camera_move` 的 `entity:`、`anchor:` 或裸标签点目标在当前地图上不存在。 |
+| `PEVTR4602` | `CameraTargetLost` | Runtime Error | 镜头跟随的地图实体在动作进行中消失，镜头动作无法按目标完成。 |
 
 ## 6. 异步操作与句柄
 

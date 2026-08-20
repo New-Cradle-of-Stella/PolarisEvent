@@ -90,6 +90,13 @@ namespace Polaris.Pevt.Binding
         /// </summary>
         public static ParameterDomain GameQueryKey { get; } = new ParameterDomain("game-query-key", PevtType.String, false);
 
+        /// <summary>
+        /// 镜头目标（PEVT-E02）：<c>player</c>、<c>point</c>、<c>entity:&lt;key&gt;</c>、<c>anchor:&lt;id&gt;</c>，
+        /// 以及兼容旧源码的裸标签点 ID。前缀是封闭集，但具体实体键与标签点属于地图运行期事实，
+        /// 因此这个域不产生静态错误——解析规则见 <see cref="Runtime.PevtCameraTarget"/>。
+        /// </summary>
+        public static ParameterDomain CameraTarget { get; } = new ParameterDomain("camera-target", PevtType.String, false);
+
         public override string ToString() => Name;
     }
 }

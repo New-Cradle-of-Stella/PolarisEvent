@@ -44,6 +44,8 @@ namespace Polaris.Pevt.Diagnostics
             new DiagnosticDescriptor("PEVTR4501", "GameQueryKeyNotFound", DiagnosticSeverity.Error, "执行 `@game_read_*` 时，宿主的只读查询表中没有登记指定的键，或当前运行时根本没有接查询表。"),
             new DiagnosticDescriptor("PEVTR4502", "GameQueryArgumentsInvalid", DiagnosticSeverity.Error, "只读查询键存在，但给定的查询参数数量、取值或格式不满足该键的要求。"),
             new DiagnosticDescriptor("PEVTR4503", "GameQueryResultNotConvertible", DiagnosticSeverity.Error, "只读查询成功回报了结果，但该结果无法转换成调用点要求的 PEVT 普通类型。"),
+            new DiagnosticDescriptor("PEVTR4601", "CameraTargetNotFound", DiagnosticSeverity.Error, "`@camera_move` 的 `entity:`、`anchor:` 或裸标签点目标在当前地图上不存在。"),
+            new DiagnosticDescriptor("PEVTR4602", "CameraTargetLost", DiagnosticSeverity.Error, "镜头跟随的地图实体在动作进行中消失，镜头动作无法按目标完成。"),
 
             new DiagnosticDescriptor("PEVTR5001", "AwaitFailedOperation", DiagnosticSeverity.Error, "对异常结束或已经被 `kill` 的句柄执行单句柄 `await`。原异步异常应作为该异常的内部原因保留。"),
             new DiagnosticDescriptor("PEVTR5002", "AsyncResultContractViolation", DiagnosticSeverity.Error, "异步操作报告正常完成，但没有提供其定义签名规定的返回值，或实际返回值类型不正确。"),

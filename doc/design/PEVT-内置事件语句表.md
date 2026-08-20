@@ -123,7 +123,7 @@ PEVT-同步指令中间层规范.md
 | `@screen_fade` | 等待／可并行 | 无 | `color : string, opacity : float, frames : int, easing : string` | 屏幕整体渐变；同一条指令覆盖渐入、渐出和遮罩保持。 |
 | `@screen_flash` | 等待／可并行 | 无 | `color : string, delayFrames : int, holdFrames : int, fadeFrames : int` | 屏幕闪光。 |
 | `@camera_shake` | 等待／可并行 | 无 | `amplitude : float, durationFrames : int, frequency : float` | 统一原版多种震动指令。 |
-| `@camera_move` | 等待／可并行 | 无 | `targetId : string, x : float, y : float, zoom : float, frames : int, easing : string` | 把镜头移向对象或地图锚点，同时设置偏移和缩放。 |
+| `@camera_move` | 等待／可并行 | 无 | `targetId : string, x : float, y : float, zoom : float, frames : int, easing : string` | 把镜头移向玩家、显式坐标、地图实体或地图标签点，同时设置缩放。 |
 | `@camera_reset` | 等待／可并行 | 无 | `frames : int` | 恢复事件开始前的镜头状态。 |
 | `@effect_set` | 等待 | 无 | `effectId : string, enabled : bool, frames : int` | 启用或关闭已登记后处理。 |
 | `@effect_pulse` | 等待／可并行 | 无 | `effectId : string, fadeFrames : int, holdFrames : int` | 播放一次后处理脉冲。 |
@@ -286,6 +286,9 @@ PEVT-异步协程与等待模型.md
 - `position` 使用语义锚点，第一版至少包含 `left`、`center`、`right`、`near-left`、`near-right`、`far-left`、`far-right`、`off-left`、`off-right`。
 - `easing` 第一版只接受 `linear`、`ease_in`、`ease_out`、`ease_in_out`。
 - `@game_read_*` 的 `key` 是宿主只读查询表登记的键；取值集在运行期登记，静态侧看不全，因此未知键不是 `.pevt` 静态错误，真正缺失在执行时使用 `PEVTR4501`。
+- `@camera_move` 的 `targetId` 取以下写法之一：`player`（跟随玩家）、`point`（使用显式 `x`/`y`）、`entity:<key>`（按地图实体键跟随）、`anchor:<id>`（地图标签点）。不带前缀的裸标签点 ID 继续可用，但新代码应显式写 `anchor:`。
+- 前缀是封闭集：形如 `entities:foo` 的拼写错误是运行时参数错误（`PEVTR4001`），不会被静默当成标签点。具体实体键与标签点是地图运行期事实，不存在时报 `PEVTR4601`。
+- `player` 与 `entity:` 是跟随语义，不使用 `x`/`y`；被跟随的实体在动作进行中消失时报 `PEVTR4602`，动作完成之后消失则由适配器把镜头交回事件开始前的快照。
 - `color` 使用 `#RRGGBB` 或 `#RRGGBBAA`；同时可以接受 PolarisEvent 登记的颜色名。
 - `text` 是直接显示给玩家看的文案：`@say`/`@narrate`/`@board` 的 `text`、`@talker_bind` 的 `displayName`、`@choose`/`@choice_show` 的 `prompt` 与各选项、`@choice_add` 的 `text`、`@cg_show` 的 `caption`、`@alert` 的 `text`、`@title_show` 的 `text`。这些实参在进入处理器之前统一过一次宿主的显示文案解析：`&` 开头按本地化键查表（`.plang` 与原版语言表都在这条链上），`&&` 开头脱转义成字面 `&`，其余原样通过。任何字符串都是合法文案，因此这个域永远不产生静态诊断；查不到的键在游戏里显示成键本身，便于定位漏掉的文案。
 - `opacity`、`volume`、`scale` 的常规范围为 `0.0`–`1.0`；越界值是运行时参数错误，不静默截断。

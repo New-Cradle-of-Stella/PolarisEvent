@@ -190,9 +190,14 @@ namespace Polaris.Pevt.Runtime
     /// <summary>镜头。</summary>
     public interface IPevtCamera
     {
+        /// <summary>目标是否可以解析。<c>targetId</c> 的写法由 <see cref="PevtCameraTarget"/> 定义。</summary>
         bool ResolveTarget(string targetId);
 
-        PevtWait MoveTo(string targetId, float x, float y, float zoom, int frames, string easing);
+        /// <summary>
+        /// 结果表示动作结束时目标是否仍然有效。只有 <c>entity:</c> 目标可能变成 false——
+        /// 实体中途消失是脚本可预期情况，所以由原子回报事实、组合决定诊断，而不是在适配器里就地抛异常。
+        /// </summary>
+        PevtWait<bool> MoveTo(string targetId, float x, float y, float zoom, int frames, string easing);
 
         PevtWait Shake(float amplitude, int durationFrames, float frequency);
 

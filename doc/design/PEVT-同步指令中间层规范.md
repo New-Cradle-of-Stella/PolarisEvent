@@ -150,11 +150,18 @@ public interface IPevtCommandRoutine
 | `@screen_fade` | `Screen.EnsureFadeLayer()` → `Screen.SetFadeColor(color)` → `Screen.FadeTo(opacity, frames, easing)` → 透明度为零时 `Screen.ReleaseFadeLayer()` | 无 |
 | `@screen_flash` | `Screen.Flash(color, delayFrames, holdFrames, fadeFrames)` | 无 |
 | `@camera_shake` | `Camera.Shake(amplitude, durationFrames, frequency)` | 无 |
-| `@camera_move` | `Camera.ResolveTarget(targetId)` → `Camera.MoveTo(targetId, x, y, zoom, frames, easing)` | 无 |
+| `@camera_move` | 判定 `targetId` 写法 → `Camera.ResolveTarget(targetId)` → 登记一次镜头快照恢复 → `Camera.MoveTo(targetId, x, y, zoom, frames, easing)` | 无；`MoveTo` 以 false 结束时报 `PEVTR4602` |
 | `@camera_reset` | `Camera.RestoreEventSnapshot(frames)` | 无 |
 | `@effect_set` | `Effect.Resolve(effectId)` → `Effect.SetEnabled(effectId, enabled, frames)` | 无 |
 | `@effect_pulse` | `Effect.Resolve(effectId)` → `Effect.Pulse(effectId, fadeFrames, holdFrames)` | 无 |
 | `@spotlight` | `Screen.ResolveTarget(targetId)` → `Screen.SetSpotlight(targetId, enabled, style)` | 无 |
+
+`Camera.MoveTo` 的 `bool` 结果不是 `@` 的返回值，而是"动作结束时目标是否仍然有效"这一事实。
+只有 `entity:` 目标可能变成 false。这样分工是为了让策略留在组合里：适配器只回报实体还在不在，
+由组合决定它是一条 `PEVTR4602` 还是别的处理——适配器里就地抛异常会把"演出细节"和"诊断编号"焊死在游戏侧。
+
+镜头快照必须在第一次真正改动镜头之前登记，且整个会话只登记一次；因此 `@camera_shake` 与多次
+`@camera_move` 之后仍然只有一次恢复。
 
 ## 9. 音频组合
 
