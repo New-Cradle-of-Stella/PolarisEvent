@@ -437,7 +437,10 @@ namespace Polaris.Pevt.Syntax
         {
             SyntaxToken callEvtKeyword = Advance();
             SyntaxToken target = ParseEventCallTarget();
-            return new EventCallExpressionSyntax(callEvtKeyword, target);
+
+            // 括号是可选的（PEVT-E07）：省略括号的旧语法等价于零实参，不强求作者为无参事件写 "()"。
+            ArgumentListSyntax arguments = Check(SyntaxKind.OpenParenToken) ? ParseArgumentList() : null;
+            return new EventCallExpressionSyntax(callEvtKeyword, target, arguments);
         }
 
         /// <summary>区分"根本没有目标"（PEVT7301）与"目标是变量/表达式而非字符串字面量"（PEVT7303）——

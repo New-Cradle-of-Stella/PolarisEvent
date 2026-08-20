@@ -71,6 +71,7 @@ namespace Polaris.Pevt.Registration
     public sealed class PevtActorRegistrationContext
     {
         private readonly List<ActorCatalogSubmission> _submitted = new List<ActorCatalogSubmission>();
+        private readonly List<ActorExtensionSubmission> _submittedExtensions = new List<ActorExtensionSubmission>();
 
         public string Owner { get; }
 
@@ -98,8 +99,36 @@ namespace Polaris.Pevt.Registration
             _submitted.Add(new ActorCatalogSubmission(catalog, catalogHash ?? string.Empty, visualAccessors));
         }
 
+        /// <summary>
+        /// 提交一个人物目录增量扩展（PEVT-E06）。扩展只往**已登记**人物上追加 appearance，
+        /// 因此它可以引用别的程序集注册的人物，也因此必须等全部目录都登记完才能判定目标是否存在。
+        /// </summary>
+        /// <param name="sourceHash">sidecar 源文件的内容哈希，只用于来源追踪。</param>
+        public void RegisterExtension(ActorCatalogExtension extension, string sourceHash = null)
+        {
+            if (extension == null)
+                throw new ArgumentNullException(nameof(extension));
+            _submittedExtensions.Add(new ActorExtensionSubmission(extension, sourceHash ?? string.Empty));
+        }
+
         internal IReadOnlyList<ActorCatalogSubmission> Submitted =>
             new ReadOnlyCollection<ActorCatalogSubmission>(_submitted);
+
+        internal IReadOnlyList<ActorExtensionSubmission> SubmittedExtensions =>
+            new ReadOnlyCollection<ActorExtensionSubmission>(_submittedExtensions);
+    }
+
+    internal sealed class ActorExtensionSubmission
+    {
+        public ActorCatalogExtension Extension { get; }
+
+        public string SourceHash { get; }
+
+        public ActorExtensionSubmission(ActorCatalogExtension extension, string sourceHash)
+        {
+            Extension = extension;
+            SourceHash = sourceHash ?? string.Empty;
+        }
     }
 
     internal sealed class ActorCatalogSubmission

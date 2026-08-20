@@ -83,7 +83,7 @@ async @entity_move_to_offset(
 - 碰撞、落脚和实体消失规则应明确测试；
 - `_start` 异步别名由命令描述符系统自动提供。
 
-后续实体物理扩展另行增加重力锁、速度、跳跃、落地等待、位置粒子和表情原子；不得增加接受 MoveScript 文本的 `@entity_action_raw`。
+不得增加接受 MoveScript 文本的 `@entity_action_raw`。
 
 ### PEVT-E04：立绘相对位移与 easing
 
@@ -250,15 +250,14 @@ F8 页面必须能够追踪调用参数、查询、调度项、实体动作和�
 
 ## 4. 实施顺序
 
-1. `PEVT-E01` 任意游戏值只读查询；
-2. `PEVT-E02` 摄像机实体目标；
-3. `PEVT-E03` 实体像素/目标偏移移动；
-4. `PEVT-E06` ActorCatalogExtension；
-5. `PEVT-E04` 立绘相对位移与 `zpow`；
-6. `PEVT-E05` 类型化延迟调度；
-7. `PEVT-E07` 参数化事件调用；
-8. `PEVT-E08` 显式资源预载；
-9. 剩余实体物理、粒子和表情能力。
+1. [x] `PEVT-E01` 任意游戏值只读查询；
+2. [x] `PEVT-E02` 摄像机实体目标；
+3. [x] `PEVT-E03` 实体像素/目标偏移移动；
+4. [x] `PEVT-E06` ActorCatalogExtension；
+5. [x] `PEVT-E04` 立绘相对位移与 `zpow`；
+6. [x] `PEVT-E05` 类型化延迟调度；
+7. [x] `PEVT-E07` 参数化事件调用；
+8. [x] `PEVT-E08` 显式资源预载。
 
 每项独立完成 parser/binder/runtime/diagnostic/test 后再让转换器依赖，避免转换器生成尚未正式支持的 PEVT。
 

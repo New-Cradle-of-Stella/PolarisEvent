@@ -79,6 +79,17 @@ namespace Polaris.Pevt.Binding
                     Declare(env, symbol, initialized: true);
             }
 
+            // PEVT-E07：事件头参数和自定义事件块形参一样，进入正文时已经定义且已经初始化（9.4 节）——
+            // 调用方（callevt 的晚绑定阶段）提供的实参快照，静态侧只管声明和普通读取规则。
+            if (document.IdDeclaration?.Parameters != null)
+            {
+                foreach (ParameterSyntax parameter in document.IdDeclaration.Parameters.Parameters)
+                {
+                    if (!parameter.Name.IsMissing)
+                        Declare(env, new ParameterSymbol(parameter.Name.Text, PevtTypeFacts.FromTypeKeyword(parameter.Type.Kind)), initialized: true);
+                }
+            }
+
             BindStatements(document.Statements, env);
         }
 
@@ -137,7 +148,8 @@ namespace Polaris.Pevt.Binding
                 case BlockDefinitionStatementSyntax block: BindBlockDefinition(block, env); break;
                 case HandlerDeclarationStatementSyntax handler: BindHandlerDeclaration(handler, env); break;
                 case KillStatementSyntax kill: BindHandleOperand(kill.Handle, env, "PEVT7213"); break;
-                default: break; // label/goto/end/unknown/$raw cmd 语句：无名称/类型语义可绑定。
+                case ScheduleStatementSyntax schedule: BindScheduleDeclaration(schedule, env); break;
+                default: break; // label/goto/end/unknown/$raw cmd/flush schedules/clear schedules 语句：无名称/类型语义可绑定。
             }
         }
 
@@ -429,6 +441,54 @@ namespace Polaris.Pevt.Binding
         }
 
         /// <summary>
+        /// PEVT-E05：<c>schedule timelineId after frames call _名称()</c>。
+        /// 目标块的存在性、实参数量/类型由 <see cref="BindExpression"/> 走的通用自定义块调用绑定统一核对
+        /// （PEVT7110/7112/7113 等），这里只加两条 <c>schedule</c> 专属的额外要求：目标必须是 <c>async</c>
+        /// 且必须无参数——两者都不是"这个调用合不合法"，而是"这个块能不能被安全延迟启动"。
+        /// </summary>
+        private void BindScheduleDeclaration(ScheduleStatementSyntax node, BoundEnvironment env)
+        {
+            _directExpressionRoot = node.Frames;
+            PevtType framesType = BindExpression(node.Frames, env);
+            if (framesType != PevtType.Error && framesType != PevtType.Int)
+                Report("PEVT7511", node.Frames.Span);
+
+            if (node.Target != null)
+            {
+                _directExpressionRoot = node.Target;
+                BindExpression(node.Target, env, isStatementContext: true);
+                CheckScheduleTarget(node.Target);
+            }
+
+            if (node.TimelineId.IsMissing)
+                return;
+
+            if (env.IsDeclaredEver(node.TimelineId.Text))
+            {
+                Report(ScheduleStatementSyntax.DuplicateDiagnosticId, node.TimelineId.Span);
+                return;
+            }
+
+            Declare(env, new ScheduleSymbol(node.TimelineId.Text), initialized: true);
+        }
+
+        /// <summary>
+        /// <c>schedule</c> 目标必须是已经定义、声明为 <c>async</c> 且无参数的事件块。
+        /// 块本身不存在或调用形状不对时 <see cref="BindExpression"/> 已经报过 PEVT7110/7112/7113，
+        /// 这里查不到签名就直接放弃，不重复报告。
+        /// </summary>
+        private void CheckScheduleTarget(CustomBlockCallExpressionSyntax target)
+        {
+            if (!_readyBlocks.TryGetValue(target.Name.Text, out BlockSignature signature))
+                return;
+
+            if (!signature.IsAsync)
+                Report("PEVT7507", target.Span);
+            if (signature.ParameterTypes.Count != 0)
+                Report("PEVT7508", target.Span);
+        }
+
+        /// <summary>
         /// <c>kill</c>/<c>status</c> 共用的句柄解析：不存在于任何环境是 PEVT7210，存在但不是句柄种类则用调用方指定的位置专属编号（PEVT7213/7214）。
         /// <c>await</c> 还需要句柄的异步返回值类型，走 <see cref="BindAwait"/> 单独处理。
         /// </summary>
@@ -569,13 +629,14 @@ namespace Polaris.Pevt.Binding
                 case ConversionExpressionSyntax conversion: return BindConversion(conversion, env);
                 case BuiltinCallExpressionSyntax builtinCall: return BindBuiltinCall(builtinCall, env, isStatementContext);
                 case CustomBlockCallExpressionSyntax blockCall: return BindCustomBlockCall(blockCall, env, isStatementContext);
+                case EventCallExpressionSyntax eventCall: return BindEventCall(eventCall, env);
                 case ExecCallExpressionSyntax execCall: BindArguments(execCall.Arguments, env); return PevtType.Error;
                 case RawCsExpressionSyntax rawCs: return BindRawCs(rawCs, env, isStatementContext);
                 case AwaitExpressionSyntax awaitExpr: return BindAwait(awaitExpr, env, isStatementContext);
                 case StatusExpressionSyntax statusExpr: BindHandleOperand(statusExpr.Handle, env, "PEVT7214"); return PevtType.Int;
                 case AggregateAwaitExpressionSyntax aggregate: return BindAggregateAwait(aggregate, env);
 
-                default: return PevtType.Error; // MissingExpressionSyntax、callevt、await all/any：见类顶部范围说明。
+                default: return PevtType.Error; // MissingExpressionSyntax：见类顶部范围说明。
             }
         }
 
@@ -766,6 +827,20 @@ namespace Polaris.Pevt.Binding
                 Report("PEVT5012", node.Span);
 
             return targetType;
+        }
+
+        /// <summary>
+        /// PEVT-E07：<c>callevt "id"(实参...)</c>。目标事件通常在另一个文件甚至另一个模组程序集里，
+        /// 静态阶段查不到它的参数签名（这正是"callevt 只认语法、不查真实 ID"的既有原则），
+        /// 所以这里只能绑定实参表达式本身（各自的类型、名称可见性等普通规则照常适用）——
+        /// 数量、顺序与类型是否匹配目标事件的形参，只能留给运行时的晚绑定阶段核对（PEVTR4305）。
+        /// </summary>
+        private PevtType BindEventCall(EventCallExpressionSyntax call, BoundEnvironment env)
+        {
+            if (call.Arguments != null)
+                BindArguments(call.Arguments, env);
+
+            return PevtType.Error;
         }
 
         // ---- 14.4: custom block calls ----

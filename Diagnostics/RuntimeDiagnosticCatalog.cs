@@ -36,6 +36,7 @@ namespace Polaris.Pevt.Diagnostics
             new DiagnosticDescriptor("PEVTR4302", "AmbiguousEventCallTarget", DiagnosticSeverity.Error, "多个已加载事件注册了相同 ID，且运行时无法依据模组覆盖或优先级规则得到唯一目标。"),
             new DiagnosticDescriptor("PEVTR4303", "EventCallTargetNotAsync", DiagnosticSeverity.Error, "`handler 名称 = callevt \"ID\"` 要求异步调用，但运行时解析出的目标事件没有声明 `enable async`。"),
             new DiagnosticDescriptor("PEVTR4304", "EventCallStartFailed", DiagnosticSeverity.Error, "目标事件已经成功解析，但 PolarisEvent 无法创建或启动对应的同步或异步事件执行实例。"),
+            new DiagnosticDescriptor("PEVTR4305", "EventCallArgumentMismatch", DiagnosticSeverity.Error, "`callevt` 提供的实参数量或类型与运行时解析出的目标事件参数签名不一致（PEVT-E07）。"),
             new DiagnosticDescriptor("PEVTR4401", "ActorNotFound", DiagnosticSeverity.Error, "执行人物相关 `@` 指令时，全局人物目录中不存在指定的可读人物 ID。"),
             new DiagnosticDescriptor("PEVTR4402", "ActorVisualNotFound", DiagnosticSeverity.Error, "人物存在，但请求的 portrait、appearance、world sprite 或人物专用 anchor 没有登记。"),
             new DiagnosticDescriptor("PEVTR4403", "ActorResourceFailed", DiagnosticSeverity.Error, "人物视觉引用的原版 PXLS 或 PolarisRes 资源不存在、加载失败或在等待上限内未就绪。"),
@@ -52,6 +53,8 @@ namespace Polaris.Pevt.Diagnostics
             new DiagnosticDescriptor("PEVTR5003", "AsyncCancellationFailed", DiagnosticSeverity.Error, "PolarisEvent 要求停止异步操作，但该操作无法取消、拒绝取消或未能在规定时间内完成取消。"),
             new DiagnosticDescriptor("PEVTR5004", "AsyncSchedulerFailure", DiagnosticSeverity.Error, "PolarisEvent 无法创建、登记、恢复或调度一个异步操作。"),
             new DiagnosticDescriptor("PEVTR5005", "UnobservedAsyncFailure", DiagnosticSeverity.Warning, "没有保存句柄，或句柄在事件结束前始终没有被 `await`，而对应异步操作已经异常结束。该诊断不反向中断已经继续执行的事件。"),
+
+            new DiagnosticDescriptor("PEVTR6001", "ScheduleFramesNegative", DiagnosticSeverity.Error, "`schedule` 的 frames 表达式求值结果为负数。"),
 
             new DiagnosticDescriptor("PEVTR9001", "RuntimeInternalError", DiagnosticSeverity.Error, "解释器状态损坏、非法内部指令、调度器不变量被破坏，或进入理论上不可到达的运行状态。"),
         };

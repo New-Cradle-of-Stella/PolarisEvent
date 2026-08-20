@@ -51,6 +51,19 @@ namespace Polaris.Pevt.Runtime.Routines
             yield return portrait.Move(actor.ActorId, args.String(1), frames);
         }
 
+        /// <summary>PEVT-E04：相对当前受管位置位移。</summary>
+        public static IEnumerator<PevtWait> ActorMoveBy(PevtRoutineContext context, PevtArguments args)
+        {
+            IPevtPortrait portrait = PevtArgumentDomains.RequireService(context.Services.Portrait, "Portrait");
+            ActorRegistration actor = PevtArgumentDomains.RequireActor(context, args.String(0));
+            float x = PevtArgumentDomains.RequireFinite(args.Float(1), "x");
+            float y = PevtArgumentDomains.RequireFinite(args.Float(2), "y");
+            int frames = PevtArgumentDomains.RequireFrames(args.Int(3), "frames");
+            string easing = PevtArgumentDomains.RequireEasing(args.String(4));
+
+            yield return portrait.MoveBy(actor.ActorId, x, y, frames, easing);
+        }
+
         public static IEnumerator<PevtWait> ActorAppearance(PevtRoutineContext context, PevtArguments args)
         {
             IPevtPortrait portrait = PevtArgumentDomains.RequireService(context.Services.Portrait, "Portrait");

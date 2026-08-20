@@ -2,22 +2,27 @@ using Polaris.Pevt.Text;
 
 namespace Polaris.Pevt.Syntax
 {
-    /// <summary>文件头 <c>id "事件ID"</c> 声明（2 节）。不是 <see cref="StatementSyntax"/>：文档语法把它
-    /// 单独列在事件语句之外。</summary>
+    /// <summary>
+    /// 文件头 <c>id "事件ID"[(参数...)]</c> 声明（2 节，参数列表见 PEVT-E07）。不是 <see cref="StatementSyntax"/>：
+    /// 文档语法把它单独列在事件语句之外。<see cref="Parameters"/> 为 null 表示旧语法（无参事件）。
+    /// </summary>
     public sealed class IdDeclarationSyntax : SyntaxNode
     {
         public SyntaxToken IdKeyword { get; }
         public SyntaxToken Value { get; }
+        public ParameterListSyntax Parameters { get; }
 
-        public IdDeclarationSyntax(SyntaxToken idKeyword, SyntaxToken value)
+        public IdDeclarationSyntax(SyntaxToken idKeyword, SyntaxToken value, ParameterListSyntax parameters = null)
         {
             IdKeyword = idKeyword;
             Value = value;
+            Parameters = parameters;
         }
 
-        public override TextSpan Span => TextSpan.FromBounds(IdKeyword.Span.Start, Value.Span.End);
+        public override TextSpan Span => TextSpan.FromBounds(
+            IdKeyword.Span.Start, (Parameters != null ? Parameters.Span : Value.Span).End);
 
-        public override string ToString() => $"Id({Value.Text})";
+        public override string ToString() => Parameters == null ? $"Id({Value.Text})" : $"Id({Value.Text}{Parameters})";
     }
 
     /// <summary>文件级能力声明 <c>enable cs</c> / <c>enable async</c>（2.1 节）。</summary>

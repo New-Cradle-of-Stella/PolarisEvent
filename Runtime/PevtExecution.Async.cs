@@ -358,6 +358,54 @@ namespace Polaris.Pevt.Runtime
             return null;
         }
 
+        /// <summary>
+        /// PEVT-E07：把 <c>callevt</c> 的实参写进子事件根帧的环境——和自定义事件块的形参完全一样，
+        /// 调用方提供的是求值时刻的值快照，子事件不能回写调用方变量。旧语法（无参事件）没有参数可写，直接跳过。
+        /// </summary>
+        private void SeedEventParameters(PevtValue[] arguments)
+        {
+            if (_program.Parameters.Count == 0)
+                return;
+
+            PevtEnvironment environment = _frames[0].Environment;
+            for (int i = 0; i < _program.Parameters.Count && i < arguments.Length; i++)
+            {
+                KeyValuePair<string, PevtType> parameter = _program.Parameters[i];
+                PevtSlot slot = environment.Declare(parameter.Key, parameter.Value, PevtSlotKind.Variable);
+                slot.Set(arguments[i]);
+            }
+        }
+
+        /// <summary>
+        /// PEVT-E07：核对 <c>callevt</c> 实参与目标事件参数签名。数量或任一位置的类型不一致都是 PEVTR4305——
+        /// 静态阶段没有机会核对这件事（目标可能在另一个模组程序集里），这是唯一的核对点。
+        /// </summary>
+        private PevtRuntimeDiagnostic CheckEventCallSignature(
+            string eventId, PevtCompiledProgram program, PevtValue[] arguments, TextSpan span)
+        {
+            IReadOnlyList<KeyValuePair<string, PevtType>> parameters = program.Parameters;
+
+            if (parameters.Count != arguments.Length)
+            {
+                return new PevtRuntimeDiagnostic("PEVTR4305",
+                    $"`callevt \"{eventId}\"` 提供了 {arguments.Length} 个实参，但目标事件声明了 {parameters.Count} 个参数。",
+                    LocationOf(span), BuildCallStack());
+            }
+
+            for (int i = 0; i < parameters.Count; i++)
+            {
+                if (arguments[i].Type == parameters[i].Value)
+                    continue;
+
+                return new PevtRuntimeDiagnostic("PEVTR4305",
+                    $"`callevt \"{eventId}\"` 的第 {i + 1} 个实参类型是 {arguments[i].Type.DisplayName()}，"
+                    + $"但目标事件声明 `{parameters[i].Key}` 为 {parameters[i].Value.DisplayName()}。",
+                    LocationOf(span), BuildCallStack());
+            }
+
+            return null;
+        }
+
         // ---- callevt ----
 
         /// <summary>
@@ -367,6 +415,12 @@ namespace Polaris.Pevt.Runtime
         private PevtExecutionResult ExecuteCallEvent(PevtFrame frame, PevtInstruction instruction)
         {
             string eventId = instruction.Name ?? string.Empty;
+
+            // 编译期总是先压好全部实参再发出 CallEvent，所以无论接下来走哪条路径都要先弹出它们，
+            // 保证调用方的求值栈一定回到调用前的深度。
+            var arguments = new PevtValue[instruction.Index];
+            for (int i = instruction.Index - 1; i >= 0; i--)
+                arguments[i] = Pop(frame);
 
             if (SubEvents == null)
             {
@@ -385,6 +439,12 @@ namespace Polaris.Pevt.Runtime
                     return Fault("PEVTR4304", $"事件 `{eventId}` 已解析，但无法创建可执行实例。", instruction.Span);
             }
 
+            // PEVT-E07：目标事件通常在另一个文件甚至另一个模组程序集里，静态阶段看不到它的参数签名，
+            // 这是运行时唯一能核对"实参是否匹配"的地方——不论目标是静态已知还是晚绑定解析出来的。
+            PevtRuntimeDiagnostic signatureError = CheckEventCallSignature(eventId, program, arguments, instruction.Span);
+            if (signatureError != null)
+                return Fault(signatureError);
+
             bool wantsHandler = instruction.HandlerName != null;
             if (wantsHandler && !declaresAsync)
             {
@@ -401,6 +461,7 @@ namespace Polaris.Pevt.Runtime
             try
             {
                 child = new PevtExecution(program, _services, _commands, Budget, SubEvents, DynamicDepth, TotalDepth);
+                child.SeedEventParameters(arguments);
             }
             catch (Exception ex)
             {

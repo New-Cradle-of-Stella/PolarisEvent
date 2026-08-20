@@ -57,6 +57,14 @@ namespace Polaris.Event.Game
         /// <summary>本次事件会话还没释放的原版资源租约数；没有事件在跑时为 0。供只读诊断查询。</summary>
         public int OutstandingLeaseCount => _session?.Resources.OutstandingLeaseCount ?? 0;
 
+        /// <summary>PEVT-E08：本次事件会话已声明的资源预载组 ID；没有事件在跑时为空。供只读诊断查询。</summary>
+        public IReadOnlyCollection<string> DeclaredResourceGroupIds =>
+            _session?.Resources.DeclaredGroupIds ?? Array.AsReadOnly(Array.Empty<string>());
+
+        /// <summary>PEVT-E08：某个已声明组每个成员的当前状态；没有事件在跑或组未声明时为空。供只读诊断查询。</summary>
+        public IReadOnlyList<string> DescribeDeclaredResourceGroup(string groupId) =>
+            _session?.Resources.DescribeDeclaredGroup(groupId) ?? Array.AsReadOnly(Array.Empty<string>());
+
         /// <summary>本次事件会话登记的临时状态恢复项；没有事件在跑时为空。供只读诊断查询。</summary>
         public IReadOnlyList<string> PendingRestores =>
             _session?.Services.Session.PendingRestores ?? Array.AsReadOnly(Array.Empty<string>());

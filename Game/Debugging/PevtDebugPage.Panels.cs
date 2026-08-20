@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Polaris.Pevt.Actors;
 using Polaris.Pevt.Binding;
 using Polaris.Pevt.Registration;
 using Polaris.Pevt.Runtime;
@@ -38,6 +39,18 @@ namespace Polaris.Event.Game.Debugging
             Row("Clock frame", runtime.Frame.ToString());
             Row("Event mode", PevtGameHost.Ready ? "vanilla EV ready" : "vanilla EV not ready");
             Row("Outstanding leases", runtime.OutstandingLeaseCount.ToString());
+
+            IReadOnlyCollection<string> declaredGroups = runtime.DeclaredResourceGroupIds;
+            if (declaredGroups.Count > 0)
+            {
+                Row("Declared resource groups", declaredGroups.Count.ToString());
+                foreach (string groupId in declaredGroups)
+                {
+                    Dim("    " + groupId);
+                    foreach (string member in runtime.DescribeDeclaredResourceGroup(groupId))
+                        Dim("        " + member);
+                }
+            }
 
             Row("Camera follow", runtime.CameraFollowKey ?? "(not following a map entity)");
             if (runtime.CameraLostFollowKey != null)
@@ -201,6 +214,28 @@ namespace Polaris.Event.Game.Debugging
                 if (routine.IsFinished && !routine.Observed)
                     Dim("      result never observed");
             }
+
+            DrawSchedules(execution);
+        }
+
+        /// <summary>
+        /// PEVT-E05：尚未触发的 <c>schedule</c> 项。这些还没有对应的协程——它们只是"排好队等着"，
+        /// 所以单独列一段，而不是硬塞进上面的协程列表。
+        /// </summary>
+        private static void DrawSchedules(PevtExecution execution)
+        {
+            IReadOnlyList<PevtScheduledItem> schedules = execution.Schedules;
+            if (schedules.Count == 0)
+                return;
+
+            long currentFrame = Runtime?.Frame ?? 0;
+
+            Header(schedules.Count + " pending schedule(s)");
+            foreach (PevtScheduledItem item in schedules)
+            {
+                long remaining = item.DueFrame - currentFrame;
+                Line($"      #{item.TimelineId}  _{item.Block.Name}()  due in {(remaining > 0 ? remaining.ToString() : "0")} frame(s)");
+            }
         }
 
         // ---- Ownership ----
@@ -224,6 +259,36 @@ namespace Polaris.Event.Game.Debugging
             Header("Ownership tree (a live node is something still to be released)");
             foreach (PevtOwnershipNode root in roots)
                 DrawOwnershipNode(root, 0);
+
+            DrawActorExtensions();
+        }
+
+        /// <summary>
+        /// PEVT-E06：人物目录扩展的来源与所有权。列的顺序就是应用顺序（`#order`），卸载按逆序进行，
+        /// 所以这份列表同时也是"卸载会先撤掉哪一条"的答案。
+        /// </summary>
+        private static void DrawActorExtensions()
+        {
+            PevtActorRegistry actors = Runtime?.Registry?.Actors;
+            if (actors == null)
+                return;
+
+            IReadOnlyList<ActorExtensionRecord> extensions = actors.Extensions;
+            IReadOnlyList<Polaris.Pevt.Diagnostics.Diagnostic> rejected = actors.ExtensionDiagnostics;
+
+            if (extensions.Count == 0 && rejected.Count == 0)
+                return;
+
+            Header("Actor catalog extensions (applied in this order; unloading reverses it)");
+            foreach (ActorExtensionRecord record in extensions)
+                Line("  " + record.Describe());
+
+            if (rejected.Count == 0)
+                return;
+
+            Header("Rejected extension content");
+            foreach (Polaris.Pevt.Diagnostics.Diagnostic diagnostic in rejected)
+                GUILayout.Label("  " + diagnostic.Id + ": " + OneLine(diagnostic.Message), Styles.Warning);
         }
 
         private static void DrawOwnershipNode(PevtOwnershipNode node, int depth)
@@ -278,6 +343,42 @@ namespace Polaris.Event.Game.Debugging
                 GUILayout.Label(
                     (here ? "> " : "  ") + number.ToString().PadLeft(4) + " | " + lines[i],
                     here ? Styles.Highlight : Styles.Text);
+            }
+
+            DrawExtendedActorSources();
+        }
+
+        /// <summary>
+        /// PEVT-E06：每个 appearance 是来自基础 `.pactor` 还是某个扩展。
+        /// 只列被扩展过的人物——没被扩展的人物这一栏永远是"基础目录"，铺开来只会淹没有用信息。
+        /// </summary>
+        private static void DrawExtendedActorSources()
+        {
+            PevtActorRegistry actors = Runtime?.Registry?.Actors;
+            if (actors == null)
+                return;
+
+            var extended = new List<ActorRegistration>();
+            foreach (ActorRegistration registration in actors.Directory.Actors)
+            {
+                if (registration.Extensions.Count > 0)
+                    extended.Add(registration);
+            }
+
+            if (extended.Count == 0)
+                return;
+
+            Header("Extended actors — where each appearance comes from");
+            foreach (ActorRegistration registration in extended)
+            {
+                Line("  " + registration.ActorId + "  (base: " + registration.Catalog.SourcePath + ")");
+                foreach (ActorAppearance appearance in registration.Actor.Appearances)
+                {
+                    string origin = registration.TryGetAppearanceSource(appearance.Id, out ActorExtensionRecord record)
+                        ? "extension #" + record.Order + " " + record.Owner + " " + record.SourcePath
+                        : "base catalog";
+                    Dim("      " + appearance.Id + "  <-  " + origin);
+                }
             }
         }
 

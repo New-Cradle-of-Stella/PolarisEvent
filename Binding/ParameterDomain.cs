@@ -64,9 +64,28 @@ namespace Polaris.Pevt.Binding
         /// <summary>表情符号 ID。来自 PolarisEvent 的通用登记表，`.pactor` 不定义表情。</summary>
         public static ParameterDomain ActorEmote { get; } = new ParameterDomain("actor-emote", PevtType.String, false);
 
-        /// <summary>缓动曲线。第一版取值集由规范固定（内置事件语句表「参数域」一节）。</summary>
-        public static ParameterDomain Easing { get; } = new ParameterDomain("easing", PevtType.String, false,
-            new[] { "linear", "ease_in", "ease_out", "ease_in_out" });
+        /// <summary>
+        /// 缓动曲线。第一版取值集由规范固定（内置事件语句表「参数域」一节）。
+        /// <c>zpow</c>（PEVT-E04）数值上与 <c>ease_in</c> 相同（均为 clamp01(t)²，对照原版
+        /// <c>XX.X.ZPOW</c> 核对过），但按规范要求独立登记，不当作 <c>ease_in</c> 的别名。
+        /// 其余全部是 <c>easings.net</c> 标准缓动函数全集：sine/quad/cubic/quart/quint/expo/circ/back/elastic/bounce
+        /// 十个族各三种（in/out/in-out），曲线实现见 <c>Game/PevtStandardEasing.cs</c>。
+        /// </summary>
+        public static ParameterDomain Easing { get; } = new ParameterDomain("easing", PevtType.String, false, new[]
+        {
+            "linear", "ease_in", "ease_out", "ease_in_out", "zpow",
+
+            "ease_in_sine", "ease_out_sine", "ease_in_out_sine",
+            "ease_in_quad", "ease_out_quad", "ease_in_out_quad",
+            "ease_in_cubic", "ease_out_cubic", "ease_in_out_cubic",
+            "ease_in_quart", "ease_out_quart", "ease_in_out_quart",
+            "ease_in_quint", "ease_out_quint", "ease_in_out_quint",
+            "ease_in_expo", "ease_out_expo", "ease_in_out_expo",
+            "ease_in_circ", "ease_out_circ", "ease_in_out_circ",
+            "ease_in_back", "ease_out_back", "ease_in_out_back",
+            "ease_in_elastic", "ease_out_elastic", "ease_in_out_elastic",
+            "ease_in_bounce", "ease_out_bounce", "ease_in_out_bounce",
+        });
 
         /// <summary>`#RRGGBB` / `#RRGGBBAA`，或 PolarisEvent 登记的颜色名。</summary>
         public static ParameterDomain Color { get; } = new ParameterDomain("color", PevtType.String, false);

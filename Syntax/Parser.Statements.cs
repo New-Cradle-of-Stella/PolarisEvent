@@ -36,6 +36,12 @@ namespace Polaris.Pevt.Syntax
             while (Check(SyntaxKind.EnableKeyword))
                 enables.Add(ParseEnableDeclaration(seenCapabilities));
 
+            // PEVT-E08：资源预载组声明紧跟 enable 区域之后，同样是文件头声明——预载在加载阶段就要开始。
+            var seenGroupIds = new HashSet<string>();
+            var resourceGroups = new List<ResourcesDeclarationSyntax>();
+            while (Check(SyntaxKind.ResourcesKeyword))
+                resourceGroups.Add(ParseResourcesDeclaration(seenGroupIds));
+
             var statements = new List<StatementSyntax>();
             while (!Check(SyntaxKind.EndOfFileToken))
             {
@@ -54,6 +60,13 @@ namespace Polaris.Pevt.Syntax
                     continue;
                 }
 
+                if (Check(SyntaxKind.ResourcesKeyword))
+                {
+                    ReportError("PEVT1118", Current.Span);
+                    ParseResourcesDeclaration(new HashSet<string>());
+                    continue;
+                }
+
                 if (statements.Count > 0)
                     CheckOneStatementPerLine();
                 statements.Add(ParseStatement());
@@ -62,7 +75,7 @@ namespace Polaris.Pevt.Syntax
             if (!anyIdSeen)
                 ReportError("PEVT1101", new TextSpan(0, 0));
 
-            return new DocumentSyntax(idDeclaration, enables, statements, Current);
+            return new DocumentSyntax(idDeclaration, enables, resourceGroups, statements, Current);
         }
 
         private IdDeclarationSyntax ParseIdDeclaration()
@@ -79,6 +92,12 @@ namespace Polaris.Pevt.Syntax
             }
 
             SyntaxToken value = Advance();
+
+            // PEVT-E07：事件参数列表可选，必须紧跟事件 ID 字符串、同一物理行。
+            ParameterListSyntax parameters = null;
+            if (Check(SyntaxKind.OpenParenToken) && LineOf(Current) == LineOf(idKeyword))
+                parameters = ParseParameterList("PEVT1112");
+
             if (!Check(SyntaxKind.EndOfFileToken) && LineOf(Current) == LineOf(idKeyword))
             {
                 ReportError("PEVT1106", Current.Span);
@@ -96,7 +115,7 @@ namespace Polaris.Pevt.Syntax
                     ReportError("PEVT1111", value.Span);
             }
 
-            return new IdDeclarationSyntax(idKeyword, value);
+            return new IdDeclarationSyntax(idKeyword, value, parameters);
         }
 
         private EnableDeclarationSyntax ParseEnableDeclaration(HashSet<SyntaxKind> seenCapabilities)
@@ -115,6 +134,76 @@ namespace Polaris.Pevt.Syntax
             if (!seenCapabilities.Add(capability.Kind))
                 ReportError("PEVT1108", capability.Span);
             return new EnableDeclarationSyntax(enableKeyword, capability);
+        }
+
+        // ---- resources (PEVT-E08) ----
+
+        /// <summary>
+        /// <c>resources "groupId"(引用...)</c>。资源引用只能是字符串字面量——它们要在加载阶段就核对
+        /// 类型前缀，不接受任何动态计算的值，这一点和事件 ID 字面量、`.pactor` 属性同一个道理。
+        /// </summary>
+        private ResourcesDeclarationSyntax ParseResourcesDeclaration(HashSet<string> seenGroupIds)
+        {
+            SyntaxToken resourcesKeyword = Advance();
+
+            if (!Check(SyntaxKind.StringLiteralToken))
+            {
+                ReportError("PEVT1113", Current.Span);
+                SyntaxToken missingId = SyntaxToken.CreateMissing(SyntaxKind.StringLiteralToken, Current.Span.Start);
+                if (!Check(SyntaxKind.EndOfFileToken) && LineOf(Current) == LineOf(resourcesKeyword))
+                    SkipRestOfLine(resourcesKeyword);
+                return new ResourcesDeclarationSyntax(
+                    resourcesKeyword, missingId,
+                    SyntaxToken.CreateMissing(SyntaxKind.OpenParenToken, missingId.Span.End),
+                    new List<ResourceReferenceSyntax>(), new List<SyntaxToken>(),
+                    SyntaxToken.CreateMissing(SyntaxKind.CloseParenToken, missingId.Span.End));
+            }
+
+            SyntaxToken groupId = Advance();
+            if (groupId.Value.Kind == TokenValueKind.String && !seenGroupIds.Add(groupId.Value.AsString))
+                ReportError("PEVT1117", groupId.Span);
+
+            SyntaxToken open = Expect(SyntaxKind.OpenParenToken, "PEVT1113");
+            var members = new List<ResourceReferenceSyntax>();
+            var commas = new List<SyntaxToken>();
+
+            if (!Check(SyntaxKind.CloseParenToken) && !Check(SyntaxKind.EndOfFileToken))
+            {
+                members.Add(ParseResourceReference());
+                while (Check(SyntaxKind.CommaToken))
+                {
+                    commas.Add(Advance());
+                    members.Add(ParseResourceReference());
+                }
+            }
+
+            SyntaxToken close = Expect(SyntaxKind.CloseParenToken, "PEVT1113");
+            return new ResourcesDeclarationSyntax(resourcesKeyword, groupId, open, members, commas, close);
+        }
+
+        private ResourceReferenceSyntax ParseResourceReference()
+        {
+            if (!Check(SyntaxKind.StringLiteralToken))
+            {
+                ReportError("PEVT1114", Current.Span);
+                SyntaxToken invalid = CanStartExpression(Current.Kind)
+                    ? Advance()
+                    : SyntaxToken.CreateMissing(SyntaxKind.StringLiteralToken, Current.Span.Start);
+                return new ResourceReferenceSyntax(invalid, null, null, null, null);
+            }
+
+            SyntaxToken literal = Advance();
+            string content = literal.Value.Kind == TokenValueKind.String ? literal.Value.AsString : string.Empty;
+
+            if (!ResourceReferenceFacts.TryParse(content, out string kind, out string actorId, out string appearanceId, out string assetId))
+            {
+                // 区分"前缀都不认识"（1115）和"前缀认识但剩余部分形状不对"（1116）两种报法。
+                bool prefixRecognized = ResourceReferenceFacts.RecognizedKindOf(content) != null;
+                ReportError(prefixRecognized ? "PEVT1116" : "PEVT1115", literal.Span);
+                return new ResourceReferenceSyntax(literal, null, null, null, null);
+            }
+
+            return new ResourceReferenceSyntax(literal, kind, actorId, appearanceId, assetId);
         }
 
         // ---- statement dispatch ----
@@ -138,6 +227,9 @@ namespace Polaris.Pevt.Syntax
                 case SyntaxKind.AwaitKeyword: return ParseExpressionStatement();
                 case SyntaxKind.KillKeyword: return ParseKillStatement();
                 case SyntaxKind.HandlerKeyword: return ParseHandlerDeclarationStatement();
+                case SyntaxKind.ScheduleKeyword: return ParseScheduleStatement();
+                case SyntaxKind.FlushKeyword: return ParseFlushSchedulesStatement();
+                case SyntaxKind.ClearKeyword: return ParseClearSchedulesStatement();
                 case SyntaxKind.CallEvtKeyword: return new ExpressionStatementSyntax(ParseEventCallExpression());
                 case SyntaxKind.ExecKeyword: return new ExpressionStatementSyntax(ParseExecCallCore());
                 case SyntaxKind.DollarRawToken: return ParseRawStatement();
@@ -723,6 +815,99 @@ namespace Polaris.Pevt.Syntax
             return new KillStatementSyntax(killKeyword, handle);
         }
 
+        // ---- schedule / flush schedules / clear schedules (PEVT-E05) ----
+
+        /// <summary><c>schedule timelineId after frames call _名称()</c>。同一物理行缺失任意一段
+        /// 都各自报专属编号并尽量继续解析剩余部分，好让一次加载能看到多处错误。</summary>
+        private StatementSyntax ParseScheduleStatement()
+        {
+            SyntaxToken scheduleKeyword = Advance();
+            SyntaxToken timelineId = ParseScheduleTimelineId();
+
+            if (!Check(SyntaxKind.AfterKeyword))
+            {
+                ReportError("PEVT7502", Current.Span);
+                return new ScheduleStatementSyntax(
+                    scheduleKeyword, timelineId,
+                    SyntaxToken.CreateMissing(SyntaxKind.AfterKeyword, Current.Span.Start),
+                    new MissingExpressionSyntax(Current.Span.Start),
+                    SyntaxToken.CreateMissing(SyntaxKind.CallKeyword, Current.Span.Start),
+                    null);
+            }
+
+            SyntaxToken afterKeyword = Advance();
+
+            if (!CanStartExpression(Current.Kind))
+            {
+                ReportError("PEVT7503", Current.Span);
+                return new ScheduleStatementSyntax(
+                    scheduleKeyword, timelineId, afterKeyword,
+                    new MissingExpressionSyntax(Current.Span.Start),
+                    SyntaxToken.CreateMissing(SyntaxKind.CallKeyword, Current.Span.Start),
+                    null);
+            }
+
+            ExpressionSyntax frames = ParseExpression();
+
+            if (!Check(SyntaxKind.CallKeyword))
+            {
+                ReportError("PEVT7504", Current.Span);
+                return new ScheduleStatementSyntax(
+                    scheduleKeyword, timelineId, afterKeyword, frames,
+                    SyntaxToken.CreateMissing(SyntaxKind.CallKeyword, Current.Span.Start),
+                    null);
+            }
+
+            SyntaxToken callKeyword = Advance();
+            CustomBlockCallExpressionSyntax target = ParseScheduleTarget(callKeyword);
+
+            return new ScheduleStatementSyntax(scheduleKeyword, timelineId, afterKeyword, frames, callKeyword, target);
+        }
+
+        /// <summary>9.6 节：保留关键字同样不能被用作 timelineId。</summary>
+        private SyntaxToken ParseScheduleTimelineId()
+        {
+            if (Current.Kind != SyntaxKind.IdentifierToken && SyntaxFacts.IsReservedWord(Current.Text))
+            {
+                ReportError("PEVT6013", Current.Span);
+                return SyntaxToken.CreateMissing(SyntaxKind.IdentifierToken, Current.Span.Start);
+            }
+
+            return Expect(SyntaxKind.IdentifierToken, "PEVT7501");
+        }
+
+        /// <summary>
+        /// <c>call</c> 后只接受 <c>_名称(...)</c> 形状的自定义事件块调用——是否无参数、是否 async
+        /// 都要等绑定阶段查到块签名才能确定（PEVT7507/7508），这里只判形状。
+        /// </summary>
+        private CustomBlockCallExpressionSyntax ParseScheduleTarget(SyntaxToken callKeyword)
+        {
+            if (Check(SyntaxKind.IdentifierToken) && Peek(1).Kind == SyntaxKind.OpenParenToken)
+            {
+                SyntaxToken name = Advance();
+                return new CustomBlockCallExpressionSyntax(name, ParseArgumentList());
+            }
+
+            ReportError("PEVT7505", Current.Span);
+            if (!Check(SyntaxKind.EndOfFileToken) && LineOf(Current) == LineOf(callKeyword))
+                SkipRestOfLine(callKeyword);
+            return null;
+        }
+
+        private StatementSyntax ParseFlushSchedulesStatement()
+        {
+            SyntaxToken flushKeyword = Advance();
+            SyntaxToken schedulesKeyword = Expect(SyntaxKind.SchedulesKeyword, "PEVT7509");
+            return new FlushSchedulesStatementSyntax(flushKeyword, schedulesKeyword);
+        }
+
+        private StatementSyntax ParseClearSchedulesStatement()
+        {
+            SyntaxToken clearKeyword = Advance();
+            SyntaxToken schedulesKeyword = Expect(SyntaxKind.SchedulesKeyword, "PEVT7510");
+            return new ClearSchedulesStatementSyntax(clearKeyword, schedulesKeyword);
+        }
+
         // ---- $raw cmd / $raw cs as a statement ----
 
         /// <summary>
@@ -851,30 +1036,34 @@ namespace Polaris.Pevt.Syntax
             return Advance();
         }
 
-        private ParameterListSyntax ParseParameterList()
+        /// <summary>
+        /// 形参列表 <c>(名 : 类型, ...)</c>，自定义事件块定义（14.1 节）与事件头（2 节，PEVT-E07）共用。
+        /// <paramref name="diagnosticId"/> 让两处各用自己的编号：块签名报 PEVT7102，事件头参数报 PEVT1112。
+        /// </summary>
+        private ParameterListSyntax ParseParameterList(string diagnosticId = "PEVT7102")
         {
-            SyntaxToken open = Expect(SyntaxKind.OpenParenToken, "PEVT7102");
+            SyntaxToken open = Expect(SyntaxKind.OpenParenToken, diagnosticId);
             var parameters = new List<ParameterSyntax>();
             var commas = new List<SyntaxToken>();
 
             if (!Check(SyntaxKind.CloseParenToken) && !Check(SyntaxKind.EndOfFileToken))
             {
-                parameters.Add(ParseParameter());
+                parameters.Add(ParseParameter(diagnosticId));
                 while (Check(SyntaxKind.CommaToken))
                 {
                     commas.Add(Advance());
-                    parameters.Add(ParseParameter());
+                    parameters.Add(ParseParameter(diagnosticId));
                 }
             }
 
-            SyntaxToken close = Expect(SyntaxKind.CloseParenToken, "PEVT7102");
+            SyntaxToken close = Expect(SyntaxKind.CloseParenToken, diagnosticId);
             return new ParameterListSyntax(open, parameters, commas, close);
         }
 
-        private ParameterSyntax ParseParameter()
+        private ParameterSyntax ParseParameter(string diagnosticId = "PEVT7102")
         {
-            SyntaxToken name = Expect(SyntaxKind.IdentifierToken, "PEVT7102");
-            SyntaxToken colon = Expect(SyntaxKind.ColonToken, "PEVT7102");
+            SyntaxToken name = Expect(SyntaxKind.IdentifierToken, diagnosticId);
+            SyntaxToken colon = Expect(SyntaxKind.ColonToken, diagnosticId);
             SyntaxToken type = ParseTypeNameOrMissing();
             return new ParameterSyntax(name, colon, type);
         }

@@ -64,4 +64,16 @@ namespace Polaris.Pevt.Binding
             AsyncReturnType = asyncReturnType;
         }
     }
+
+    /// <summary>
+    /// PEVT-E05 <c>schedule</c> 的 timelineId 符号占位。和 <see cref="BlockSymbol"/> 一样只用于占住名字——
+    /// timelineId 不像 <c>handler</c> 那样能被后续语句引用（<c>flush schedules</c>/<c>clear schedules</c>
+    /// 一律作用于当前环境全部尚未触发的项），因此不需要携带额外信息。
+    /// </summary>
+    public sealed class ScheduleSymbol : Symbol
+    {
+        public ScheduleSymbol(string name) : base(name, PevtType.Void)
+        {
+        }
+    }
 }

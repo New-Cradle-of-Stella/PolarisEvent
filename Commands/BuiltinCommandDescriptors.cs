@@ -128,6 +128,10 @@ namespace Polaris.Pevt.Commands
             Cmd("actor_hide_all", Wait, null, P0, "portrait.hideAll", P("frames", PevtType.Int)),
             Cmd("actor_move", Parallel, null, P0, "portrait.place",
                 P("actorId", PevtType.String, Actor), P("position", PevtType.String, Anchor), P("frames", PevtType.Int)),
+            // PEVT-E04：相对当前受管位置位移，不改变语义锚点身份；动作结束后的位置成为下一次相对移动的基准。
+            Cmd("actor_move_by", Parallel, null, P0, "portrait.place",
+                P("actorId", PevtType.String, Actor), P("x", PevtType.Float), P("y", PevtType.Float),
+                P("frames", PevtType.Int), P("easing", PevtType.String, Easing)),
             Cmd("actor_appearance", Immediate, null, P0, "portrait.appearance.set",
                 P("actorId", PevtType.String, Actor), P("appearanceId", PevtType.String, Appearance)),
             Cmd("actor_emote", Immediate, null, P0, "portrait.emote.play",

@@ -12,14 +12,20 @@ namespace Polaris.Pevt.Syntax
     {
         public IdDeclarationSyntax IdDeclaration { get; }
         public IReadOnlyList<EnableDeclarationSyntax> EnableDeclarations { get; }
+
+        /// <summary>PEVT-E08：文件头资源预载组声明，紧跟 <c>enable</c> 区域之后。</summary>
+        public IReadOnlyList<ResourcesDeclarationSyntax> ResourceGroups { get; }
+
         public IReadOnlyList<StatementSyntax> Statements { get; }
         public SyntaxToken EndOfFile { get; }
 
         public DocumentSyntax(IdDeclarationSyntax idDeclaration, IReadOnlyList<EnableDeclarationSyntax> enableDeclarations,
+            IReadOnlyList<ResourcesDeclarationSyntax> resourceGroups,
             IReadOnlyList<StatementSyntax> statements, SyntaxToken endOfFile)
         {
             IdDeclaration = idDeclaration;
             EnableDeclarations = SyntaxCollections.Freeze(enableDeclarations);
+            ResourceGroups = SyntaxCollections.Freeze(resourceGroups);
             Statements = SyntaxCollections.Freeze(statements);
             EndOfFile = endOfFile;
         }

@@ -44,6 +44,13 @@
 | `PEVT1109` | `InvalidEnabledCapability` | Error | `enable` 后不是精确的 `cs` 或 `async`，或能力名称后还有额外参数。 |
 | `PEVT1110` | `EmptyEventId` | Error | 事件 ID 双引号内没有任何字符。 |
 | `PEVT1111` | `InvalidEventIdCharacter` | Error | 事件 ID 包含 ASCII 字母、数字和 Unicode 中文汉字以外的字符。 |
+| `PEVT1112` | `InvalidEventParameterSignature` | Error | `id` 的事件参数列表不符合 `(参数名 : 类型, ...)` 语法（PEVT-E07）。 |
+| `PEVT1113` | `MissingResourceGroupSignature` | Error | `resources` 后没有 groupId 字符串，或缺少 `(` / `)`（PEVT-E08）。 |
+| `PEVT1114` | `InvalidResourceGroupMember` | Error | 资源引用不是双引号字符串字面量。 |
+| `PEVT1115` | `UnknownResourceReferenceKind` | Error | 资源引用前缀不是 `actor`/`image`/`sound`/`voice`/`ambience`/`music` 之一。 |
+| `PEVT1116` | `MalformedResourceReference` | Error | 资源引用前缀已识别，但剩余部分不符合该种类要求的形状。 |
+| `PEVT1117` | `DuplicateResourceGroupId` | Error | 同一文件中重复声明相同的资源预载组 groupId。 |
+| `PEVT1118` | `MisplacedResourcesDeclaration` | Error | `resources` 声明没有位于紧跟 `enable` 的连续资源声明区域中。 |
 | `PEVT1201` | `UnknownStatement` | Error | 行首内容不属于任何已定义的事件语句。 |
 
 ## 条件语句
@@ -246,6 +253,22 @@
 
 > 宿主事件的加载时静态分析只检查 `exec` 参数的数量、类型和使用位置，不把运行时字符串内容作为宿主源文件的一部分解析。
 
+### 类型化延迟调度（PEVT-E05）
+
+| 编号 | 名称 | 级别 | 含义 |
+| --- | --- | --- | --- |
+| `PEVT7501` | `MissingTimelineId` | Error | `schedule` 后没有 timelineId 标识符。 |
+| `PEVT7502` | `MissingScheduleAfterKeyword` | Error | `schedule timelineId` 后没有 `after`。 |
+| `PEVT7503` | `MissingScheduleFramesExpression` | Error | `after` 后没有 frames 表达式。 |
+| `PEVT7504` | `MissingScheduleCallKeyword` | Error | frames 表达式后没有 `call`。 |
+| `PEVT7505` | `InvalidScheduleTarget` | Error | `call` 后不是 `_名称()` 形状的自定义事件块调用。 |
+| `PEVT7506` | `DuplicateTimelineId` | Error | 当前环境中 timelineId 与已有变量、常量、参数或句柄重名。 |
+| `PEVT7507` | `ScheduleTargetNotAsync` | Error | `schedule` 的目标事件块没有声明为 `async block`。 |
+| `PEVT7508` | `ScheduleTargetHasParameters` | Error | `schedule` 的目标事件块声明了形参；目标必须是无参数 block。 |
+| `PEVT7509` | `MissingFlushSchedulesKeyword` | Error | `flush` 后不是 `schedules`。 |
+| `PEVT7510` | `MissingClearSchedulesKeyword` | Error | `clear` 后不是 `schedules`。 |
+| `PEVT7511` | `ScheduleFramesMustBeInt` | Error | `schedule` 的 frames 表达式静态结果类型不是 `int`。 |
+
 ## 异步操作与句柄
 
 | 编号 | 名称 | 级别 | 触发条件 |
@@ -328,6 +351,9 @@
 | `PEVT9116` | `InvalidActorAnchor` | Error | anchor 坐标非法或不完整。 |
 | `PEVT9117` | `ActorResourceFieldNotBindable` | Error | 字段特性、static 或可见性不满足自动绑定。 |
 | `PEVT9118` | `ActorCatalogSourceUnavailable` | Warning | 编辑器暂时无法读取字段或预览。 |
+| `PEVT9119` | `UnknownActorExtensionTarget` | Error | `ActorCatalogExtension` 的 `Actor` 不是已登记的公开人物 ID，或该 ID 处于跨来源冲突状态。 |
+| `PEVT9120` | `DuplicateActorExtensionAppearance` | Error | 扩展追加的 appearance ID 与基础目录、另一个扩展或同一段扩展内的条目重复。 |
+| `PEVT9121` | `ForbiddenActorExtensionOverride` | Error | 扩展声明了人物元数据或视觉元素；第一版只允许追加 appearance。 |
 
 ## 嵌入载荷加载
 

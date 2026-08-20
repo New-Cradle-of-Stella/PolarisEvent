@@ -107,6 +107,18 @@ namespace Polaris.Pevt.Runtime
         /// PEVT 变量名，<c>Flag</c> 为 true 表示用在表达式位置、结果要压栈。
         /// </summary>
         RawCs,
+
+        /// <summary>
+        /// PEVT-E05 <c>schedule timelineId after frames call _name()</c>：弹出栈顶的 frames，
+        /// 排入一个延迟启动项。<c>Name</c> 是 timelineId（仅供 F8 展示），<c>HandlerName</c> 是目标块名。
+        /// </summary>
+        ScheduleAfter,
+
+        /// <summary><c>flush schedules</c>：立即启动当前执行实例全部尚未触发的调度项。</summary>
+        FlushSchedules,
+
+        /// <summary><c>clear schedules</c>：丢弃当前执行实例全部尚未触发的调度项。</summary>
+        ClearSchedules,
     }
 
     /// <summary>一条已绑定的不可变指令。跳转目标在编译期解析，运行期不再查找。</summary>
@@ -197,6 +209,7 @@ namespace Polaris.Pevt.Runtime
                 PevtOpCode.AwaitAll => $"AwaitAll /{Names?.Count ?? 0}",
                 PevtOpCode.AwaitAny => $"AwaitAny /{Names?.Count ?? 0}",
                 PevtOpCode.Kill => $"Kill {Name}",
+                PevtOpCode.ScheduleAfter => $"ScheduleAfter {Name} -> _{HandlerName}()",
                 _ => OpCode.ToString(),
             };
     }
@@ -260,6 +273,15 @@ namespace Polaris.Pevt.Runtime
 
         public IReadOnlyList<PevtBlockInfo> Blocks { get; }
 
+        /// <summary>
+        /// PEVT-E07：事件头声明的参数，按声明顺序。空列表表示旧语法（无参事件）。
+        /// <c>callevt</c> 的晚绑定阶段用它核对调用方实参的数量与类型（PEVTR4305）。
+        /// </summary>
+        public IReadOnlyList<KeyValuePair<string, PevtType>> Parameters { get; }
+
+        /// <summary>PEVT-E08：文件头声明的资源预载组，按声明顺序。空列表表示没有声明任何组。</summary>
+        public IReadOnlyList<PevtResourceGroupInfo> ResourceGroups { get; }
+
         /// <summary>声明语句总数，作为环境里"声明执行标记"的定义域。</summary>
         public int DeclarationCount { get; }
 
@@ -281,6 +303,8 @@ namespace Polaris.Pevt.Runtime
             SourceText source,
             IReadOnlyList<PevtInstruction> code,
             IReadOnlyList<PevtBlockInfo> blocks,
+            IReadOnlyList<KeyValuePair<string, PevtType>> parameters,
+            IReadOnlyList<PevtResourceGroupInfo> resourceGroups,
             int declarationCount,
             int switchSlotCount,
             bool hasCsCapability,
@@ -290,6 +314,8 @@ namespace Polaris.Pevt.Runtime
             Source = source;
             Code = code;
             Blocks = blocks;
+            Parameters = parameters;
+            ResourceGroups = resourceGroups;
             DeclarationCount = declarationCount;
             SwitchSlotCount = switchSlotCount;
             HasCsCapability = hasCsCapability;
@@ -353,6 +379,8 @@ namespace Polaris.Pevt.Runtime
                     _definition.Source,
                     new ReadOnlyCollection<PevtInstruction>(_code),
                     new ReadOnlyCollection<PevtBlockInfo>(_blocks),
+                    new ReadOnlyCollection<KeyValuePair<string, PevtType>>(CollectEventParameters()),
+                    new ReadOnlyCollection<PevtResourceGroupInfo>(CollectResourceGroups()),
                     _declarationCount,
                     _maxSwitchDepth,
                     _definition.HasCsCapability,
@@ -365,6 +393,49 @@ namespace Polaris.Pevt.Runtime
             {
                 int length = _definition.Source?.Length ?? 0;
                 return new TextSpan(length, 0);
+            }
+
+            /// <summary>PEVT-E07：事件头声明的参数，按声明顺序；旧语法（无参事件）返回空列表。</summary>
+            private List<KeyValuePair<string, PevtType>> CollectEventParameters()
+            {
+                var parameters = new List<KeyValuePair<string, PevtType>>();
+                ParameterListSyntax declared = _definition.Document.IdDeclaration?.Parameters;
+                if (declared == null)
+                    return parameters;
+
+                foreach (ParameterSyntax parameter in declared.Parameters)
+                {
+                    if (!parameter.Name.IsMissing)
+                        parameters.Add(new KeyValuePair<string, PevtType>(parameter.Name.Text, PevtTypeFacts.FromTypeKeyword(parameter.Type.Kind)));
+                }
+
+                return parameters;
+            }
+
+            /// <summary>
+            /// PEVT-E08：把语法层已经验证过形状的 <see cref="ResourcesDeclarationSyntax"/> 原样搬进编译产物。
+            /// 只有解析成功（<c>Kind</c> 非空）的成员才会进入编译结果——形状错误的引用已经在解析阶段
+            /// 报过 PEVT1114-1116，这里再带进去只会让运行时对着一份本来就该被拒绝的数据白费功夫。
+            /// </summary>
+            private List<PevtResourceGroupInfo> CollectResourceGroups()
+            {
+                var groups = new List<PevtResourceGroupInfo>();
+                foreach (ResourcesDeclarationSyntax declaration in _definition.Document.ResourceGroups)
+                {
+                    if (declaration.GroupId.IsMissing || declaration.GroupId.Value.Kind != TokenValueKind.String)
+                        continue;
+
+                    var members = new List<PevtResourceMember>();
+                    foreach (ResourceReferenceSyntax member in declaration.Members)
+                    {
+                        if (member.Kind != null)
+                            members.Add(new PevtResourceMember(member.Kind, member.ActorId, member.AppearanceId, member.AssetId, member.Literal.Text));
+                    }
+
+                    groups.Add(new PevtResourceGroupInfo(declaration.GroupId.Value.AsString, members));
+                }
+
+                return groups;
             }
 
             private void CollectBlockDefinitions(IReadOnlyList<StatementSyntax> statements)
@@ -492,6 +563,18 @@ namespace Polaris.Pevt.Runtime
 
                     case KillStatementSyntax kill:
                         Emit(PevtOpCode.Kill, kill.Span, name: kill.Handle.Text);
+                        return;
+
+                    case ScheduleStatementSyntax schedule:
+                        EmitSchedule(schedule);
+                        return;
+
+                    case FlushSchedulesStatementSyntax flush:
+                        Emit(PevtOpCode.FlushSchedules, flush.Span);
+                        return;
+
+                    case ClearSchedulesStatementSyntax clear:
+                        Emit(PevtOpCode.ClearSchedules, clear.Span);
                         return;
 
                     case RawCmdStatementSyntax rawCmd:
@@ -735,7 +818,9 @@ namespace Polaris.Pevt.Runtime
 
                     case EventCallExpressionSyntax eventCall:
                         // 语句位置的 callevt 是同步子事件调用：HandlerName 为 null 表示调用方要等它。
-                        Emit(PevtOpCode.CallEvent, eventCall.Span, name: EventTargetOf(eventCall));
+                        EmitEventCallArguments(eventCall);
+                        Emit(PevtOpCode.CallEvent, eventCall.Span,
+                            name: EventTargetOf(eventCall), index: eventCall.Arguments?.Arguments.Count ?? 0);
                         return;
 
                     case ExecCallExpressionSyntax exec:
@@ -882,14 +967,49 @@ namespace Polaris.Pevt.Runtime
                     }
 
                     case EventCallExpressionSyntax eventCall:
+                        EmitEventCallArguments(eventCall);
                         Emit(PevtOpCode.CallEvent, eventCall.Span,
-                            name: EventTargetOf(eventCall), handlerName: handlerName);
+                            name: EventTargetOf(eventCall), index: eventCall.Arguments?.Arguments.Count ?? 0, handlerName: handlerName);
                         return;
 
                     default:
                         Unsupported($"`handler {handlerName}` 的初始化器不是异步调用");
                         return;
                 }
+            }
+
+            /// <summary>
+            /// PEVT-E05：frames 表达式照常求值；目标块名只用来在触发时重新查表（<see cref="PevtCompiledProgram.TryGetBlock"/>），
+            /// 不在这里内联块信息——排入的是"名字"，触发时才需要真正的入口点和签名。
+            /// </summary>
+            private void EmitSchedule(ScheduleStatementSyntax schedule)
+            {
+                EmitExpression(schedule.Frames);
+
+                if (schedule.Target == null)
+                {
+                    Unsupported("`schedule` 缺少合法的调用目标");
+                    return;
+                }
+
+                if (!_blockDefinitions.ContainsKey(schedule.Target.Name.Text))
+                {
+                    Unsupported($"未定义的事件块 `{schedule.Target.Name.Text}`");
+                    return;
+                }
+
+                Emit(PevtOpCode.ScheduleAfter, schedule.Span,
+                    name: schedule.TimelineId.Text, handlerName: schedule.Target.Name.Text);
+            }
+
+            /// <summary>PEVT-E07：省略括号时零实参，否则按声明顺序求值。签名匹配是运行时晚绑定的职责，这里只管求值顺序。</summary>
+            private void EmitEventCallArguments(EventCallExpressionSyntax call)
+            {
+                if (call.Arguments == null)
+                    return;
+
+                foreach (ExpressionSyntax argument in call.Arguments.Arguments)
+                    EmitExpression(argument);
             }
 
             /// <summary><c>callevt "ID"</c> 的目标是一个字符串字面量 token；取它的值而不是原始文本。</summary>

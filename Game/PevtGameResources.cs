@@ -293,11 +293,17 @@ namespace Polaris.Event.Game
             return new PevtMotionWait(BgmPrepared, AudioReadyTimeoutFrames);
         }
 
-        /// <summary>资源组当前只支持"某个人物的全部立绘"和"某张事件图像"两种可解析目标。</summary>
+        /// <summary>
+        /// 资源组解析。PEVT-E08 静态声明的组优先：既然加载阶段已经把它登记进来，它就一定"存在"。
+        /// 没有被声明过的 groupId 落回第一版的隐式规则——"某个人物的全部立绘"或"某张事件图像"。
+        /// </summary>
         public bool ResolveGroup(string groupId)
         {
             if (string.IsNullOrEmpty(groupId))
                 return false;
+
+            if (_declaredGroups.ContainsKey(groupId))
+                return true;
 
             if (_actors.Directory.TryGetActor(groupId, out _))
                 return true;
@@ -311,6 +317,9 @@ namespace Polaris.Event.Game
 
         private bool GroupReady(string groupId)
         {
+            if (_declaredGroupTickets.TryGetValue(groupId, out List<PevtWait> tickets))
+                return DeclaredGroupReady(tickets);
+
             foreach (KeyValuePair<string, PevtVisualLease> entry in _portraits)
             {
                 if (!entry.Key.StartsWith(groupId + "/", StringComparison.Ordinal))
@@ -322,6 +331,89 @@ namespace Polaris.Event.Game
             EvImgContainer pictures = PevtGameHost.Pictures;
             EvImg image = pictures == null ? null : PevtGameHost.Safe(() => pictures.getPic(groupId, true, true), null);
             return image?.PF == null || PevtGameHost.Safe(() => image.PF.TxUsing != null, false);
+        }
+
+        /// <summary>
+        /// <see cref="PevtResourceWait"/> 只有反复 <c>Tick</c> 才会推进状态；它的轮询闭包不看
+        /// <c>PevtWaitContext.Frame</c>，因此在这里随便传一个上下文重复调用是安全、幂等的。
+        /// </summary>
+        private static bool DeclaredGroupReady(List<PevtWait> tickets)
+        {
+            var context = new PevtWaitContext(0);
+            foreach (PevtWait ticket in tickets)
+            {
+                if (!ticket.IsCompleted)
+                    ticket.Tick(context);
+                if (!ticket.IsCompleted)
+                    return false;
+            }
+
+            return true;
+        }
+
+        // ---- PEVT-E08：静态声明的资源预载组 ----
+
+        private readonly Dictionary<string, IReadOnlyList<PevtResourceMember>> _declaredGroups =
+            new Dictionary<string, IReadOnlyList<PevtResourceMember>>(StringComparer.Ordinal);
+
+        private readonly Dictionary<string, List<PevtWait>> _declaredGroupTickets =
+            new Dictionary<string, List<PevtWait>>(StringComparer.Ordinal);
+
+        /// <summary>
+        /// 立即为每个成员发起对应的加载请求——这就是"预载"：不等 <c>@wait_resources</c> 被调用，
+        /// 组一声明就开始借用/装载。按 groupId 幂等，重复声明（<c>async block</c>/<c>exec</c> 与父级
+        /// 共用同一份编译产物）是安全的空操作。
+        /// </summary>
+        public void DeclareResourceGroup(string groupId, IReadOnlyList<PevtResourceMember> members)
+        {
+            if (string.IsNullOrEmpty(groupId) || _declaredGroups.ContainsKey(groupId))
+                return;
+
+            var tickets = new List<PevtWait>(members.Count);
+            foreach (PevtResourceMember member in members)
+                tickets.Add(RequireMember(member));
+
+            _declaredGroups[groupId] = members;
+            _declaredGroupTickets[groupId] = tickets;
+        }
+
+        /// <summary>PEVT-E08：已声明资源组的 ID，按声明顺序；供 F8 展示。</summary>
+        public IReadOnlyCollection<string> DeclaredGroupIds => _declaredGroups.Keys;
+
+        /// <summary>
+        /// 某个已声明组里每个成员的当前状态，供 F8 展示"这个组还差哪个成员"。
+        /// 未声明过的 groupId 返回空列表，不视为错误——F8 只是没什么可展示的。
+        /// </summary>
+        public IReadOnlyList<string> DescribeDeclaredGroup(string groupId)
+        {
+            var lines = new List<string>();
+            if (string.IsNullOrEmpty(groupId)
+                || !_declaredGroups.TryGetValue(groupId, out IReadOnlyList<PevtResourceMember> members)
+                || !_declaredGroupTickets.TryGetValue(groupId, out List<PevtWait> tickets))
+            {
+                return lines;
+            }
+
+            var context = new PevtWaitContext(0);
+            for (int i = 0; i < members.Count && i < tickets.Count; i++)
+            {
+                if (!tickets[i].IsCompleted)
+                    tickets[i].Tick(context);
+
+                lines.Add($"{members[i].RawText}  ({tickets[i].State})");
+            }
+
+            return lines;
+        }
+
+        private PevtWait RequireMember(PevtResourceMember member)
+        {
+            switch (member.Kind)
+            {
+                case "actor": return RequirePortrait(member.ActorId, member.AppearanceId);
+                case "image": return RequireImage(member.AssetId);
+                default: return PreloadAudio(member.AssetId, member.Kind);
+            }
         }
 
         // ---- 清理 ----

@@ -15,7 +15,7 @@ namespace Polaris.Pevt.Actors
     /// 严格的 `.pactor` 读取器，工具侧与游戏侧共用，对同一份字节必须得到同一个目录和同一组诊断。
     /// `.pactor` 是纯数据：禁止 DTD、外部实体、未知元素与属性、元素正文，也不接受任意 C# 类型名、方法名或条件。
     /// </summary>
-    public static class ActorCatalogReader
+    public static partial class ActorCatalogReader
     {
         private const string InvalidXml = "PEVT9101";
         private const string UnsupportedVersion = "PEVT9102";
@@ -32,6 +32,9 @@ namespace Polaris.Pevt.Actors
         private const string UnknownVisualReference = "PEVT9114";
         private const string ForbiddenLegacyAlias = "PEVT9115";
         private const string InvalidAnchor = "PEVT9116";
+        private const string UnknownExtensionTarget = "PEVT9119";
+        private const string DuplicateExtensionAppearance = "PEVT9120";
+        private const string ForbiddenExtensionOverride = "PEVT9121";
         private const string InternalError = "PEVT9001";
 
         private static readonly XNamespace Ns = ActorCatalog.XmlNamespace;

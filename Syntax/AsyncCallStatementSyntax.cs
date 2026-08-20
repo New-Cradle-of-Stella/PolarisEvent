@@ -59,23 +59,30 @@ namespace Polaris.Pevt.Syntax
     }
 
     /// <summary>
-    /// <c>callevt "事件ID"</c>（10 节）。目标是否存在、是否声明 <c>enable async</c> 只在运行时解析，
-    /// 本节点只承载语法层面已经确定的目标字面量。
+    /// <c>callevt "事件ID"[(实参...)]</c>（10 节，参数列表见 PEVT-E07）。目标是否存在、是否声明
+    /// <c>enable async</c>、以及实参签名是否匹配都只在运行时解析——目标事件通常在另一个文件甚至另一个
+    /// 模组程序集里，静态阶段看不到它的形参声明，因此本节点只承载语法层面已经确定的目标字面量和
+    /// 实参表达式，签名核对全部留给 <c>PevtEventHost</c> 的晚绑定阶段。
     /// </summary>
     public sealed class EventCallExpressionSyntax : ExpressionSyntax
     {
         public SyntaxToken CallEvtKeyword { get; }
         public SyntaxToken Target { get; }
 
-        public EventCallExpressionSyntax(SyntaxToken callEvtKeyword, SyntaxToken target)
+        /// <summary>省略括号（旧语法 <c>callevt "id"</c>）时为 null，等价于零实参。</summary>
+        public ArgumentListSyntax Arguments { get; }
+
+        public EventCallExpressionSyntax(SyntaxToken callEvtKeyword, SyntaxToken target, ArgumentListSyntax arguments = null)
         {
             CallEvtKeyword = callEvtKeyword;
             Target = target;
+            Arguments = arguments;
         }
 
-        public override TextSpan Span => TextSpan.FromBounds(CallEvtKeyword.Span.Start, Target.Span.End);
+        public override TextSpan Span => TextSpan.FromBounds(
+            CallEvtKeyword.Span.Start, (Arguments != null ? Arguments.Span : Target.Span).End);
 
-        public override string ToString() => $"CallEvt({Target.Text})";
+        public override string ToString() => Arguments == null ? $"CallEvt({Target.Text})" : $"CallEvt({Target.Text}{Arguments})";
     }
 
     /// <summary>

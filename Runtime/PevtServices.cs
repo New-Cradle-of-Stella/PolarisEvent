@@ -51,6 +51,13 @@ namespace Polaris.Pevt.Runtime
         bool ResolveGroup(string groupId);
 
         PevtWait<bool> WaitGroup(string groupId, int timeoutFrames);
+
+        /// <summary>
+        /// PEVT-E08：登记一个静态声明的资源预载组，立即为每个成员发起对应的加载请求。
+        /// 目标事件体内可能被多次触发这个声明（<c>async block</c>/<c>exec</c> 与父级共用同一份编译产物），
+        /// 因此实现必须按 <paramref name="groupId"/> 幂等：重复声明同一个 ID 是安全的空操作。
+        /// </summary>
+        void DeclareResourceGroup(string groupId, IReadOnlyList<PevtResourceMember> members);
     }
 
     /// <summary>对话、旁白、文本板与回看。</summary>
@@ -113,6 +120,12 @@ namespace Polaris.Pevt.Runtime
         PevtWait Place(string actorId, string anchorId, int frames);
 
         PevtWait Move(string actorId, string anchorId, int frames);
+
+        /// <summary>
+        /// PEVT-E04：相对当前受管位置位移 <paramref name="x"/>/<paramref name="y"/>，不改变语义锚点身份。
+        /// 动作结束后的位置成为下一次相对移动的基准。
+        /// </summary>
+        PevtWait MoveBy(string actorId, float x, float y, int frames, string easing);
 
         PevtWait Exit(string actorId, int frames);
 

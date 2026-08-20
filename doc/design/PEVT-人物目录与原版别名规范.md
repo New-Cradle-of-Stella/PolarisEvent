@@ -101,6 +101,49 @@ PEVT 对外只使用可读、稳定的人物 ID，不把原版 CMD 的 `n`、`a`
 
 `Anchor` 的 `X`、`Y` 必填，`EnterX`/`EnterY` 必须同时声明或同时省略；四个值都必须是有限十进制数，`NaN`、`Infinity` 与溢出为无穷的字面量都是 `PEVT9116`。
 
+### 3.2 增量扩展 sidecar（PEVT-E06）
+
+一个模组常常只是想给别人已经登记好的人物多加几套外观，而不是重新定义那个人物。为此有一种独立的
+sidecar 根格式，与 `.pactor` 同一个 XML 命名空间：
+
+```xml
+<ActorCatalogExtension xmlns="urn:polaris:pevt:actors:v1" Version="1">
+  <ActorExtension Actor="aic:ixia">
+    <Appearance Id="cmd-s134a-ixia-2"
+                Portrait="default"
+                Pose="i/a00d"
+                Frame="F2__f2__m1__b5_u3" />
+  </ActorExtension>
+</ActorCatalogExtension>
+```
+
+规则：
+
+- `Actor` 必须是**已登记的最终公开人物 ID**（`<namespace>:<local-id>`）。扩展不新建人物，也不声明命名空间。
+- 第一版只能**追加** appearance：不允许覆盖人物元数据（`DisplayName`、`Voice`、`Color`、`DefaultPortrait`、
+  `LegacyPerson` …），也不允许声明 `Portrait`、`UiPortrait`、`WorldSprite`、`Anchor` 或嵌套 `Actor`。
+- `Portrait` 必须是目标人物**已登记**的 portrait；扩展不能顺带带进一份新视觉资源。
+- 同一份 sidecar 里同一个人物只能出现一段 `ActorExtension`；一段里至少要有一个 `Appearance`。
+- 其余约束与 `.pactor` 完全一致（禁止 DTD、外部实体、未知元素与属性、元素正文），因为两者共用同一个读取器。
+
+为什么把"只能追加"写死成格式而不是运行时策略：扩展一旦能覆盖，加载顺序就会改变已有内容的含义，
+于是"这个 appearance 现在是什么"取决于哪个模组先加载。只追加的话，扩展的唯一效果是多出几个可用的
+appearance ID——加载顺序不影响任何已有内容，卸载也只是把那几个 ID 拿掉，不需要"扩展前的快照"。
+
+**应用时机与顺序。** 扩展可以指向别的程序集注册的人物，所以它不在提交时生效：全部基础目录登记完之后，
+按提交顺序统一应用。因此
+
+- "目标不存在"只有在全部目录都登记完之后才是确定的结论；
+- 两个扩展抢同一个 appearance ID 时，先提交的留下、后来的被拒，同一次启动内结果稳定；
+- 每条已应用的扩展带一个从 0 开始的 `#order`，卸载按逆序进行。
+
+**来源追踪。** 每个被追加的 appearance 都记得自己来自哪个 owner、哪个 sidecar 路径与哪个内容哈希，
+F8 的 Source 页面按人物列出"每个 appearance 来自基础目录还是某个扩展"，Ownership 页面按应用顺序列出
+全部扩展与被拒内容。
+
+**扩展目标处于跨来源冲突时。** 冲突的人物 ID 本来就查不到（见第 6 节），扩展它只会把"已经不可用"
+变成"看起来可用"，因此这种情况按目标不存在处理（`PEVT9119`）。
+
 ## 4. 视觉提供者
 
 `Provider` 第一版只有两类：
@@ -217,10 +260,13 @@ internal sealed class IrisActorRegistrar : IPevtActorRegistrar
 - 事件结束、替换、异常和插件卸载必须取消在途视觉加载并清除显示层。
 - 人物目录卸载时，仍有事件引用该目录则先停止这些事件，再撤销人物注册。
 - 任何来源的 PXLS 未 Ready 时都以 `PevtResourceWait` 等待，不阻塞 Unity 主线程。
+- 增量扩展的卸载就是"重建时不再排入"：它只追加 appearance，撤销它不需要恢复任何被覆盖的内容。基础目录被卸载时，指向它的扩展自动退化成目标不存在。
 
 ## 11. 人物目录静态诊断
 
-以下编号已经加入权威静态诊断表和 Core `DiagnosticCatalog`（功能阶段 B）。`PEVT9101`–`PEVT9116` 由共享的 `.pactor` 读取器发射；`PEVT9111`、`PEVT9117`、`PEVT9118` 由共享的资源字段绑定判定发射，取决于调用方能否解析到目标字段：
+以下编号已经加入权威静态诊断表和 Core `DiagnosticCatalog`（功能阶段 B）。`PEVT9101`–`PEVT9116` 由共享的 `.pactor` 读取器发射；`PEVT9111`、`PEVT9117`、`PEVT9118` 由共享的资源字段绑定判定发射，取决于调用方能否解析到目标字段。
+
+`PEVT9119`–`PEVT9121` 属于增量扩展（第 3.2 节）：`PEVT9121` 与形状相关，由扩展读取器发射；`PEVT9119` 与 `PEVT9120` 依赖"当前登记了哪些人物"，只能在目录合并时发射，因此它们随合并结果一起报告，而不是读取单个 sidecar 时就能得出：
 
 | 编号 | 名称 | 含义 |
 | --- | --- | --- |
@@ -242,11 +288,15 @@ internal sealed class IrisActorRegistrar : IPevtActorRegistrar
 | `PEVT9116` | `InvalidActorAnchor` | anchor 坐标非法或不完整。 |
 | `PEVT9117` | `ActorResourceFieldNotBindable` | 字段特性、static 或可见性不满足自动绑定。 |
 | `PEVT9118` | `ActorCatalogSourceUnavailable` | Warning；编辑器暂时无法读取字段或预览。 |
+| `PEVT9119` | `UnknownActorExtensionTarget` | 扩展目标不是已登记的公开人物 ID，或该 ID 处于跨来源冲突状态。 |
+| `PEVT9120` | `DuplicateActorExtensionAppearance` | 扩展追加的 appearance ID 与基础目录、另一个扩展或同段扩展内的条目重复。 |
+| `PEVT9121` | `ForbiddenActorExtensionOverride` | 扩展声明了人物元数据或视觉元素；第一版只允许追加 appearance。 |
 
 ## 12. 非目标
 
 - `.pactor` 不定义类、函数、条件、表达式或 C# 回调。
 - 不允许配置任意 C# 类型名或方法名。
 - 不把原版全部 pose/frame 自动猜成英文情绪；语义 appearance 必须显式登记。
+- 增量扩展不是"第二种 `.pactor`"：它不能新建人物、不能声明命名空间、不能覆盖任何已有内容。
 - 不允许普通人物指令退回拼接 `TALKER`、`PIC` 或其它 CMD 文本。
 - 世界实体 AI、碰撞和战斗逻辑不属于人物目录；`WorldSprite` 只提供视觉资源，行为仍由受控 `@entity_*` 服务负责。

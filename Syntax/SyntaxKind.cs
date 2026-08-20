@@ -17,6 +17,8 @@ namespace Polaris.Pevt.Syntax
         TrueKeyword, FalseKeyword, ReturnKeyword, EndBlockKeyword,
         AsyncKeyword, HandlerKeyword, AwaitKeyword, AllKeyword, AnyKeyword, KillKeyword, StatusKeyword,
         ExecKeyword,
+        ScheduleKeyword, AfterKeyword, CallKeyword, FlushKeyword, ClearKeyword, SchedulesKeyword,
+        ResourcesKeyword,
 
         /// <summary>组合词素 "$raw"，见 12.1/12.2 节；raw 不是 9.6 节保留关键字，只有和 "$" 相连才有特殊语法意义。</summary>
         DollarRawToken,

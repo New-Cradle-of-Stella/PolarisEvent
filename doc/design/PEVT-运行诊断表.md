@@ -57,6 +57,7 @@
 | `PEVTR4302` | `AmbiguousEventCallTarget` | Runtime Error | 多个已加载事件注册了相同 ID，且运行时无法依据模组覆盖或优先级规则得到唯一目标。 |
 | `PEVTR4303` | `EventCallTargetNotAsync` | Runtime Error | `handler 名称 = callevt "ID"` 要求异步调用，但运行时解析出的目标事件没有声明 `enable async`。 |
 | `PEVTR4304` | `EventCallStartFailed` | Runtime Error | 目标事件已经成功解析，但 PolarisEvent 无法创建或启动对应的同步或异步事件执行实例。 |
+| `PEVTR4305` | `EventCallArgumentMismatch` | Runtime Error | `callevt` 提供的实参数量或类型与运行时解析出的目标事件参数签名不一致（PEVT-E07）。 |
 | `PEVTR4401` | `ActorNotFound` | Runtime Error | 执行人物相关 `@` 指令时，全局人物目录中不存在指定的可读人物 ID。 |
 | `PEVTR4402` | `ActorVisualNotFound` | Runtime Error | 人物存在，但请求的 portrait、appearance、world sprite 或人物专用 anchor 没有登记。 |
 | `PEVTR4403` | `ActorResourceFailed` | Runtime Error | 人物视觉引用的原版 PXLS 或 PolarisRes 资源不存在、加载失败或在等待上限内未就绪。 |
@@ -77,6 +78,12 @@
 | `PEVTR5003` | `AsyncCancellationFailed` | Runtime Error | PolarisEvent 要求停止异步操作，但该操作无法取消、拒绝取消或未能在规定时间内完成取消。 |
 | `PEVTR5004` | `AsyncSchedulerFailure` | Runtime Error | PolarisEvent 无法创建、登记、恢复或调度一个异步操作。 |
 | `PEVTR5005` | `UnobservedAsyncFailure` | Runtime Warning | 没有保存句柄，或句柄在事件结束前始终没有被 `await`，而对应异步操作已经异常结束。该诊断不反向中断已经继续执行的事件。 |
+
+## 6A. 类型化延迟调度（PEVT-E05）
+
+| 编号 | 名称 | 级别 | 触发条件 |
+| --- | --- | --- | --- |
+| `PEVTR6001` | `ScheduleFramesNegative` | Runtime Error | `schedule` 的 frames 表达式求值结果为负数。 |
 
 ## 7. PolarisEvent 内部错误
 

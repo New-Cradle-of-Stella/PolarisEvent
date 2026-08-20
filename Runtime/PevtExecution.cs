@@ -194,6 +194,26 @@ namespace Polaris.Pevt.Runtime
                 PevtFrameKind.Event, program.EventId, new PevtEnvironment(program.EventId),
                 entryPoint: 0, returnIp: -1, producesValue: false, returnType: null,
                 callSpan: new TextSpan(0, 0), switchSlotCount: program.SwitchSlotCount));
+
+            DeclareResourceGroups();
+        }
+
+        /// <summary>
+        /// PEVT-E08：把这份编译产物声明的资源组交给资源服务，立即开始预载。<c>async block</c>/<c>exec</c>
+        /// 子实例与父级共用同一份 <see cref="_program"/>，因此这里可能对同一个 groupId 被调用多次——
+        /// <see cref="IPevtResources.DeclareResourceGroup"/> 的契约要求实现按 groupId 幂等，这里不需要自己去重。
+        /// </summary>
+        private void DeclareResourceGroups()
+        {
+            if (_program.ResourceGroups.Count == 0)
+                return;
+
+            IPevtResources resources = _services.Resources;
+            if (resources == null)
+                return;
+
+            foreach (PevtResourceGroupInfo group in _program.ResourceGroups)
+                resources.DeclareResourceGroup(group.GroupId, group.Members);
         }
 
         /// <summary>
@@ -250,6 +270,9 @@ namespace Polaris.Pevt.Runtime
             // 而不是上一帧的旧值。
             _async.Tick(new PevtWaitContext(_services.Clock.Frame));
 
+            // 调度项同理：到期的项在同一帧里启动，而不是拖到下一帧才被 @wait_motion/F8 看见。
+            TickSchedules();
+
             while (true)
             {
                 if (_pendingWait != null)
@@ -300,6 +323,9 @@ namespace Polaris.Pevt.Runtime
             }
 
             CancelPendingWait();
+
+            // 尚未触发的调度项直接丢弃：它们还没启动任何东西，不需要 kill。
+            _schedules.Clear();
 
             // 事件被取消时按 ID 逆序 kill 掉它拥有的全部未结束子协程（第 10 节）。
             failures.AddRange(_async.ForceFinishAll());
@@ -427,6 +453,15 @@ namespace Polaris.Pevt.Runtime
 
                 case PevtOpCode.RawCs:
                     return ExecuteRawCs(frame, instruction);
+
+                case PevtOpCode.ScheduleAfter:
+                    return ExecuteScheduleAfter(frame, instruction);
+
+                case PevtOpCode.FlushSchedules:
+                    return ExecuteFlushSchedules(frame, instruction);
+
+                case PevtOpCode.ClearSchedules:
+                    return ExecuteClearSchedules(frame, instruction);
 
                 default:
                     return Fault("PEVTR9001", $"未知指令 {instruction.OpCode}。", instruction.Span);
@@ -723,6 +758,9 @@ namespace Polaris.Pevt.Runtime
 
         private PevtExecutionResult Complete()
         {
+            // 尚未触发的调度项随事件自然结束一起丢弃（第 15.7 节）。
+            _schedules.Clear();
+
             // 事件正常结束同样要 kill 掉还在跑的子协程，并把没人看过的失败记成 PEVTR5005。
             var asyncFailures = new List<Exception>(_async.ForceFinishAll());
             CollectUnobservedFailures();
@@ -761,6 +799,7 @@ namespace Polaris.Pevt.Runtime
             }
 
             CancelPendingWait();
+            _schedules.Clear();
             _async.ForceFinishAll();
             CollectUnobservedFailures();
 

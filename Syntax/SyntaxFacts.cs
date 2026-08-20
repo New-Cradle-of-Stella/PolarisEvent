@@ -48,6 +48,13 @@ namespace Polaris.Pevt.Syntax
             ["kill"] = SyntaxKind.KillKeyword,
             ["status"] = SyntaxKind.StatusKeyword,
             ["exec"] = SyntaxKind.ExecKeyword,
+            ["schedule"] = SyntaxKind.ScheduleKeyword,
+            ["after"] = SyntaxKind.AfterKeyword,
+            ["call"] = SyntaxKind.CallKeyword,
+            ["flush"] = SyntaxKind.FlushKeyword,
+            ["clear"] = SyntaxKind.ClearKeyword,
+            ["schedules"] = SyntaxKind.SchedulesKeyword,
+            ["resources"] = SyntaxKind.ResourcesKeyword,
         };
 
         /// <summary>9.6 节保留关键字表，与 <see cref="Keywords"/> 的名称集合完全相同。</summary>

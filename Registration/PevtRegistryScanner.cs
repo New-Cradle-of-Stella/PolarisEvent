@@ -112,6 +112,11 @@ namespace Polaris.Pevt.Registration
 
             foreach (ActorCatalogSubmission submission in context.Submitted)
                 Actors.Add(submission.Catalog, context.Owner, submission.CatalogHash, submission.VisualAccessors);
+
+            // 扩展在基础目录之后提交，但真正的应用时机由注册表决定（PEVT-E06）：
+            // 扩展可以指向别的程序集注册的人物，所以"目标不存在"只有在全部目录都登记完之后才成立。
+            foreach (ActorExtensionSubmission submission in context.SubmittedExtensions)
+                Actors.AddExtension(submission.Extension, context.Owner, submission.SourceHash);
         }
 
         private void RegisterEvents(IPevtRegistrar registrar, string owner, string displayName, CancellationToken cancellationToken)
@@ -202,7 +207,8 @@ namespace Polaris.Pevt.Registration
         {
             IReadOnlyList<PevtEventConflict> eventConflicts = Events.Seal();
             IReadOnlyList<ActorConflict> actorConflicts = Actors.Seal();
-            return new PevtScanReport(eventConflicts, actorConflicts, Events.Failures);
+            return new PevtScanReport(
+                eventConflicts, actorConflicts, Events.Failures, Actors.ExtensionDiagnostics);
         }
 
         /// <summary>
@@ -323,14 +329,23 @@ namespace Polaris.Pevt.Registration
 
         public IReadOnlyList<PevtEventLoadFailure> LoadFailures { get; }
 
+        /// <summary>
+        /// 被拒绝的人物目录扩展内容（PEVT-E06）。它们是静态目录诊断而不是跨来源冲突：
+        /// 扩展只追加，被拒的那一条不会让任何已有人物变得不可用，所以不进 <see cref="HasFatalConflicts"/>。
+        /// </summary>
+        public IReadOnlyList<Diagnostics.Diagnostic> ActorExtensionDiagnostics { get; }
+
         internal PevtScanReport(
             IReadOnlyList<PevtEventConflict> eventConflicts,
             IReadOnlyList<ActorConflict> actorConflicts,
-            IReadOnlyList<PevtEventLoadFailure> loadFailures)
+            IReadOnlyList<PevtEventLoadFailure> loadFailures,
+            IReadOnlyList<Diagnostics.Diagnostic> actorExtensionDiagnostics = null)
         {
             EventConflicts = eventConflicts;
             ActorConflicts = actorConflicts;
             LoadFailures = loadFailures;
+            ActorExtensionDiagnostics = actorExtensionDiagnostics
+                ?? (IReadOnlyList<Diagnostics.Diagnostic>)Array.Empty<Diagnostics.Diagnostic>();
         }
 
         /// <summary>是否存在必须作为致命报告上报的跨程序集冲突。</summary>

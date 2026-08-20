@@ -174,6 +174,41 @@ namespace Polaris.Event.Game
             return TrackFrames(frames);
         }
 
+        /// <summary>
+        /// PEVT-E04：相对当前受管位置位移。原版 <see cref="TalkDrawer"/> 不对外暴露可写的 x/y，
+        /// 位置只能通过 <c>moveTo</c>/<c>initPosition</c> 改变，所以曲线不能交给原版 movetype 反射
+        /// （那本身与 PEVT 的 easing 取值集是两套独立命名）；改成和 <c>ScaleTo</c>/<c>RotateTo</c>
+        /// 同样的做法——用 PEVT 自己的补间算出每帧的插值坐标，再用 <c>initPosition</c> 直接摆过去，
+        /// 曲线选择完全在 C# 里，不依赖原版反射能认出哪个方法名。
+        /// </summary>
+        public PevtWait MoveBy(string actorId, float x, float y, int frames, string easing)
+        {
+            TalkDrawer drawer = null;
+            float baseX = 0f, baseY = 0f;
+
+            PevtGameHost.Guard("PortraitMoveBy", () =>
+            {
+                drawer = Drawer(actorId);
+                if (drawer == null)
+                    return;
+
+                baseX = drawer.get_x();
+                baseY = drawer.get_y();
+            });
+
+            if (drawer == null)
+                return new PevtFrameWait(0);
+
+            float targetX = baseX + x;
+            float targetY = baseY + y;
+
+            return Tween(frames, easing, t =>
+                drawer.initPosition(
+                    Coord(baseX + (targetX - baseX) * t),
+                    Coord(baseY + (targetY - baseY) * t),
+                    string.Empty, string.Empty, 0f));
+        }
+
         public PevtWait Exit(string actorId, int frames)
         {
             PevtGameHost.Guard("PortraitExit", () =>
@@ -257,6 +292,18 @@ namespace Polaris.Event.Game
             long deadline = _clock.Frame + frames;
             _clock.RegisterMotion(() => _clock.Frame >= deadline);
             return new PevtFrameWait(frames);
+        }
+
+        /// <summary>补间版的 <see cref="TrackFrames"/>：登记同样的截止帧动作票据，但返回值改成逐帧回调。</summary>
+        private PevtWait Tween(int frames, string easing, Action<float> apply)
+        {
+            if (frames > 0)
+            {
+                long deadline = _clock.Frame + frames;
+                _clock.RegisterMotion(() => _clock.Frame >= deadline);
+            }
+
+            return new PevtTweenWait(frames, easing, apply);
         }
     }
 }

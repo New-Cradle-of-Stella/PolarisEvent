@@ -64,7 +64,7 @@ PEVT-同步指令中间层规范.md
 | `@wait` | 同步等待 | 无 | `frames : int` | 等待指定帧数。 |
 | `@wait_input` | 同步等待 | `bool` | `timeoutFrames : int` | 等待玩家确认；返回是否由输入结束。`0` 表示无超时。 |
 | `@wait_motion` | 同步等待 | `bool` | `timeoutFrames : int` | 等待当前事件所有受管动作结束；返回是否正常完成。 |
-| `@wait_resources` | 同步等待 | `bool` | `groupId : string, timeoutFrames : int` | 等待指定资源组就绪。 |
+| `@wait_resources` | 同步等待 | `bool` | `groupId : string, timeoutFrames : int` | 等待指定资源组就绪；`groupId` 若匹配文件头 `resources` 声明（PEVT-E08），等的就是那份预载票据，否则落回隐式的人物/图片匹配。 |
 
 ### 对话与选择
 
@@ -95,6 +95,7 @@ PEVT-同步指令中间层规范.md
 | `@actor_exit` | 等待／可并行 | 无 | `actorId : string, frames : int` | 让角色退场。 |
 | `@actor_hide_all` | 同步等待 | 无 | `frames : int` | 隐藏本次 PEVT 事件创建的全部人物立绘。 |
 | `@actor_move` | 等待／可并行 | 无 | `actorId : string, position : string, frames : int` | 将角色移到 `left`、`center`、`right` 等语义锚点。 |
+| `@actor_move_by` | 等待／可并行 | 无 | `actorId : string, x : float, y : float, frames : int, easing : string` | 相对当前受管位置位移，不改变语义锚点身份；动作结束后的位置成为下一次相对移动的基准（PEVT-E04）。 |
 | `@actor_appearance` | 立即 | 无 | `actorId : string, appearanceId : string` | 更换人物目录已登记的立绘、服装或差分组；不接受原版复合 PIC 串。 |
 | `@actor_emote` | 立即 | 无 | `actorId : string, emoteId : string` | 播放单个表情符号，不暴露原版竖线拼接语法。 |
 | `@actor_motion` | 等待／可并行 | 无 | `actorId : string, motionId : string, frames : int` | 播放点头、摇晃、受击等登记动作。 |
@@ -286,7 +287,12 @@ PEVT-异步协程与等待模型.md
 - `actorId` 使用人物目录的 `<namespace>:<local-id>`；内置人物使用 `aic:noel`、`aic:alice` 等固定 ID。
 - `appearanceId`、`emoteId` 和人物专用 `position` 必须来自对应 `.pactor`，或来自 PolarisEvent 的通用登记表。
 - `position` 使用语义锚点，第一版至少包含 `left`、`center`、`right`、`near-left`、`near-right`、`far-left`、`far-right`、`off-left`、`off-right`。
-- `easing` 第一版只接受 `linear`、`ease_in`、`ease_out`、`ease_in_out`。
+- `easing` 接受 `linear`、`ease_in`、`ease_out`、`ease_in_out`（历史遗留通用名字，等价于 quad 族）、
+  `zpow`（PEVT-E04；数值上与 `ease_in` 相同，对照原版 `XX.X.ZPOW` 核对过，但按规范独立登记，不作为 `ease_in` 的别名），
+  以及 `easings.net` 标准缓动函数全集——`sine`/`quad`/`cubic`/`quart`/`quint`/`expo`/`circ`/`back`/`elastic`/`bounce`
+  十个族各三种 `ease_in_<族>`/`ease_out_<族>`/`ease_in_out_<族>`（例如 `ease_out_bounce`）。
+  完整取值集见 `Binding/ParameterDomain.cs` 的 `Easing`，曲线实现见 `Game/PevtStandardEasing.cs`。
+- `@actor_move_by` 的相对位移曲线完全由 PEVT 自己的补间计算（与 `easing` 取值集一一对应），不依赖原版 `movetype` 反射，因此这里的取值集和原版方法名之间没有对应关系。
 - `@game_read_*` 的 `key` 是宿主只读查询表登记的键；取值集在运行期登记，静态侧看不全，因此未知键不是 `.pevt` 静态错误，真正缺失在执行时使用 `PEVTR4501`。
 - `@entity_move_by_pixels` 与 `@entity_move_to_offset` 的 `xPixels`/`yPixels` 是屏幕像素，由处理器按当前地图的格子尺寸换算成实体坐标；PEVT 侧不出现格子尺寸。
 - 这两条位移由 PEVT 时钟逐帧推进，不依赖事件期间已经暂停的地图主循环，并登记为当前事件的受管动作，因此 `@wait_motion` 能等到它们。

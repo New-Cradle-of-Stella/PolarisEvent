@@ -84,6 +84,7 @@ namespace Polaris.Pevt.Runtime.Routines
             Add(registry, "actor_exit", ActorRoutines.ActorExit, Str, Int);
             Add(registry, "actor_hide_all", ActorRoutines.ActorHideAll, Int);
             Add(registry, "actor_move", ActorRoutines.ActorMove, Str, Str, Int);
+            Add(registry, "actor_move_by", ActorRoutines.ActorMoveBy, Str, Float, Float, Int, Str);
             Add(registry, "actor_appearance", ActorRoutines.ActorAppearance, Str, Str);
             Add(registry, "actor_emote", ActorRoutines.ActorEmote, Str, Str);
             Add(registry, "actor_motion", ActorRoutines.ActorMotion, Str, Str, Int);
