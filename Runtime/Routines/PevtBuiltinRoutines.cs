@@ -71,6 +71,8 @@ namespace Polaris.Pevt.Runtime.Routines
             Add(registry, "entity_face", EntityRoutines.EntityFace, Str, Str);
             Add(registry, "entity_move_to", EntityRoutines.EntityMoveTo, Str, Str, Float);
             Add(registry, "entity_move_by", EntityRoutines.EntityMoveBy, Str, Float, Float, Float);
+            Add(registry, "entity_move_by_pixels", EntityRoutines.EntityMoveByPixels, Str, Float, Float, Int);
+            Add(registry, "entity_move_to_offset", EntityRoutines.EntityMoveToOffset, Str, Str, Float, Float, Int);
             Add(registry, "entity_follow", EntityRoutines.EntityFollow, Str, Str, Float, Float);
             Add(registry, "entity_unfollow", EntityRoutines.EntityUnfollow, Str);
             Add(registry, "entity_action", EntityRoutines.EntityAction, Str, Str);

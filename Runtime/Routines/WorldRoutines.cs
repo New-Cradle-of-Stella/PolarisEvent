@@ -221,6 +221,53 @@ namespace Polaris.Pevt.Runtime.Routines
             context.Result.SetBool(arrived.Result);
         }
 
+        /// <summary>
+        /// PEVT-E03：按像素相对位移。像素→地图单位的换算归适配器，这里只校验参数并把结果原样转出去。
+        /// 位移登记为当前事件的受管动作，因此 <c>@wait_motion</c> 能等到它。
+        /// </summary>
+        public static IEnumerator<PevtWait> EntityMoveByPixels(PevtRoutineContext context, PevtArguments args)
+        {
+            IPevtEntity entity = Entity(context);
+            string entityId = PevtArgumentDomains.RequireId(args.String(0), "entityId");
+            float xPixels = PevtArgumentDomains.RequireFinite(args.Float(1), "xPixels");
+            float yPixels = PevtArgumentDomains.RequireFinite(args.Float(2), "yPixels");
+            int frames = PevtArgumentDomains.RequireFrames(args.Int(3), "frames");
+
+            if (!entity.TryResolve(entityId))
+            {
+                context.Result.SetBool(false);
+                yield break;
+            }
+
+            PevtWait<bool> moved = entity.MoveByPixels(entityId, xPixels, yPixels, frames);
+            yield return moved;
+            context.Result.SetBool(moved.Result);
+        }
+
+        /// <summary>
+        /// PEVT-E03：走到"参照目标的位置 + 像素偏移"处。参照目标可以是锚点或另一个实体，
+        /// 与 <c>@entity_move_to</c> 用的是同一套目标解析。
+        /// </summary>
+        public static IEnumerator<PevtWait> EntityMoveToOffset(PevtRoutineContext context, PevtArguments args)
+        {
+            IPevtEntity entity = Entity(context);
+            string entityId = PevtArgumentDomains.RequireId(args.String(0), "entityId");
+            string targetId = PevtArgumentDomains.RequireId(args.String(1), "targetId");
+            float xPixels = PevtArgumentDomains.RequireFinite(args.Float(2), "xPixels");
+            float yPixels = PevtArgumentDomains.RequireFinite(args.Float(3), "yPixels");
+            int frames = PevtArgumentDomains.RequireFrames(args.Int(4), "frames");
+
+            if (!entity.TryResolve(entityId) || !entity.TryResolveTarget(targetId))
+            {
+                context.Result.SetBool(false);
+                yield break;
+            }
+
+            PevtWait<bool> moved = entity.MoveToOffset(entityId, targetId, xPixels, yPixels, frames);
+            yield return moved;
+            context.Result.SetBool(moved.Result);
+        }
+
         public static IEnumerator<PevtWait> EntityFollow(PevtRoutineContext context, PevtArguments args)
         {
             IPevtEntity entity = Entity(context);

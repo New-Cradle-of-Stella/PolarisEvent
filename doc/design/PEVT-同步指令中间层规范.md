@@ -213,11 +213,23 @@ public interface IPevtCommandRoutine
 | `@entity_face` | `Entity.TryResolve(entityId)` → `Entity.TryResolveDirection(direction)`；任一失败时提前返回 `false`，否则 `Entity.SetFacing(entityId, direction)` | 返回是否成功 |
 | `@entity_move_to` | `Entity.TryResolve(entityId)` → `Entity.TryResolveTarget(targetId)`；任一失败时提前返回 `false`，否则 `Entity.MoveTo(entityId, targetId, speed)` | 返回是否到达 |
 | `@entity_move_by` | `Entity.TryResolve(entityId)`；找不到时提前返回 `false`，否则 `Entity.MoveBy(entityId, x, y, speed)` | 返回是否到达 |
+| `@entity_move_by_pixels` | `Entity.TryResolve(entityId)`；找不到时提前返回 `false`，否则 `Entity.MoveByPixels(entityId, xPixels, yPixels, frames)` | 返回是否走完整段位移 |
+| `@entity_move_to_offset` | `Entity.TryResolve(entityId)` → `Entity.TryResolveTarget(targetId)`；任一失败时提前返回 `false`，否则 `Entity.MoveToOffset(entityId, targetId, xPixels, yPixels, frames)` | 返回是否走完整段位移 |
 | `@entity_follow` | `Entity.TryResolve(entityId)` → `Entity.TryResolveTarget(targetId)`；任一失败时提前返回 `false`，否则 `Entity.StartFollow(entityId, targetId, distance, speed)` | 返回是否成功开始跟随 |
 | `@entity_unfollow` | `Entity.TryResolve(entityId)`；找不到时提前返回 `false`，否则 `Entity.StopFollow(entityId)` | 返回是否停止了跟随 |
 | `@entity_action` | `Entity.TryResolve(entityId)` → `Entity.TryResolveAction(entityId, actionId)`；任一失败时提前返回 `false`，否则 `Entity.RunAction(entityId, actionId)` | 返回动作是否正常完成 |
 
 `World.BeginTransition()` 成功后必须立即向指令帧登记 `World.AbortTransition()` 临时清理；只有 `World.EndTransition()` 成功时才撤销该清理。
+
+按像素与帧的位移（PEVT-E03）与按速度的位移并存，因为两者互相表达不出来：演出要的是"这段正好走 30 帧"，
+而速度式位移的耗时取决于距离。像素→地图单位的换算只发生在适配层，`IPevtEntity` 与 PEVT 侧都不出现格子尺寸。
+
+这两条位移由 PEVT 时钟逐帧推进：事件期间地图主循环是停着的，靠它推进的位移会一动不动。每一步都走带落脚
+判定的位移，被地形挡住时立刻以 `false` 结束——让 NPC 穿墙比走不到位难查得多。位移同时登记为受管动作票据，
+`@wait_motion` 因此能等到它。
+
+失败仍然按既有实体契约回报 `bool`，不新增运行诊断：实体或参照目标消失是脚本可预期情况，而且"消失"与"被挡住"
+对调用方是同一个决定（这段位移没走完），再分裂成两个编号只会让脚本两边都得处理。
 
 ## 12. 状态、物品与进度组合
 

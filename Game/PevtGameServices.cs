@@ -82,7 +82,7 @@ namespace Polaris.Event.Game
                 // 服装、玩家状态效果与治疗在两个游戏程序集里都不存在对应系统，召唤点与魔法特效的激活语义也还没验证过。
                 new PevtDomainServices(
                     world: new PevtGameWorld(),
-                    entity: new PevtGameEntity(),
+                    entity: new PevtGameEntity(clock),
                     state: new PevtGameState(),
                     inventory: new PevtGameInventory(),
                     quest: new PevtGameQuest()),

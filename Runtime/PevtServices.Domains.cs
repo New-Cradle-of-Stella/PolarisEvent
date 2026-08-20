@@ -89,6 +89,23 @@ namespace Polaris.Pevt.Runtime
 
         PevtWait<bool> MoveBy(string entityId, float x, float y, float speed);
 
+        // ---- 按像素与帧的位移（PEVT-E03）----
+        // 与上面那两条按"速度"参数化的位移并存：演出要的是"这段位移正好走 30 帧"，
+        // 而速度式位移的耗时取决于距离，两者不能互相表达。像素是作者在原版素材上量得到的单位，
+        // 换算成地图单位是适配器的事，PEVT 侧不出现格子尺寸。
+
+        /// <summary>
+        /// 按像素相对位移，<paramref name="frames"/> 为目标持续帧数（<c>0</c> 表示立即到位）。
+        /// 结果表示是否走完整段位移；实体中途消失或被碰撞挡住时为 false。
+        /// </summary>
+        PevtWait<bool> MoveByPixels(string entityId, float xPixels, float yPixels, int frames);
+
+        /// <summary>
+        /// 走到"另一个目标的位置 + 像素偏移"处。目标可以是锚点或另一个实体；
+        /// 目标是活动实体时每帧重新计算剩余位移，因此目标自己在动也能跟上。
+        /// </summary>
+        PevtWait<bool> MoveToOffset(string entityId, string targetId, float xPixels, float yPixels, int frames);
+
         bool StartFollow(string entityId, string targetId, float distance, float speed);
 
         bool StopFollow(string entityId);

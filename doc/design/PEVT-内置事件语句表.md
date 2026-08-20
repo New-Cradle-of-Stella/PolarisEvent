@@ -180,6 +180,8 @@ PEVT-同步指令中间层规范.md
 | `@entity_face` | 立即 | `bool` | `entityId : string, direction : string` | 设置场景实体朝向。 |
 | `@entity_move_to` | 等待／可并行 | `bool` | `entityId : string, targetId : string, speed : float` | 让场景实体移动到锚点或另一实体。 |
 | `@entity_move_by` | 等待／可并行 | `bool` | `entityId : string, x : float, y : float, speed : float` | 让场景实体按相对坐标移动。 |
+| `@entity_move_by_pixels` | 等待／可并行 | `bool` | `entityId : string, xPixels : float, yPixels : float, frames : int` | 按像素相对移动实体，`frames` 为目标持续帧数（`0` 表示立即到位）；返回是否走完整段位移。 |
+| `@entity_move_to_offset` | 等待／可并行 | `bool` | `entityId : string, targetId : string, xPixels : float, yPixels : float, frames : int` | 把实体移到「参照目标位置 + 像素偏移」处；返回是否走完整段位移。 |
 | `@entity_follow` | 立即 | `bool` | `entityId : string, targetId : string, distance : float, speed : float` | 让实体开始跟随目标。 |
 | `@entity_unfollow` | 立即 | `bool` | `entityId : string` | 停止实体跟随。 |
 | `@entity_action` | 等待／可并行 | `bool` | `entityId : string, actionId : string` | 请求执行已登记的实体动作，不接受原始 MoveScript。 |
@@ -286,6 +288,9 @@ PEVT-异步协程与等待模型.md
 - `position` 使用语义锚点，第一版至少包含 `left`、`center`、`right`、`near-left`、`near-right`、`far-left`、`far-right`、`off-left`、`off-right`。
 - `easing` 第一版只接受 `linear`、`ease_in`、`ease_out`、`ease_in_out`。
 - `@game_read_*` 的 `key` 是宿主只读查询表登记的键；取值集在运行期登记，静态侧看不全，因此未知键不是 `.pevt` 静态错误，真正缺失在执行时使用 `PEVTR4501`。
+- `@entity_move_by_pixels` 与 `@entity_move_to_offset` 的 `xPixels`/`yPixels` 是屏幕像素，由处理器按当前地图的格子尺寸换算成实体坐标；PEVT 侧不出现格子尺寸。
+- 这两条位移由 PEVT 时钟逐帧推进，不依赖事件期间已经暂停的地图主循环，并登记为当前事件的受管动作，因此 `@wait_motion` 能等到它们。
+- 每一步都走带落脚判定的位移：被地形挡住时立刻以 `false` 结束，实体停在已经走到的位置。实体或参照目标中途消失同样返回 `false`——按既有实体契约，这是脚本可预期情况，不产生运行诊断。
 - `@camera_move` 的 `targetId` 取以下写法之一：`player`（跟随玩家）、`point`（使用显式 `x`/`y`）、`entity:<key>`（按地图实体键跟随）、`anchor:<id>`（地图标签点）。不带前缀的裸标签点 ID 继续可用，但新代码应显式写 `anchor:`。
 - 前缀是封闭集：形如 `entities:foo` 的拼写错误是运行时参数错误（`PEVTR4001`），不会被静默当成标签点。具体实体键与标签点是地图运行期事实，不存在时报 `PEVTR4601`。
 - `player` 与 `entity:` 是跟随语义，不使用 `x`/`y`；被跟随的实体在动作进行中消失时报 `PEVTR4602`，动作完成之后消失则由适配器把镜头交回事件开始前的快照。

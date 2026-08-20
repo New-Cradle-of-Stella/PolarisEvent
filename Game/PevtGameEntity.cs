@@ -16,6 +16,14 @@ namespace Polaris.Event.Game
         /// <summary>移动每帧的最小步长，避免 <c>speed</c> 过小时事件永远停在等待上。</summary>
         private const float MinStepPerFrame = 0.01f;
 
+        private readonly PevtGameClock _clock;
+
+        /// <param name="clock">
+        /// 按帧推进的位移要登记成受管动作票据，<c>@wait_motion</c> 才能等到它们；
+        /// 速度式位移不需要时钟，所以这个参数允许为 null，只是那时按像素位移拿不到票据。
+        /// </param>
+        public PevtGameEntity(PevtGameClock clock = null) => _clock = clock;
+
         public bool TryResolve(string entityId) => Find(entityId) != null;
 
         /// <summary>
@@ -104,6 +112,89 @@ namespace Polaris.Event.Game
             return Step(entityId, speed, () => (targetX - mover.X, targetY - mover.Y, true));
         }
 
+        // ---- 按像素与帧的位移（PEVT-E03）----
+
+        /// <summary>
+        /// 按像素相对位移。
+        ///
+        /// 原版实体坐标以"格"为单位（<see cref="Map2d.CLEN"/> 像素一格，见 <c>canStandArea</c> 里
+        /// <c>drawx / CLEN</c> 的用法），而作者在素材上量到的是像素，因此这里按当前地图的 CLEN 换算。
+        /// 换算发生在适配层：PEVT 侧永远看不到格子尺寸。
+        /// </summary>
+        public PevtWait<bool> MoveByPixels(string entityId, float xPixels, float yPixels, int frames)
+        {
+            float cell = RequireCellSize();
+            GameCharacter mover = Find(entityId);
+            if (mover == null)
+                return Done(false);
+
+            // 目标点在动作开始时就定下来：相对位移的终点不该随实体自己被推来推去而漂移。
+            float targetX = mover.X + (xPixels / cell);
+            float targetY = mover.Y + (yPixels / cell);
+
+            return Track(new PevtGameEntityPixelWait(entityId, frames, _ => new GameVector2(targetX, targetY)));
+        }
+
+        /// <summary>
+        /// 走到"参照目标的位置 + 像素偏移"处。参照目标是锚点时终点固定；是另一个实体时每帧重新取它的位置，
+        /// 所以目标自己在动也能跟上，目标中途消失则按契约以 false 结束。
+        /// </summary>
+        public PevtWait<bool> MoveToOffset(string entityId, string targetId, float xPixels, float yPixels, int frames)
+        {
+            float cell = RequireCellSize();
+            if (Find(entityId) == null)
+                return Done(false);
+
+            float offsetX = xPixels / cell;
+            float offsetY = yPixels / cell;
+
+            GameMap map = PolarisAPI.Game.World.CurrentMap;
+            if (map == null)
+                return Done(false);
+
+            if (map.HasAnchor(targetId))
+            {
+                // 锚点坐标只能通过"把某个东西放上去"读到，原版没有公开的取点入口；
+                // 因此锚点形式先瞬时定位到锚点，再按帧走完偏移这一段。
+                GameCharacter mover = Find(entityId);
+                if (mover == null || !mover.MoveToAnchor(targetId))
+                    return Done(false);
+
+                float anchorTargetX = mover.X + offsetX;
+                float anchorTargetY = mover.Y + offsetY;
+                return Track(new PevtGameEntityPixelWait(entityId, frames, _ => new GameVector2(anchorTargetX, anchorTargetY)));
+            }
+
+            return Track(new PevtGameEntityPixelWait(entityId, frames, _ =>
+            {
+                GameCharacter target = PolarisAPI.Game.World.CurrentMap?.FindCharacter(targetId);
+                if (target == null)
+                    return null;
+
+                return new GameVector2(target.X + offsetX, target.Y + offsetY);
+            }));
+        }
+
+        /// <summary>
+        /// 当前地图的格子像素尺寸。没有地图就没有换算依据，这一条明确失败而不是猜一个默认值——
+        /// 猜出来的位移在别的地图上是错的，而且错得不明显。
+        /// </summary>
+        private static float RequireCellSize()
+        {
+            float cell = PevtGameHost.Safe(() => m2d.M2DBase.Instance?.curMap?.CLEN ?? 0f, 0f);
+            if (cell <= 0f)
+                throw Failed("当前没有加载地图，无法把像素换算成实体坐标。");
+
+            return cell;
+        }
+
+        /// <summary>把按帧推进的位移登记成受管动作票据，让 <c>@wait_motion</c> 也能等到它。</summary>
+        private PevtWait<bool> Track(PevtWait<bool> wait)
+        {
+            _clock?.RegisterMotion(() => wait.IsCompleted);
+            return wait;
+        }
+
         /// <summary>原版没有跟随系统（<c>IHkdsFollowable</c> 只是气泡定位接口），按签名返回 false 而不是抛异常。</summary>
         public bool StartFollow(string entityId, string targetId, float distance, float speed) => false;
 
@@ -142,6 +233,76 @@ namespace Polaris.Event.Game
 
         private static PevtRoutineFailureException Failed(string message) =>
             new PevtRoutineFailureException("PEVTR4001", message);
+    }
+
+    /// <summary>
+    /// PEVT-E03 的按帧位移：把剩余位移平均分到剩下的帧里，每帧走一段。
+    ///
+    /// 由 PEVT 时钟推进，不依赖地图主循环——事件期间主循环是停着的，靠它推进的位移会一动不动。
+    /// 每一步都走带落脚判定的位移（<see cref="GameCharacter.MoveBy"/> 的 <c>checkFoot</c>），
+    /// 因为让 NPC 穿墙比走不到位难查得多；被挡住时立刻以 false 结束，实体停在已经走到的位置。
+    /// </summary>
+    internal sealed class PevtGameEntityPixelWait : PevtWait<bool>
+    {
+        private readonly string _entityId;
+        private readonly int _frames;
+
+        /// <summary>每帧回答"终点在哪"；返回 null 表示参照目标已经消失。</summary>
+        private readonly Func<GameCharacter, GameVector2?> _destination;
+
+        private long _startFrame = -1;
+
+        public PevtGameEntityPixelWait(string entityId, int frames, Func<GameCharacter, GameVector2?> destination)
+        {
+            _entityId = entityId;
+            _frames = frames < 0 ? 0 : frames;
+            _destination = destination;
+        }
+
+        public override string ProgressSource => "实体按帧位移";
+
+        protected override void OnTick(PevtWaitContext context)
+        {
+            GameCharacter mover = PolarisAPI.Game.World.CurrentMap?.FindCharacter(_entityId);
+            if (mover == null)
+            {
+                CompleteSucceeded(false);
+                return;
+            }
+
+            if (_startFrame < 0)
+                _startFrame = context.Frame;
+
+            GameVector2? destination = _destination(mover);
+            if (destination == null)
+            {
+                CompleteSucceeded(false);
+                return;
+            }
+
+            float dx = destination.Value.X - mover.X;
+            float dy = destination.Value.Y - mover.Y;
+
+            // 与 PevtFrameWait 同一套帧计数：frames 为 0 时第一次推进就到位。
+            long remaining = _frames - (context.Frame - _startFrame);
+            if (remaining <= 0)
+            {
+                CompleteSucceeded(Step(mover, dx, dy));
+                return;
+            }
+
+            float step = 1f / remaining;
+            if (!Step(mover, dx * step, dy * step))
+                CompleteSucceeded(false);
+        }
+
+        private static bool Step(GameCharacter mover, float dx, float dy)
+        {
+            if (dx == 0f && dy == 0f)
+                return true;
+
+            return PevtGameHost.Safe(() => mover.MoveBy(new GameVector2(dx, dy)), false);
+        }
     }
 
     /// <summary>结果已经确定的位移等待，用于瞬时定位这类不需要跨帧推进的情形。</summary>

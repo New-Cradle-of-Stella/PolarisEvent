@@ -133,6 +133,31 @@ namespace Polaris.Pevt.Core.Tests.Runtime.Fakes
         protected override void OnTick(PevtWaitContext context) => CompleteSucceeded(_result);
     }
 
+    /// <summary>跨若干帧之后才按预设结果完成的等待。与 <see cref="PevtFrameWait"/> 同一套帧计数。</summary>
+    public sealed class FakeFramesBoolWait : PevtWait<bool>
+    {
+        private readonly int _frames;
+        private readonly bool _result;
+        private long _startFrame = -1;
+
+        public FakeFramesBoolWait(int frames, bool result)
+        {
+            _frames = frames < 0 ? 0 : frames;
+            _result = result;
+        }
+
+        public override string ProgressSource => "测试替身按帧位移";
+
+        protected override void OnTick(PevtWaitContext context)
+        {
+            if (_startFrame < 0)
+                _startFrame = context.Frame;
+
+            if (context.Frame - _startFrame >= _frames)
+                CompleteSucceeded(_result);
+        }
+    }
+
     public sealed class FakeEntity : IPevtEntity
     {
         public List<string> Calls { get; } = new List<string>();
@@ -182,6 +207,31 @@ namespace Polaris.Pevt.Core.Tests.Runtime.Fakes
             Calls.Add($"MoveBy({entityId},{x},{y},{speed})");
             return new FakeBoolWait(MoveArrives);
         }
+
+        // ---- 按像素与帧的位移（PEVT-E03）----
+
+        /// <summary>按帧位移是否走完整段。false 用来模拟"被碰撞挡住"或"实体中途消失"。</summary>
+        public bool PixelMoveCompletes { get; set; } = true;
+
+        /// <summary>模拟位移真的花掉帧数：替身按 <c>frames</c> 建一个跨帧等待，好验证 `_start` 并行语义。</summary>
+        public bool PixelMoveTakesFrames { get; set; }
+
+        public PevtWait<bool> MoveByPixels(string entityId, float xPixels, float yPixels, int frames)
+        {
+            Calls.Add($"MoveByPixels({entityId},{xPixels},{yPixels},{frames})");
+            return PixelWait(frames);
+        }
+
+        public PevtWait<bool> MoveToOffset(string entityId, string targetId, float xPixels, float yPixels, int frames)
+        {
+            Calls.Add($"MoveToOffset({entityId},{targetId},{xPixels},{yPixels},{frames})");
+            return PixelWait(frames);
+        }
+
+        private PevtWait<bool> PixelWait(int frames) =>
+            PixelMoveTakesFrames
+                ? (PevtWait<bool>)new FakeFramesBoolWait(frames, PixelMoveCompletes)
+                : new FakeBoolWait(PixelMoveCompletes);
 
         public bool StartFollow(string entityId, string targetId, float distance, float speed)
         {
