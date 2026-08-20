@@ -11,8 +11,9 @@ namespace Polaris.Event.Game
     /// </summary>
     internal sealed class PevtGameImage : IPevtImage
     {
-        private const string BackPrefix = "#pevt_";
-        private const string FrontPrefix = "&pevt_";
+        private const string BackPrefix = "#";
+        private const string FrontPrefix = "&";
+        private const int FirstLayerNumber = 9100;
 
         /// <summary>单张 CG 用固定的前景图层，不占用脚本可见的图层名字空间。</summary>
         private const string SingleLayerId = "__single";
@@ -21,6 +22,8 @@ namespace Polaris.Event.Game
 
         /// <summary>本事件建出来的图层：PEVT 图层 ID → 当前使用的原版键。</summary>
         private readonly Dictionary<string, string> _layers = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        private int _nextLayerNumber = FirstLayerNumber;
 
         private bool _singleOpen;
 
@@ -31,10 +34,17 @@ namespace Polaris.Event.Game
 
         private static string Num(float value) => value.ToString("0.###", CultureInfo.InvariantCulture);
 
-        private string VanillaKey(string layerId)
+        private string VanillaKey(string layerId, bool create)
         {
             string id = layerId ?? string.Empty;
-            return _layers.TryGetValue(id, out string key) ? key : BackPrefix + id;
+            if (_layers.TryGetValue(id, out string key))
+                return key;
+            if (!create)
+                return null;
+
+            key = BackPrefix + _nextLayerNumber++.ToString(CultureInfo.InvariantCulture);
+            _layers[id] = key;
+            return key;
         }
 
         /// <summary>取图层；<paramref name="create"/> 为 true 时不存在就建一个。</summary>
@@ -44,11 +54,11 @@ namespace Polaris.Event.Game
             if (drawers == null)
                 return null;
 
-            string key = VanillaKey(layerId);
-            EvDrawer drawer = PevtGameHost.Safe(() => drawers.Get(key, false, !create), null);
-            if (drawer != null && create)
-                _layers[layerId ?? string.Empty] = key;
+            string key = VanillaKey(layerId, create);
+            if (key == null)
+                return null;
 
+            EvDrawer drawer = PevtGameHost.Safe(() => drawers.Get(key, false, !create), null);
             return drawer;
         }
 
@@ -181,8 +191,9 @@ namespace Polaris.Event.Game
                     return;
 
                 string id = layerId ?? string.Empty;
-                string key = (order >= 0 ? FrontPrefix : BackPrefix) + id;
-                if (key == VanillaKey(id))
+                string oldKey = VanillaKey(id, true);
+                string key = (order >= 0 ? FrontPrefix : BackPrefix) + oldKey.Substring(1);
+                if (key == oldKey)
                     return;
 
                 drawer.rewriteKeyAndLayer(key);

@@ -37,6 +37,8 @@ namespace Polaris.Pevt.Core.Tests.Runtime.Fakes
 
         public string CurrentMap { get; private set; } = "town";
 
+        public string CurrentMapId => CurrentMap;
+
         public bool ResolveMap(string mapId)
         {
             Calls.Add($"ResolveMap({mapId})");

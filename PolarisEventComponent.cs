@@ -4,6 +4,7 @@ using System.Linq;
 using Polaris.Components;
 using Polaris.Event.Game;
 using Polaris.Event.Game.Debugging;
+using Polaris.Event.Game.Live;
 using Polaris.Pevt.Registration;
 using Polaris.Pevt.Runtime;
 
@@ -56,12 +57,25 @@ namespace Polaris.Event
         /// </summary>
         public override void Update()
         {
+            // 外部导入的对账排在推进之前：本帧要是重新导入并重启了事件，紧接着的调度器推进
+            // 就作用在新的那一份上，不会先白跑一帧旧的。
+            if (_runtime != null)
+                PevtLiveRuntime.Sync();
+
             _runtime?.Update();
             PevtDebugPage.Update();
         }
 
+        /// <summary>最后应用镜头震动，避免本帧后续的原版摄像机定位覆盖震动偏移。</summary>
+        public override void LateUpdate()
+        {
+            _runtime?.LateUpdate();
+        }
+
         public override void Shutdown()
         {
+            // 先收热重载通道：它的撤销会动注册表，必须赶在运行时被丢掉之前完成。
+            PevtLiveRuntime.Shutdown();
             PevtDebugPage.Shutdown();
             _runtime?.Shutdown();
             _runtime = null;

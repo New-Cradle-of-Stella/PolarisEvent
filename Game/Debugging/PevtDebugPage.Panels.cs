@@ -13,6 +13,7 @@ namespace Polaris.Event.Game.Debugging
     {
         private static string _startId = string.Empty;
         private static bool _showFinished;
+        private static bool _queryFailuresOnly;
 
         private static PevtGameRuntime Runtime => PolarisEventComponent.Runtime;
 
@@ -306,8 +307,19 @@ namespace Polaris.Event.Game.Debugging
                     StartEvent(candidate.EventId);
 
                 GUILayout.Label(candidate.EventId, Styles.Text, GUILayout.Width(260f));
-                GUILayout.Label(candidate.Owner + " : " + candidate.SourcePath, Styles.Dim);
+                GUILayout.Label(
+                    (candidate.Origin == PevtEventOrigin.External ? "[external] " : string.Empty)
+                    + candidate.Owner + " : " + candidate.SourcePath,
+                    Styles.Dim);
                 GUILayout.EndHorizontal();
+            }
+
+            IReadOnlyList<PevtEventOverride> overrides = events.Overrides;
+            if (overrides.Count > 0)
+            {
+                Header(overrides.Count + " event(s) overridden by an external import");
+                foreach (PevtEventOverride entry in overrides)
+                    GUILayout.Label(OneLine(entry.Describe()), Styles.Text);
             }
 
             IReadOnlyList<PevtEventConflict> conflicts = events.Conflicts;
@@ -362,6 +374,55 @@ namespace Polaris.Event.Game.Debugging
 
                 if (instance.Diagnostic != null)
                     GUILayout.Label("      " + OneLine(instance.Diagnostic.Describe()), Styles.Warning);
+            }
+        }
+
+        // ---- Queries ----
+
+        /// <summary>
+        /// PEVT-E01 的只读查询记录。展示键、参数、目标类型、原始结果与失败原因——
+        /// "读到了什么"和"为什么用不了"是两件事，转换失败时两条记录都在，因此这里不合并它们。
+        /// </summary>
+        private static void DrawQueries()
+        {
+            PevtGameQueryLog log = PevtGameQueryLog.Shared;
+
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("Clear log", Styles.Button, GUILayout.Width(110f)))
+                log.Clear();
+            _queryFailuresOnly = GUILayout.Toggle(_queryFailuresOnly, " only show failures", Styles.Toggle);
+            GUILayout.EndHorizontal();
+
+            Header(log.TotalCount + " query(ies) since load, " + log.FailureCount + " failed"
+                   + "  (keeping the last " + PevtGameQueryLog.Capacity + ")");
+
+            IReadOnlyList<PevtGameQueryTrace> recent = log.Recent;
+            if (recent.Count == 0)
+            {
+                Dim("No `@game_read_*` call has run yet.");
+                return;
+            }
+
+            // 新的在上：排查刚出的问题时最想看的就是最后一次。
+            for (int i = recent.Count - 1; i >= 0; i--)
+            {
+                PevtGameQueryTrace trace = recent[i];
+                if (_queryFailuresOnly && trace.IsSuccess)
+                    continue;
+
+                GUILayout.Label(
+                    "frame " + trace.Frame + "  "
+                    + (string.IsNullOrEmpty(trace.EventId) ? "(no event)" : trace.EventId) + "  " + trace.Call,
+                    trace.IsSuccess ? Styles.Text : Styles.Warning);
+
+                Dim("      key: " + trace.Key
+                    + "   args: " + (trace.Arguments.Count == 0 ? "(none)" : string.Join(", ", trace.Arguments))
+                    + "   as: " + trace.TargetType.DisplayName());
+
+                Dim("      raw result: " + (trace.Value.HasValue ? trace.Value.Value.Describe() : "(none — key not resolved)"));
+
+                if (!trace.IsSuccess)
+                    GUILayout.Label("      " + trace.DiagnosticId + ": " + OneLine(trace.Failure), Styles.Warning);
             }
         }
 

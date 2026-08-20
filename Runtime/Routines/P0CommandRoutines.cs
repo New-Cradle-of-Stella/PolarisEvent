@@ -82,6 +82,7 @@ namespace Polaris.Pevt.Runtime.Routines
         {
             Add(registry, "actor_enter", ActorRoutines.ActorEnter, Str, Str, Str, Int);
             Add(registry, "actor_exit", ActorRoutines.ActorExit, Str, Int);
+            Add(registry, "actor_hide_all", ActorRoutines.ActorHideAll, Int);
             Add(registry, "actor_move", ActorRoutines.ActorMove, Str, Str, Int);
             Add(registry, "actor_appearance", ActorRoutines.ActorAppearance, Str, Str);
             Add(registry, "actor_emote", ActorRoutines.ActorEmote, Str, Str);
@@ -140,6 +141,7 @@ namespace Polaris.Pevt.Runtime.Routines
         {
             Add(registry, "ui_visible", UiRoutines.UiVisible, Bool);
             Add(registry, "status_visible", UiRoutines.StatusVisible, Bool);
+            Add(registry, "ui_portrait_visible", UiRoutines.UiPortraitVisible, Bool);
             Add(registry, "letterbox_visible", UiRoutines.LetterboxVisible, Bool, Int);
             Add(registry, "blur_visible", UiRoutines.BlurVisible, Bool, Int);
             Add(registry, "alert", UiRoutines.Alert, Str, Str);

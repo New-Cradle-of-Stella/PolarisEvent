@@ -275,7 +275,11 @@ namespace Polaris.Pevt.Core.Tests.Commands
             Assert.False(say.IsAsync);
             Assert.True(say.HasValidSignatureShape());
             Assert.Same(ParameterDomain.ActorId, say.Parameters[0].Domain);
-            Assert.Null(say.Parameters[1].Domain);
+            Assert.Same(ParameterDomain.Text, say.Parameters[1].Domain);
+
+            // 没有域的形参投影过去仍然没有域——`voiceId` 是运行期才知道存不存在的音频 ID，不属于任何域。
+            BuiltinSignature bind = Assert.Single(table.Find("talker_bind"));
+            Assert.Null(bind.Parameters[2].Domain);
 
             BuiltinSignature start = Assert.Single(table.Find("actor_move_start"));
             Assert.True(start.IsAsync);
@@ -315,6 +319,47 @@ namespace Polaris.Pevt.Core.Tests.Commands
                         Assert.Same(ParameterDomain.Easing, parameter.Domain);
                     if (parameter.Name == "position")
                         Assert.Same(ParameterDomain.ActorAnchor, parameter.Domain);
+                }
+            }
+        }
+
+        /// <summary>
+        /// 玩家看得见的文案必须全部带 text 域：漏一条不会报错，只会在游戏里显示成一串 `&key`
+        /// ——因此这份清单在测试里再钉一遍，而不是只写在描述表里。
+        /// </summary>
+        [Fact]
+        public void PlayerFacingTextParametersCarryTheTextDomain()
+        {
+            var expected = new[]
+            {
+                ("say", "text"), ("narrate", "text"), ("board", "text"),
+                ("talker_bind", "displayName"),
+                ("choose", "prompt"), ("choose", "option1"), ("choose", "option2"),
+                ("choose", "option3"), ("choose", "option4"),
+                ("choice_add", "text"), ("choice_show", "prompt"),
+                ("cg_show", "caption"), ("alert", "text"), ("title_show", "text"),
+            };
+
+            foreach ((string command, string parameter) in expected)
+            {
+                CommandParameter[] found = CommandDescriptorCatalog.Builtin.Descriptors
+                    .Where(d => d.Name == command)
+                    .SelectMany(d => d.Parameters)
+                    .Where(p => p.Name == parameter)
+                    .ToArray();
+
+                Assert.NotEmpty(found);
+                foreach (CommandParameter p in found)
+                    Assert.Same(ParameterDomain.Text, p.Domain);
+            }
+
+            // 反过来：带 text 域的形参不能多出这份清单之外的条目，否则等于悄悄扩大了本地化面。
+            foreach (CommandDescriptor descriptor in CommandDescriptorCatalog.Builtin.Descriptors)
+            {
+                foreach (CommandParameter parameter in descriptor.Parameters)
+                {
+                    if (ReferenceEquals(parameter.Domain, ParameterDomain.Text))
+                        Assert.Contains((descriptor.Name, parameter.Name), expected);
                 }
             }
         }

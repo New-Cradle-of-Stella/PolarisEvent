@@ -42,6 +42,9 @@ namespace Polaris.Pevt.IntegrationTests
             "PevtGameEntity",
             "RawCmd.PevtGameRawCommandBridge",
             "RawCmd.PevtGameRawCommandSession",
+
+            // PEVT-E01：任意已登记游戏值的只读查询表。
+            "PevtGameQueryTable",
         };
 
         private static readonly string[] GameAssemblies =

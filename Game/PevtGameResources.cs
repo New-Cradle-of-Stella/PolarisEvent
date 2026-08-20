@@ -49,10 +49,13 @@ namespace Polaris.Event.Game
                         return PevtResourceStatus.Failed;
 
                     // 借用之后原版才把 Bundle 拉进来是常态，所以每次都重查一遍。
-                    if (!_gameLease.IsReady)
+                    // 只有 PxlCharacter 还不够：TalkDrawer 绘制还需要已经绑定的 MImage/纹理。
+                    if (!_gameLease.IsReady || _gameLease.Image == null)
                         GamePxlsBridge.Refresh(_gameLease);
 
-                    return _gameLease.IsReady ? PevtResourceStatus.Ready : PevtResourceStatus.Loading;
+                    return _gameLease.IsReady && _gameLease.Image != null
+                        ? PevtResourceStatus.Ready
+                        : PevtResourceStatus.Loading;
                 }
 
                 if (_modHandle == null)
@@ -127,7 +130,7 @@ namespace Polaris.Event.Game
 
             bool isStatic = visual.Lifetime == ActorVisualLifetime.Static;
             PevtVisualLease lease = visual.Resource.Provider == ActorVisualProvider.GamePxls
-                ? BorrowGame(visual.Resource, isStatic)
+                ? BorrowGame(visual.Resource, visual.LegacyPerson, isStatic)
                 : BorrowMod(actorId, visualKey, visual.Resource, isStatic);
 
             if (lease == null)
@@ -144,10 +147,18 @@ namespace Polaris.Event.Game
                 ? lease
                 : null;
 
-        private static PevtVisualLease BorrowGame(ActorVisualResource resource, bool isStatic)
+        private static PevtVisualLease BorrowGame(ActorVisualResource resource, string legacyPerson, bool isStatic)
         {
             if (!GamePxlsId.TryParse(resource.Asset, out GamePxlsId id))
                 return null;
+
+            // 原版 EvtCacheRead 遇到人物 PIC 时正是走 cacheGraphics；PEVT 没有 EvReader，
+            // 必须在这里显式触发同一条 EvPxlsLoader/LoadTicket 加载链。
+            if (!string.IsNullOrEmpty(legacyPerson))
+            {
+                PevtGameHost.Guard("CachePortraitGraphics", () =>
+                    EvPerson.getPerson(legacyPerson, null)?.cacheGraphics());
+            }
 
             return PevtVisualLease.FromGame(GamePxlsBridge.Borrow(id), isStatic);
         }

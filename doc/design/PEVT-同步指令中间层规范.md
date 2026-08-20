@@ -87,6 +87,7 @@ public interface IPevtCommandRoutine
 | `World` / `Entity` | 地图、天气、地图元素和场景实体。 |
 | `State` / `Inventory` / `Quest` | 持久状态、物品、能力、任务和存档。 |
 | `Player` / `Battle` | Alice In Cradle 领域操作。 |
+| `GameQuery` | 任意已登记游戏值的只读查询（键 + 参数 → 一个数值或一段文本）。只读，不提供写入、反射或对象引用。 |
 
 ## 6. 调度与对话组合
 
@@ -119,6 +120,7 @@ public interface IPevtCommandRoutine
 | --- | --- | --- |
 | `@actor_enter` | `ActorCatalog.RequireVisual(actorId, appearanceId)` → `ActorCatalog.RequireAnchor(actorId, position)` → `Resources.RequirePortrait(visual)` → `Portrait.SetAppearance(actorId, visual)` → `Portrait.Place(actorId, anchor, frames)` | 无 |
 | `@actor_exit` | `Portrait.Exit(actorId, frames)` | 无 |
+| `@actor_hide_all` | `Portrait.HideAll(frames)` | 无 |
 | `@actor_move` | `ActorCatalog.RequireAnchor(actorId, position)` → `Portrait.Move(actorId, anchor, frames)` | 无 |
 | `@actor_appearance` | `ActorCatalog.RequireVisual(actorId, appearanceId)` → `Resources.RequirePortrait(visual)` → `Portrait.SetAppearance(actorId, visual)` | 无 |
 | `@actor_emote` | `Portrait.ValidateEmote(actorId, emoteId)` → `Portrait.PlayEmote(actorId, emoteId)` | 无 |
@@ -176,6 +178,7 @@ public interface IPevtCommandRoutine
 | --- | --- | --- |
 | `@ui_visible` | `Ui.SetGlobalVisible(visible)` | 无 |
 | `@status_visible` | `Ui.SetStatusVisible(visible)` | 无 |
+| `@ui_portrait_visible` | `Ui.SetPortraitVisible(visible)` | 无 |
 | `@letterbox_visible` | `Ui.SetLetterboxVisible(visible, frames)` | 无 |
 | `@blur_visible` | `Ui.SetBlurVisible(visible, frames)` | 无 |
 | `@alert` | `Ui.ShowAlert(text, style)` → `Ui.WaitAlertClose()` | 无 |
@@ -237,6 +240,28 @@ public interface IPevtCommandRoutine
 | `@store_refresh` | `Inventory.ResolveStore(storeId)` → `Inventory.RefreshStore(storeId)` | 无 |
 
 持久状态修改不参与组合失败时的自动回滚。因此所有可失败的 ID、范围和资源校验必须位于第一个写操作之前。
+
+## 12.1 游戏值只读查询组合
+
+| `@` API | 有序原子方法 | 最终结果 |
+| --- | --- | --- |
+| `@game_read_int` | `GameQuery.TryRead(key, args)` → 转换成 `int` | 返回整数值 |
+| `@game_read_float` | `GameQuery.TryRead(key, args)` → 转换成 `float` | 返回浮点值 |
+| `@game_read_bool` | `GameQuery.TryRead(key, args)` → 转换成 `bool` | 返回布尔值 |
+| `@game_read_string` | `GameQuery.TryRead(key, args)` → 转换成 `string` | 返回文本值 |
+
+`TryRead` 只有三种结果：找到、键不存在、参数不合法。转换是查询之后独立的一步，因此
+"读到了什么"和"为什么用不了"永远是两条可分辨的信息：
+
+- 键不存在或宿主没接查询表 → `PEVTR4501`。
+- 键存在但参数不满足它的要求 → `PEVTR4502`。
+- 读到了结果但转换不成目标类型 → `PEVTR4503`，诊断里带上原始结果。
+
+转换规则：数值结果读成 `int` 时必须本身就是整数（不截断）；读成 `bool` 时按非零为真；
+读成 `string` 时用不受区域设置影响的往返格式。文本结果读成数值或布尔时按不变文化解析，
+`true`/`false`/`1`/`0` 之外的文本不猜测真假。
+
+这条组合没有 `_start` 变体：只读查询在当前解释步内完成，没有"并行"语义。
 
 ## 13. Alice In Cradle 领域组合
 

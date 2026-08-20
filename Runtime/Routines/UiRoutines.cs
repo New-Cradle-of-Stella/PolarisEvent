@@ -75,6 +75,18 @@ namespace Polaris.Pevt.Runtime.Routines
             yield break;
         }
 
+        public static IEnumerator<PevtWait> UiPortraitVisible(PevtRoutineContext context, PevtArguments args)
+        {
+            IPevtUi ui = Ui(context);
+            bool visible = args.Bool(0);
+
+            ui.SetPortraitVisible(visible);
+            if (!visible)
+                context.Services.Session.RegisterRestore("Ui.SetPortraitVisible(true)", () => ui.SetPortraitVisible(true));
+
+            yield break;
+        }
+
         public static IEnumerator<PevtWait> LetterboxVisible(PevtRoutineContext context, PevtArguments args)
         {
             IPevtUi ui = Ui(context);

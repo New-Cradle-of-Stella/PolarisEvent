@@ -27,6 +27,7 @@
   <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
     <Compile Remove="PolarisEventComponent.cs" />
     <Compile Remove="Game\**\*.cs" />
+    <Compile Remove="Patch\**\*.cs" />
   </ItemGroup>
 
   <ItemGroup>

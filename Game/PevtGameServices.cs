@@ -86,8 +86,13 @@ namespace Polaris.Event.Game
                     state: new PevtGameState(),
                     inventory: new PevtGameInventory(),
                     quest: new PevtGameQuest()),
+                // PEVT-E01：任意已登记只读游戏值。查询表是无状态的，每个会话一份也不占资源。
+                new PevtGameQueryTable(),
                 rawCommands,
-                rawCs);
+                rawCs,
+                // 带 text 参数域的实参（@say/@narrate/@choose… 的文案）在进处理器前过这一层：
+                // `&key` 按 .plang 与原版语言表解析，普通文本原样通过。
+                PevtGameLocalization.Instance);
 
             Camera.CaptureSnapshot();
         }

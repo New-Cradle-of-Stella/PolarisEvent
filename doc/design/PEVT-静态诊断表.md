@@ -346,6 +346,13 @@
 | `PEVT9209` | `EmbeddedDeclaredIdMismatch` | Error | 源码 `id` 与嵌入包 `DeclaredId` 不完全一致。 |
 | `PEVT9210` | `InvalidEmbeddedSourcePath` | Error | `SourcePath` 为空、包含盘符或根路径、或包含 `..` 段，不是项目相对路径。 |
 
+外部导入（`PEVT-外部导入与热重载规范.md`）没有信封字段，因此 `PEVT9201`–`PEVT9210` 里只有"大小"和"编码"两条对它成立，各自单独编号，与嵌入包的同类编号区分开：看到 `PEVT9212` 就知道问题出在作者本机的文件上，而不是某个模组的嵌入包坏了。
+
+| 编号 | 名称 | 级别 | 触发条件 |
+| --- | --- | --- | --- |
+| `PEVT9211` | `ExternalSourceTooLarge` | Error | 外部导入的 `.pevt` 字节数超过单个事件源的上限。 |
+| `PEVT9212` | `InvalidExternalSourceEncoding` | Error | 外部导入的 `.pevt` 不是合法 UTF-8 源文本。 |
+
 ## 被更具体编号取代的通用规则
 
 以下编号是规范层面的通用规则，实现时每一种具体情形都有更精确的编号，因此加载器不会直接发射它们。保留条目是为了让规则本身有出处，不是给实现留缺口：

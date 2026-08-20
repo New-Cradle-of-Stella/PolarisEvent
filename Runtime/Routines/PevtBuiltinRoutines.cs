@@ -23,6 +23,26 @@ namespace Polaris.Pevt.Runtime.Routines
             RegisterWorld(registry);
             RegisterEntities(registry);
             RegisterState(registry);
+            RegisterGameQueries(registry);
+        }
+
+        /// <summary>
+        /// PEVT-E01：四条只读查询各有 <c>key + 0..MaxQueryArguments</c> 个重载，
+        /// 全部共用同一个组合——重载之间只有实参数量不同。
+        /// </summary>
+        private static void RegisterGameQueries(PevtCommandRegistry registry)
+        {
+            for (int argumentCount = 0; argumentCount <= Commands.BuiltinCommandDescriptors.MaxQueryArguments; argumentCount++)
+            {
+                var types = new PevtType[argumentCount + 1];
+                for (int i = 0; i < types.Length; i++)
+                    types[i] = Str;
+
+                Add(registry, "game_read_int", GameQueryRoutines.GameReadInt, types);
+                Add(registry, "game_read_float", GameQueryRoutines.GameReadFloat, types);
+                Add(registry, "game_read_bool", GameQueryRoutines.GameReadBool, types);
+                Add(registry, "game_read_string", GameQueryRoutines.GameReadString, types);
+            }
         }
 
         private static void Add(
@@ -34,6 +54,7 @@ namespace Polaris.Pevt.Runtime.Routines
 
         private static void RegisterWorld(PevtCommandRegistry registry)
         {
+            Add(registry, "require_map", WorldRoutines.RequireMap, Str);
             Add(registry, "map_change", WorldRoutines.MapChange, Str, Str);
             Add(registry, "map_refresh", WorldRoutines.MapRefresh, Str);
             Add(registry, "map_layer_load", WorldRoutines.MapLayerLoad, Str);

@@ -625,7 +625,8 @@ namespace Polaris.Pevt.Runtime
                 arguments[i] = Pop(frame);
 
             var context = new PevtRoutineContext(Id, EventId, LocationOf(instruction.Span), _services);
-            _command = new PevtCommandFrame(descriptor, new PevtArguments(arguments), routine, context, instruction.Span);
+            var localized = new PevtArguments(PevtTextArguments.Localize(descriptor, arguments, _services.Localization));
+            _command = new PevtCommandFrame(descriptor, localized, routine, context, instruction.Span);
 
             PevtRuntimeDiagnostic startError = _command.Start();
             if (startError != null)

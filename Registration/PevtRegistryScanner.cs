@@ -135,6 +135,65 @@ namespace Polaris.Pevt.Registration
             }
         }
 
+        // ---- 外部导入 ----
+
+        /// <summary>
+        /// 外部导入统一使用的 owner。刻意用一个不可能是程序集名的名字（`#` 开头）：
+        /// 它要和真实模组的 owner 明确区分，卸载时才能只撤销外部候选而不碰任何模组的注册。
+        /// </summary>
+        public const string ExternalOwner = "#external";
+
+        /// <summary>冲突与覆盖报告里显示的外部来源名。</summary>
+        public const string ExternalDisplayName = "外部导入";
+
+        /// <summary>
+        /// 加载一份外部源。用的是本扫描器自己的上限、API 表与 <c>$raw cs</c> 分析器，
+        /// 因此外部导入与嵌入注册对同一份源码得到完全一致的 PEVTxxxx。
+        /// </summary>
+        public PevtExternalLoadResult LoadExternal(PevtExternalSource source, CancellationToken cancellationToken = default) =>
+            PevtExternalSourceLoader.Load(source, _limits, _builtinApi, cancellationToken, _rawCsAnalyzer);
+
+        /// <summary>
+        /// 用一批外部源整批替换 <see cref="ExternalOwner"/> 名下的候选。
+        /// 加载失败的文件不进入 `/event`，但它的诊断会留在返回的报告里——外部导入的失败是作者
+        /// 正在改的那一行写错了，必须能立刻看到，因此不写进 <see cref="PevtEventRegistry.Failures"/>
+        /// 那张"发布路径的加载失败"表里混淆两者。
+        /// </summary>
+        public PevtExternalApplyReport ApplyExternal(
+            IReadOnlyList<PevtExternalSource> sources,
+            CancellationToken cancellationToken = default)
+        {
+            var results = new List<PevtExternalLoadResult>();
+            var registrations = new List<PevtExternalRegistration>();
+
+            if (sources != null)
+            {
+                foreach (PevtExternalSource source in sources)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (source == null)
+                        continue;
+
+                    PevtExternalLoadResult result = LoadExternal(source, cancellationToken);
+                    results.Add(result);
+
+                    if (result.Success)
+                    {
+                        registrations.Add(new PevtExternalRegistration(
+                            result.Definition, source.DisplayPath, source.ContentHash));
+                    }
+                }
+            }
+
+            IReadOnlyList<PevtEventCandidate> registered =
+                Events.ReplaceExternal(ExternalOwner, ExternalDisplayName, registrations);
+
+            return new PevtExternalApplyReport(results, registered, Events.Overrides);
+        }
+
+        /// <summary>撤销全部外部候选，`/event` 回到只有嵌入源的状态。返回撤销的条数。</summary>
+        public int ClearExternal() => Events.Unload(ExternalOwner);
+
         /// <summary>
         /// 封闭两张注册表。事件与人物分开 Seal，避免相同字符串在两个空间中互相影响；
         /// 返回值把两组冲突分开呈现，调用方据此产生致命报告。
@@ -160,6 +219,99 @@ namespace Polaris.Pevt.Registration
                 return ex.Types.Where(type => type != null).Select(type => type.GetTypeInfo());
             }
         }
+    }
+
+    /// <summary>一次外部导入的汇总结果。逐文件保留加载结果，成功与失败都能定位到具体路径。</summary>
+    public sealed class PevtExternalApplyReport
+    {
+        /// <summary>逐个外部源的加载结果，顺序与传入顺序一致。</summary>
+        public IReadOnlyList<PevtExternalLoadResult> Results { get; }
+
+        /// <summary>本次登记进 `/event` 的候选。</summary>
+        public IReadOnlyList<PevtEventCandidate> Registered { get; }
+
+        /// <summary>本次生效后被外部源盖住的嵌入事件。</summary>
+        public IReadOnlyList<PevtEventOverride> Overrides { get; }
+
+        internal PevtExternalApplyReport(
+            IReadOnlyList<PevtExternalLoadResult> results,
+            IReadOnlyList<PevtEventCandidate> registered,
+            IReadOnlyList<PevtEventOverride> overrides)
+        {
+            Results = results;
+            Registered = registered;
+            Overrides = overrides;
+        }
+
+        public int SucceededCount
+        {
+            get
+            {
+                int count = 0;
+                foreach (PevtExternalLoadResult result in Results)
+                {
+                    if (result.Success)
+                        count++;
+                }
+
+                return count;
+            }
+        }
+
+        public int FailedCount => Results.Count - SucceededCount;
+
+        /// <summary>失败的那些结果，供调试页与回执逐条展示。</summary>
+        public IReadOnlyList<PevtExternalLoadResult> Failed
+        {
+            get
+            {
+                var failed = new List<PevtExternalLoadResult>();
+                foreach (PevtExternalLoadResult result in Results)
+                {
+                    if (!result.Success)
+                        failed.Add(result);
+                }
+
+                return failed;
+            }
+        }
+
+        /// <summary>本次登记成功的事件 ID，按序数升序。</summary>
+        public IReadOnlyList<string> EventIds
+        {
+            get
+            {
+                var ids = new List<string>();
+                foreach (PevtEventCandidate candidate in Registered)
+                    ids.Add(candidate.EventId);
+                ids.Sort(StringComparer.Ordinal);
+                return ids;
+            }
+        }
+
+        /// <summary>一行回执文本，直接送回 PolarisTools 或写进调试页页脚。</summary>
+        public string Describe()
+        {
+            var builder = new System.Text.StringBuilder();
+            builder.Append(SucceededCount).Append(" 个事件已导入");
+            if (FailedCount > 0)
+                builder.Append("，").Append(FailedCount).Append(" 个失败");
+            if (Overrides.Count > 0)
+                builder.Append("，").Append(Overrides.Count).Append(" 个盖住了嵌入版本");
+            builder.Append("。");
+
+            foreach (PevtExternalLoadResult result in Failed)
+            {
+                builder.Append(Environment.NewLine).Append(result.Source.DisplayPath).Append(": ");
+                builder.Append(result.Diagnostics.Count > 0
+                    ? result.Diagnostics[0].Id + " " + result.Diagnostics[0].Message
+                    : result.Failure.ToString());
+            }
+
+            return builder.ToString();
+        }
+
+        public override string ToString() => Describe();
     }
 
     /// <summary>一次扫描的汇总结果。事件与人物冲突分表收集，互不影响。</summary>

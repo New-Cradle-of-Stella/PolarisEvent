@@ -58,6 +58,40 @@ namespace Polaris.Pevt.Core.Tests.Runtime.Fakes
     }
 
     /// <summary>记录调用顺序的对话替身。<see cref="AdvanceSignal"/> 让测试精确控制何时推进。</summary>
+    /// <summary>
+    /// 显示文案解析的替身。规则刻意和游戏侧一致：<c>&amp;</c> 开头查表（查不到显示 key 本身），
+    /// <c>&amp;&amp;</c> 开头脱转义，其余原样——但表是测试自己填的，不碰任何游戏语言资源。
+    /// </summary>
+    public sealed class FakeLocalization : IPevtLocalization
+    {
+        public Dictionary<string, string> Table { get; } = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        /// <summary>被问过的原始字符串，按顺序。用来断言"只有文案形参走了这里"。</summary>
+        public List<string> Asked { get; } = new List<string>();
+
+        public FakeLocalization Add(string key, string value)
+        {
+            Table[key] = value;
+            return this;
+        }
+
+        public string Text(string raw)
+        {
+            if (raw == null)
+                return null;
+
+            Asked.Add(raw);
+
+            if (raw.Length >= 2 && raw[0] == '&' && raw[1] == '&')
+                return raw.Substring(1);
+            if (raw.Length < 2 || raw[0] != '&')
+                return raw;
+
+            string key = raw.Substring(1);
+            return Table.TryGetValue(key, out string value) ? value : key;
+        }
+    }
+
     public sealed class FakeDialogue : IPevtDialogue
     {
         public List<string> Calls { get; } = new List<string>();
@@ -214,6 +248,12 @@ namespace Polaris.Pevt.Core.Tests.Runtime.Fakes
             return new PevtFrameWait(frames);
         }
 
+        public PevtWait HideAll(int frames)
+        {
+            Calls.Add($"HideAll({frames})");
+            return new PevtFrameWait(frames);
+        }
+
         public bool ValidateEmote(string actorId, string emoteId) => KnownEmotes.Contains(emoteId);
 
         public void PlayEmote(string actorId, string emoteId) => Calls.Add($"PlayEmote({actorId},{emoteId})");
@@ -299,6 +339,7 @@ namespace Polaris.Pevt.Core.Tests.Runtime.Fakes
         // IPevtUi
         public void SetGlobalVisible(bool visible) => Calls.Add($"SetGlobalVisible({visible})");
         public void SetStatusVisible(bool visible) => Calls.Add($"SetStatusVisible({visible})");
+        public void SetPortraitVisible(bool visible) => Calls.Add($"SetPortraitVisible({visible})");
         public PevtWait SetLetterboxVisible(bool visible, int frames) => Record($"SetLetterboxVisible({visible})", frames);
         public PevtWait SetBlurVisible(bool visible, int frames) => Record($"SetBlurVisible({visible})", frames);
         public void ShowAlert(string text, string style) => Calls.Add($"ShowAlert({text})");
@@ -321,5 +362,50 @@ namespace Polaris.Pevt.Core.Tests.Runtime.Fakes
         public void SetCapability(string capability, bool enabled) => Calls.Add($"SetCapability({capability},{enabled})");
         public bool ValidateKey(string key) => key.Length > 0;
         public void SetKeyEnabled(string key, bool enabled) => Calls.Add($"SetKeyEnabled({key},{enabled})");
+    }
+
+    /// <summary>
+    /// 只读游戏查询表替身。测试往 <see cref="Numbers"/>/<see cref="Texts"/> 里放键，
+    /// <see cref="RequiredArgumentCounts"/> 用来模拟"键存在但参数不对"。
+    /// </summary>
+    public sealed class FakeGameQuery : IPevtGameQuery
+    {
+        public List<string> Calls { get; } = new List<string>();
+
+        public Dictionary<string, double> Numbers { get; } = new Dictionary<string, double>(StringComparer.Ordinal);
+
+        public Dictionary<string, string> Texts { get; } = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        /// <summary>键 → 它要求的查询参数数量。没有登记的键不检查参数。</summary>
+        public Dictionary<string, int> RequiredArgumentCounts { get; } = new Dictionary<string, int>(StringComparer.Ordinal);
+
+        /// <summary>让指定键的处理器抛异常，用来验证适配边界不会把宿主异常泄漏成内部错误。</summary>
+        public HashSet<string> ThrowingKeys { get; } = new HashSet<string>(StringComparer.Ordinal);
+
+        public PevtQueryStatus TryRead(string key, IReadOnlyList<string> arguments, out PevtQueryValue value)
+        {
+            value = default(PevtQueryValue);
+            Calls.Add($"TryRead({key}" + (arguments == null || arguments.Count == 0 ? "" : "," + string.Join(",", arguments)) + ")");
+
+            if (ThrowingKeys.Contains(key))
+                throw new InvalidOperationException("查询表故意抛出。");
+
+            bool known = Numbers.ContainsKey(key) || Texts.ContainsKey(key);
+            if (!known)
+                return PevtQueryStatus.UnknownKey;
+
+            if (RequiredArgumentCounts.TryGetValue(key, out int required)
+                && (arguments == null ? 0 : arguments.Count) != required)
+                return PevtQueryStatus.InvalidArguments;
+
+            if (Texts.TryGetValue(key, out string text))
+            {
+                value = PevtQueryValue.FromText(text);
+                return PevtQueryStatus.Found;
+            }
+
+            value = PevtQueryValue.FromNumber(Numbers[key]);
+            return PevtQueryStatus.Found;
+        }
     }
 }

@@ -62,6 +62,9 @@
 | `PEVTR4403` | `ActorResourceFailed` | Runtime Error | 人物视觉引用的原版 PXLS 或 PolarisRes 资源不存在、加载失败或在等待上限内未就绪。 |
 | `PEVTR4404` | `ActorCatalogConflict` | Runtime Error | 多个已加载程序集注册相同最终人物 ID，人物目录无法得到唯一目标。 |
 | `PEVTR4405` | `ActorVisualContractViolation` | Runtime Error | 已登记视觉的实际资源类型、PXLS pose/frame 或生成注册契约与人物目录声明不一致。 |
+| `PEVTR4501` | `GameQueryKeyNotFound` | Runtime Error | 执行 `@game_read_*` 时，宿主的只读查询表中没有登记指定的键，或当前运行时根本没有接查询表。 |
+| `PEVTR4502` | `GameQueryArgumentsInvalid` | Runtime Error | 只读查询键存在，但给定的查询参数数量、取值或格式不满足该键的要求。 |
+| `PEVTR4503` | `GameQueryResultNotConvertible` | Runtime Error | 只读查询成功回报了结果，但该结果无法转换成调用点要求的 PEVT 普通类型。 |
 
 ## 6. 异步操作与句柄
 

@@ -132,6 +132,7 @@ C:\Users\Administrator\Documents\polarisDocs\事件技术文档-LLM 可读版.md
 | `layer.singleImage.show` | `assetId : string, captionId : string` | Awaitable, Cacheable | `PIC_SWIN` |
 | `layer.hide` | `layerId : string, immediate : bool` | Awaitable, Stateful | `PIC_HIDE` |
 | `layer.group.hide` | `group : string, immediate : bool` | Awaitable, Stateful | `PIC_HIDE_ALL` |
+| `portrait.hideAll` | `frames : int` | Awaitable, Stateful | `PIC_HIDE_ALL` 中只针对人物立绘的那一半；只收 PolarisEvent 自己建立的立绘。 |
 | `layer.move` | `layerId : string, x : float, y : float, frames : int, easing : string` | Awaitable, Stateful | `PIC_MOVE`、`PIC_MV` |
 | `layer.moveFrom` | `layerId : string, fromX : float, fromY : float, toX : float, toY : float, frames : int, easing : string` | Awaitable, Stateful | `PIC_MOVE2`、`PIC_MV2` |
 | `layer.flip.set` | `layerId : string, horizontal : bool, vertical : bool` | Stateful | `PIC_FLIP`、`PIC_FX`、`PIC_FY` |
@@ -178,6 +179,7 @@ C:\Users\Administrator\Documents\polarisDocs\事件技术文档-LLM 可读版.md
 | --- | --- | --- | --- |
 | `ui.global.setVisible` | `visible : bool` | Stateful, Reversible | `UI_ENABLE`、`UI_DISABLE` |
 | `ui.status.setVisible` | `visible : bool` | Stateful, Reversible | `SHOW_STATUS`、`HIDE_STATUS` |
+| `ui.portrait.setVisible` | `visible : bool` | Stateful, Reversible | HUD 自带的动态人物立绘开关；与事件立绘无关。 |
 | `ui.letterbox.set` | `visible : bool, animated : bool, preserveOverlay : bool` | Awaitable, Stateful | `START/STOP/HIDE/SHOW_LETTERBOX` 及 `_A` 变体。 |
 | `ui.blur.setVisible` | `visible : bool` | Awaitable, Stateful | `SHOW_BLURSC`、`HIDE_BLURSC` |
 | `ui.money.setVisible` | `visible : bool` | Stateful | `UIBOX_MONEY_ACTIVATE`、`UIBOX_MONEY_DEACTIVATE` |
@@ -196,6 +198,7 @@ C:\Users\Administrator\Documents\polarisDocs\事件技术文档-LLM 可读版.md
 | 能力标识 | 建议参数 | 属性 | 原版语义参考 |
 | --- | --- | --- | --- |
 | `map.transfer` | `mapId : string` | Awaitable, Stateful, Contextual | `MAP` |
+| `map.current.require` | `mapId : string` | Immediate, Contextual | 断言当前地图；原版没有对应命令，属于 PolarisEvent 自己的前置条件检查。 |
 | `map.actor.teleport` | `actorId : string, anchorId : string` | Immediate, Stateful, Contextual | 语义参考 `PRPOS` 及其目标选择行为。 |
 | `map.refresh` | `mode : string` | Awaitable, Stateful, Contextual | `PRE_FLUSH_MAP`、`FLUSHED_MAP`、`REMAKE_MAP` |
 | `map.layer.load` | `layerId : string` | Awaitable, Cacheable, Contextual | `LOAD_LAYER` |
@@ -244,6 +247,19 @@ MoveScript 的当前目标选择、`#<npc>`、引号和路线文本不应暴露�
 | `quest.status.get` | `int` | 返回规范化任务状态。 |
 
 如果原版 DSL 没有对应查询命令，PolarisEvent 可以直接通过受控 C# 处理器实现，但不得向 `.pevt` 暴露任意游戏 API。
+
+除上面这些强契约查询之外，另有一条通用只读能力：
+
+| 能力标识 | 建议参数 | 属性 | 原版语义参考 |
+| --- | --- | --- | --- |
+| `game.query.read` | `key : string, args : string[]` | Immediate, Contextual | 原版按名字查值的两张表：文本序列表（`TX.getTX`）与数值查询表（`FnTxEval` / `&{...}` 的查值一半）。 |
+
+`game.query.read` 是本规范中唯一以任意字符串选定目标的能力，因此它的边界必须写死：
+
+- 只读。没有赋值、反射、任意方法调用、对象引用或 C# 通道。
+- 参数只是该键的查询参数，实现不得把它们拼接成一段完整表达式再交给原版求值器。
+- 结果只有"一个数值"或"一段文本"两种形态；转换成 PEVT 普通类型由调用点负责，失败必须报错而不是给零值。
+- 它不取代上表那些强契约查询：能用 `state.counter.get` 表达的读取就不该退回通用键。
 
 ## 14. 玩家与战斗领域能力
 

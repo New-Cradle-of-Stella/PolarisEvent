@@ -31,6 +31,10 @@ namespace Polaris.Pevt.Commands
         private static ParameterDomain Layer => ParameterDomain.LayerId;
         private static ParameterDomain Asset => ParameterDomain.AssetId;
 
+        /// <summary>直接显示给玩家看的文案。带这个域的实参在进入处理器前会过一遍本地化解析（`&` 开头 = 本地化键）。</summary>
+        private static ParameterDomain Text => ParameterDomain.Text;
+        private static ParameterDomain QueryKey => ParameterDomain.GameQueryKey;
+
         private const CommandWaitKind Immediate = CommandWaitKind.Immediate;
         private const CommandWaitKind Query = CommandWaitKind.Query;
         private const CommandWaitKind Wait = CommandWaitKind.Wait;
@@ -40,7 +44,45 @@ namespace Polaris.Pevt.Commands
         private const CommandPriority P1 = CommandPriority.P1;
         private const CommandPriority P2 = CommandPriority.P2;
 
-        public static IReadOnlyList<CommandDescriptor> Create() => new[]
+        public static IReadOnlyList<CommandDescriptor> Create()
+        {
+            var descriptors = new List<CommandDescriptor>(Fixed());
+            AddGameQueries(descriptors);
+            return descriptors;
+        }
+
+        /// <summary>
+        /// PEVT-E01：任意已登记游戏值的只读查询。键名不是白名单，所以这一族只按"实参数量"分重载——
+        /// <c>key</c> 之后是 0–<see cref="MaxQueryArguments"/> 个纯查询参数。重载仍然由参数数量与类型唯一确定，
+        /// 因此这里登记的是一族固定签名，而不是一条可变参数签名。
+        /// </summary>
+        private static void AddGameQueries(List<CommandDescriptor> descriptors)
+        {
+            var returns = new[] { PevtType.Int, PevtType.Float, PevtType.Bool, PevtType.String };
+            var names = new[] { "game_read_int", "game_read_float", "game_read_bool", "game_read_string" };
+
+            for (int i = 0; i < names.Length; i++)
+            {
+                for (int argumentCount = 0; argumentCount <= MaxQueryArguments; argumentCount++)
+                {
+                    var parameters = new List<CommandParameter>(argumentCount + 1)
+                    {
+                        P("key", PevtType.String, QueryKey),
+                    };
+
+                    for (int a = 1; a <= argumentCount; a++)
+                        parameters.Add(P("arg" + a, PevtType.String));
+
+                    descriptors.Add(new CommandDescriptor(
+                        names[i], parameters, returns[i], Query, P1, "game.query.read"));
+                }
+            }
+        }
+
+        /// <summary><c>@game_read_*</c> 在 <c>key</c> 之后允许的查询参数数量上限。</summary>
+        public const int MaxQueryArguments = 4;
+
+        private static IReadOnlyList<CommandDescriptor> Fixed() => new[]
         {
             // ---- 调度与等待 ----
             Cmd("wait", Wait, null, P0, "wait.frames", P("frames", PevtType.Int)),
@@ -50,11 +92,11 @@ namespace Polaris.Pevt.Commands
                 P("groupId", PevtType.String), P("timeoutFrames", PevtType.Int)),
 
             // ---- 对话与选择 ----
-            Cmd("say", Wait, null, P0, "dialogue.show", P("actorId", PevtType.String, Actor), P("text", PevtType.String)),
-            Cmd("narrate", Wait, null, P0, "dialogue.show", P("text", PevtType.String)),
-            Cmd("board", Wait, null, P0, "dialogue.board.show", P("text", PevtType.String), P("style", PevtType.String)),
+            Cmd("say", Wait, null, P0, "dialogue.show", P("actorId", PevtType.String, Actor), P("text", PevtType.String, Text)),
+            Cmd("narrate", Wait, null, P0, "dialogue.show", P("text", PevtType.String, Text)),
+            Cmd("board", Wait, null, P0, "dialogue.board.show", P("text", PevtType.String, Text), P("style", PevtType.String)),
             Cmd("talker_bind", Immediate, null, P0, "dialogue.profile.bind",
-                P("actorId", PevtType.String, Actor), P("displayName", PevtType.String), P("voiceId", PevtType.String)),
+                P("actorId", PevtType.String, Actor), P("displayName", PevtType.String, Text), P("voiceId", PevtType.String)),
             Cmd("talker_reset", Immediate, null, P0, "dialogue.profile.reset", P("actorId", PevtType.String, Actor)),
             Cmd("dialogue_visible", Immediate, null, P0, "dialogue.visible.set",
                 P("visible", PevtType.Bool), P("immediate", PevtType.Bool)),
@@ -63,18 +105,18 @@ namespace Polaris.Pevt.Commands
             Cmd("dialogue_log", Immediate, null, P0, "dialogue.log.setEnabled", P("enabled", PevtType.Bool)),
             Cmd("skip_enabled", Immediate, null, P0, "dialogue.skip.setEnabled", P("enabled", PevtType.Bool)),
             Cmd("choose", Wait, PevtType.Int, P0, "choice.present",
-                P("prompt", PevtType.String), P("option1", PevtType.String), P("option2", PevtType.String)),
+                P("prompt", PevtType.String, Text), P("option1", PevtType.String, Text), P("option2", PevtType.String, Text)),
             Cmd("choose", Wait, PevtType.Int, P0, "choice.present",
-                P("prompt", PevtType.String), P("option1", PevtType.String), P("option2", PevtType.String),
-                P("option3", PevtType.String)),
+                P("prompt", PevtType.String, Text), P("option1", PevtType.String, Text), P("option2", PevtType.String, Text),
+                P("option3", PevtType.String, Text)),
             Cmd("choose", Wait, PevtType.Int, P0, "choice.present",
-                P("prompt", PevtType.String), P("option1", PevtType.String), P("option2", PevtType.String),
-                P("option3", PevtType.String), P("option4", PevtType.String)),
+                P("prompt", PevtType.String, Text), P("option1", PevtType.String, Text), P("option2", PevtType.String, Text),
+                P("option3", PevtType.String, Text), P("option4", PevtType.String, Text)),
             Cmd("choice_clear", Immediate, null, P0, "choice.reset"),
             Cmd("choice_add", Immediate, null, P0, "choice.add",
-                P("key", PevtType.String), P("text", PevtType.String), P("enabled", PevtType.Bool), P("cancel", PevtType.Bool)),
+                P("key", PevtType.String), P("text", PevtType.String, Text), P("enabled", PevtType.Bool), P("cancel", PevtType.Bool)),
             Cmd("choice_show", Wait, PevtType.String, P0, "choice.present",
-                P("prompt", PevtType.String), P("initialKey", PevtType.String)),
+                P("prompt", PevtType.String, Text), P("initialKey", PevtType.String)),
 
             // ---- 角色立绘与演出层 ----
             Cmd("actor_enter", Parallel, null, P0, "portrait.place",
@@ -82,6 +124,7 @@ namespace Polaris.Pevt.Commands
                 P("appearanceId", PevtType.String, Appearance), P("frames", PevtType.Int)),
             Cmd("actor_exit", Parallel, null, P0, "portrait.place",
                 P("actorId", PevtType.String, Actor), P("frames", PevtType.Int)),
+            Cmd("actor_hide_all", Wait, null, P0, "portrait.hideAll", P("frames", PevtType.Int)),
             Cmd("actor_move", Parallel, null, P0, "portrait.place",
                 P("actorId", PevtType.String, Actor), P("position", PevtType.String, Anchor), P("frames", PevtType.Int)),
             Cmd("actor_appearance", Immediate, null, P0, "portrait.appearance.set",
@@ -126,7 +169,7 @@ namespace Polaris.Pevt.Commands
             Cmd("image_fill", Immediate, null, P0, "layer.fill",
                 P("layerId", PevtType.String, Layer), P("color", PevtType.String, Color)),
             Cmd("cg_show", Wait, null, P0, "layer.singleImage.show",
-                P("assetId", PevtType.String, Asset), P("caption", PevtType.String)),
+                P("assetId", PevtType.String, Asset), P("caption", PevtType.String, Text)),
             Cmd("silhouette_show", Wait, null, P0, "layer.silhouette.show",
                 P("layerId", PevtType.String, Layer), P("assetId", PevtType.String, Asset),
                 P("position", PevtType.String, Anchor), P("frames", PevtType.Int)),
@@ -173,13 +216,14 @@ namespace Polaris.Pevt.Commands
             // ---- UI 与输入策略 ----
             Cmd("ui_visible", Immediate, null, P0, "ui.global.setVisible", P("visible", PevtType.Bool)),
             Cmd("status_visible", Immediate, null, P0, "ui.status.setVisible", P("visible", PevtType.Bool)),
+            Cmd("ui_portrait_visible", Immediate, null, P0, "ui.portrait.setVisible", P("visible", PevtType.Bool)),
             Cmd("letterbox_visible", Wait, null, P0, "ui.letterbox.set",
                 P("visible", PevtType.Bool), P("frames", PevtType.Int)),
             Cmd("blur_visible", Wait, null, P0, "ui.blur.setVisible",
                 P("visible", PevtType.Bool), P("frames", PevtType.Int)),
-            Cmd("alert", Wait, null, P0, "ui.alert.show", P("text", PevtType.String), P("style", PevtType.String)),
+            Cmd("alert", Wait, null, P0, "ui.alert.show", P("text", PevtType.String, Text), P("style", PevtType.String)),
             Cmd("title_show", Wait, null, P0, "ui.title.show",
-                P("text", PevtType.String), P("x", PevtType.Float), P("y", PevtType.Float)),
+                P("text", PevtType.String, Text), P("x", PevtType.Float), P("y", PevtType.Float)),
             Cmd("title_hide", Wait, null, P0, "ui.title.hide", P("frames", PevtType.Int)),
             Cmd("tutorial_show", Wait, null, P0, "ui.tutorial.show", P("tutorialId", PevtType.String)),
             Cmd("tutorial_hide", Immediate, null, P0, "ui.tutorial.remove", P("tutorialId", PevtType.String)),
@@ -190,6 +234,7 @@ namespace Polaris.Pevt.Commands
                 P("key", PevtType.String), P("enabled", PevtType.Bool)),
 
             // ---- 地图与场景实体 ----
+            Cmd("require_map", Immediate, null, P1, "map.current.require", P("mapId", PevtType.String)),
             Cmd("map_change", Wait, null, P1, "map.transfer",
                 P("mapId", PevtType.String), P("anchorId", PevtType.String)),
             Cmd("map_refresh", Wait, null, P1, "map.refresh", P("mode", PevtType.String)),

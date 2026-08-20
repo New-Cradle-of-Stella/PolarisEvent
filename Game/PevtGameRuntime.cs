@@ -123,10 +123,23 @@ namespace Polaris.Event.Game
                 return;
 
             _clock.Advance();
+            _session?.Ui.Update();
             Host.Update();
 
             if (Host.Root == null)
                 FinishSession();
+        }
+
+        /// <summary>
+        /// 镜头震动必须在游戏本帧的普通更新全部结束后应用；否则地图或渲染侧稍后的
+        /// 摄像机定位会覆盖 Quaker 刚写入的 Transform。
+        /// </summary>
+        public void LateUpdate()
+        {
+            if (_session == null || !_eventModeActive)
+                return;
+
+            _session.Camera.Update();
         }
 
         /// <summary>插件卸载：停掉全部事件、清理会话并退出事件模式。</summary>

@@ -66,6 +66,33 @@ namespace Polaris.Pevt.Core.Tests.Runtime
         // ---- 地图 ----
 
         [Fact]
+        public void RequireMapContinuesOnlyOnTheRequiredMap()
+        {
+            PevtTestHost host = Host();
+
+            PevtExecutionResult result = Run(host,
+                "@require_map(\"town\")\n" +
+                "@flag_set(\"global\", \"after_require\", true)\n");
+
+            Assert.Equal(PevtExecutionStatus.Completed, result.Status);
+            Assert.True(host.State.GetFlag("global", "after_require"));
+        }
+
+        [Fact]
+        public void RequireMapFaultsAndStopsLaterCommandsOnMismatch()
+        {
+            PevtTestHost host = Host();
+
+            PevtExecutionResult result = RunExpectingFault(host,
+                "@require_map(\"cave\")\n" +
+                "@flag_set(\"global\", \"after_require\", true)\n",
+                "PEVTR4001");
+
+            Assert.Contains("当前地图为 `town`", result.Diagnostic.Message);
+            Assert.False(host.State.GetFlag("global", "after_require"));
+        }
+
+        [Fact]
         public void MapChangeRunsTheTransitionInOrderAndDropsTheAbortCleanup()
         {
             PevtTestHost host = Host();

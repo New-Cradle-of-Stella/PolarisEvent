@@ -10,6 +10,20 @@ namespace Polaris.Pevt.Runtime.Routines
         private static IPevtWorld World(PevtRoutineContext context) =>
             PevtArgumentDomains.RequireService(context.Services.Domains.World, "World");
 
+        public static IEnumerator<PevtWait> RequireMap(PevtRoutineContext context, PevtArguments args)
+        {
+            IPevtWorld world = World(context);
+            string required = PevtArgumentDomains.RequireId(args.String(0), "mapId");
+            string current = world.CurrentMapId;
+
+            if (!string.Equals(current, required, System.StringComparison.Ordinal))
+                throw new PevtRoutineFailureException(
+                    "PEVTR4001",
+                    $"当前地图为 `{current ?? "<none>"}`，事件要求地图 `{required}`。");
+
+            yield break;
+        }
+
         public static IEnumerator<PevtWait> MapChange(PevtRoutineContext context, PevtArguments args)
         {
             IPevtWorld world = World(context);

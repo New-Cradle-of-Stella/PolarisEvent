@@ -51,11 +51,11 @@ namespace Polaris.Event.Game
         {
             switch (easing)
             {
-                case "ease-in":
+                case "ease_in":
                     return t => t * t;
-                case "ease-out":
+                case "ease_out":
                     return t => 1f - (1f - t) * (1f - t);
-                case "ease-in-out":
+                case "ease_in_out":
                     return t => t < 0.5f ? 2f * t * t : 1f - 2f * (1f - t) * (1f - t);
                 default:
                     return t => t;

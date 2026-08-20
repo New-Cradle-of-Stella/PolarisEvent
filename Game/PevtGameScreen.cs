@@ -15,11 +15,17 @@ namespace Polaris.Event.Game
     /// </summary>
     internal sealed class PevtGameScreen : IPevtScreen
     {
-        /// <summary>遮罩层的原版键；<c>&amp;</c> 前缀把它放进前景层，盖住立绘与图层。</summary>
-        private const string FadeKey = "&pevt_fade";
+        /// <summary>
+        /// 原版 <see cref="EvDrawerContainer.Get"/> 要求 <c>#</c>/<c>&amp;</c> 后必须是数字 ID。
+        /// 使用较高的专用 ID，<c>&amp;</c> 前缀把遮罩放进前景层。
+        /// </summary>
+        private const string FadeKey = "&9000";
+        private const string FlashKey = "&9001";
 
         private readonly PevtGameClock _clock;
         private string _color = "#000000";
+        private float _colorAlpha = 1f;
+        private float _opacity;
         private bool _fadeLayerOpen;
         private bool _spotlight;
 
@@ -39,6 +45,10 @@ namespace Polaris.Event.Game
                 if (drawer == null)
                     return;
 
+                if (_fadeLayerOpen)
+                    return;
+
+                _opacity = 0f;
                 _fadeLayerOpen = true;
                 ApplyColor(drawer);
             });
@@ -46,7 +56,15 @@ namespace Polaris.Event.Game
 
         public void SetFadeColor(string color)
         {
-            _color = string.IsNullOrEmpty(color) ? "#000000" : color;
+            string next = string.IsNullOrEmpty(color) ? "#000000" : color;
+            bool changed = !string.Equals(_color, next, StringComparison.OrdinalIgnoreCase);
+            _color = next;
+
+            // screen_fade 每次都会调用 SetFadeColor。同色淡出时如果再调 setGrp，
+            // 原版会清掉旧填充网格并在下一绘制帧重建，中间就会露出一帧底图。
+            if (!changed && _fadeLayerOpen)
+                return;
+
             PevtGameHost.Guard("SetFadeColor", () =>
             {
                 EvDrawer drawer = FadeLayer(false);
@@ -61,12 +79,48 @@ namespace Polaris.Event.Game
         /// </summary>
         private void ApplyColor(EvDrawer drawer)
         {
-            if (!drawer.setGrp(_color, "f"))
+            uint parsed = TX.str2color(ToVanillaColor(_color));
+            _colorAlpha = ((parsed >> 24) & 0xFF) / 255f;
+
+            // Alpha 先用 FE 创建，故意不触发原版 GRP_WHOLE_FILL 的“底图可省略”优化。
+            // 否则半透明渐变时原版会停止绘制遮罩下方的画面，视觉上仍是瞬间黑屏。
+            uint setupColor = 0xFE000000u | (parsed & 0x00FFFFFFu);
+            string setup = "0x" + setupColor.ToString("x8", CultureInfo.InvariantCulture);
+            if (!drawer.setGrp(setup, "f"))
                 return;
 
-            drawer.initPosition("L", "B", "R", "T", 0f);
-            drawer.fadein(0, 0, true);
-            drawer.palp = drawer.palp <= 0f ? 0f : drawer.palp;
+            ApplyOpacity(drawer, _opacity);
+        }
+
+        /// <summary>
+        /// 不使用 <see cref="EvDrawer.palp"/>：原版 <c>calc_sp_move</c> 在每个绘制帧都会把它重置为 1。
+        /// 改写填充色 Alpha 才能让 PEVT 补间值稳定保留到实际绘制。
+        /// </summary>
+        private void ApplyOpacity(EvDrawer drawer, float opacity)
+        {
+            _opacity = Mathf.Clamp01(opacity);
+            uint alpha = (uint)Mathf.RoundToInt(_opacity * _colorAlpha * 255f);
+            drawer.gcol = (drawer.gcol & 0x00FFFFFFu) | (alpha << 24);
+            drawer.palp = 1f;
+            drawer.draw_flag |= EvDrawer.DRAWF_CHANGED_ALPHA | EvDrawer.DRAWF_REDRAW;
+        }
+
+        /// <summary>
+        /// PEVT 颜色是 CSS 式 <c>#RRGGBB</c>/<c>#RRGGBBAA</c>，原版填充解析器要求
+        /// <c>0xAARRGGBB</c>。原版命名颜色保持不变。
+        /// </summary>
+        private static string ToVanillaColor(string color)
+        {
+            if (string.IsNullOrEmpty(color) || color[0] != '#')
+                return color;
+
+            string hex = color.Substring(1);
+            if (hex.Length == 6)
+                return "0xff" + hex;
+            if (hex.Length == 8)
+                return "0x" + hex.Substring(6, 2) + hex.Substring(0, 6);
+
+            return color;
         }
 
         public PevtWait FadeTo(float opacity, int frames, string easing)
@@ -75,8 +129,14 @@ namespace Polaris.Event.Game
             if (drawer == null)
                 return new PevtFrameWait(frames);
 
-            _fadeLayerOpen = true;
-            float from = drawer.palp;
+            if (!_fadeLayerOpen)
+            {
+                _opacity = 0f;
+                _fadeLayerOpen = true;
+                ApplyColor(drawer);
+            }
+
+            float from = _opacity;
             if (frames > 0)
             {
                 long deadline = _clock.Frame + frames;
@@ -85,8 +145,7 @@ namespace Polaris.Event.Game
 
             return new PevtTweenWait(frames, easing, t =>
             {
-                drawer.palp = from + (opacity - from) * t;
-                drawer.draw_flag |= EvDrawer.DRAWF_CHANGED_ALPHA | EvDrawer.DRAWF_REDRAW;
+                ApplyOpacity(drawer, from + (opacity - from) * t);
             });
         }
 
@@ -96,6 +155,7 @@ namespace Polaris.Event.Game
                 return;
 
             _fadeLayerOpen = false;
+            _opacity = 0f;
             PevtGameHost.Guard("ReleaseFadeLayer", () => FadeLayer(false)?.release());
         }
 
@@ -104,14 +164,13 @@ namespace Polaris.Event.Game
         {
             PevtGameHost.Guard("ScreenFlash", () =>
             {
-                EvDrawer drawer = PevtGameHost.Drawers?.Get(FadeKey + "_flash", false, false);
+                EvDrawer drawer = PevtGameHost.Drawers?.Get(FlashKey, false, false);
                 if (drawer == null)
                     return;
 
-                if (!drawer.setGrp(string.IsNullOrEmpty(color) ? "WHITE" : color, "f"))
+                if (!drawer.setGrp(ToVanillaColor(string.IsNullOrEmpty(color) ? "WHITE" : color), "f"))
                     return;
 
-                drawer.initPosition("L", "B", "R", "T", 0f);
                 drawer.setFlash(delayFrames, Math.Max(1, holdFrames), fadeFrames);
             });
 
@@ -157,7 +216,7 @@ namespace Polaris.Event.Game
                 SetSpotlight(null, false, null);
 
             PevtGameHost.Guard("ReleaseFlashLayer",
-                () => PevtGameHost.Drawers?.Get(FadeKey + "_flash", false, true)?.release());
+                () => PevtGameHost.Drawers?.Get(FlashKey, false, true)?.release());
         }
     }
 
@@ -249,6 +308,24 @@ namespace Polaris.Event.Game
                 () => PevtGameHost.Camera?.setQuake(amplitude, durationFrames, frequency, 0));
 
             return TrackFrames(durationFrames);
+        }
+
+        /// <summary>
+        /// PEVT 事件期间地图主循环暂停，M2Camera.run 不会推进 Quaker；
+        /// Quaker.run 只计算 Qu.x/Qu.y，随后还必须调用 callImmediateMove，
+        /// 原版才会把这份偏移写入摄像机 Transform。
+        /// </summary>
+        internal void Update()
+        {
+            PevtGameHost.Guard("UpdateCameraQuake", () =>
+            {
+                M2Camera camera = PevtGameHost.Camera;
+                if (camera?.Qu == null)
+                    return;
+
+                camera.Qu.run(1f);
+                camera.callImmediateMove();
+            });
         }
 
         public PevtWait RestoreEventSnapshot(int frames)

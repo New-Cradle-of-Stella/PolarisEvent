@@ -93,6 +93,7 @@ PEVT-同步指令中间层规范.md
 | --- | --- | --- | --- | --- |
 | `@actor_enter` | 等待／可并行 | 无 | `actorId : string, position : string, appearanceId : string, frames : int` | 从人物目录解析人物与 appearance，等待资源后进入指定语义位置。 |
 | `@actor_exit` | 等待／可并行 | 无 | `actorId : string, frames : int` | 让角色退场。 |
+| `@actor_hide_all` | 同步等待 | 无 | `frames : int` | 隐藏本次 PEVT 事件创建的全部人物立绘。 |
 | `@actor_move` | 等待／可并行 | 无 | `actorId : string, position : string, frames : int` | 将角色移到 `left`、`center`、`right` 等语义锚点。 |
 | `@actor_appearance` | 立即 | 无 | `actorId : string, appearanceId : string` | 更换人物目录已登记的立绘、服装或差分组；不接受原版复合 PIC 串。 |
 | `@actor_emote` | 立即 | 无 | `actorId : string, emoteId : string` | 播放单个表情符号，不暴露原版竖线拼接语法。 |
@@ -150,6 +151,7 @@ PEVT-同步指令中间层规范.md
 | --- | --- | --- | --- | --- |
 | `@ui_visible` | 立即 | 无 | `visible : bool` | 设置游戏主 UI 可见性。 |
 | `@status_visible` | 立即 | 无 | `visible : bool` | 设置状态 UI 可见性。 |
+| `@ui_portrait_visible` | 立即 | 无 | `visible : bool` | 显示或隐藏游戏 HUD 自带的动态人物立绘，不影响 PEVT 事件立绘。 |
 | `@letterbox_visible` | 等待 | 无 | `visible : bool, frames : int` | 显示或隐藏电影黑边。 |
 | `@blur_visible` | 等待 | 无 | `visible : bool, frames : int` | 显示或隐藏 UI 模糊层。 |
 | `@alert` | 同步等待 | 无 | `text : string, style : string` | 显示受管警告或提示。 |
@@ -165,6 +167,7 @@ PEVT-同步指令中间层规范.md
 
 | 语句 | 执行方式 | 返回值 | 参数签名 | 作用 |
 | --- | --- | --- | --- | --- |
+| `@require_map` | 立即 | 无 | `mapId : string` | 要求当前已加载指定地图，不满足时以运行诊断终止事件。 |
 | `@map_change` | 同步等待 | 无 | `mapId : string, anchorId : string` | 切换地图并将玩家放到指定锚点。 |
 | `@map_refresh` | 同步等待 | 无 | `mode : string` | 以登记模式刷新当前地图。 |
 | `@map_layer_load` | 同步等待 | `bool` | `layerId : string` | 加载地图图层并返回是否成功。 |
@@ -208,6 +211,39 @@ PEVT-同步指令中间层规范.md
 | `@autosave` | 同步等待 | `bool` | `mode : string` | 请求自动存档并返回是否成功。 |
 | `@store_refresh` | 立即 | 无 | `storeId : string` | 刷新指定商店数据。 |
 
+### 游戏值只读查询
+
+任意已登记只读查询键都可以读取，键名不是白名单；`key` 之后是 0–4 个纯查询参数。同一条查询只按实参数量分重载，
+因此每个返回类型都登记 5 个固定签名，而不是一条可变参数签名。
+
+| 语句 | 执行方式 | 返回值 | 参数签名 | 作用 |
+| --- | --- | --- | --- | --- |
+| `@game_read_int` | 查询 | `int` | `key : string` | 读取一个已登记只读游戏值并转换成 `int`。 |
+| `@game_read_int` | 查询 | `int` | `key : string, arg1 : string` | 读取一个已登记只读游戏值并转换成 `int`。附带 1 个查询参数。 |
+| `@game_read_int` | 查询 | `int` | `key : string, arg1 : string, arg2 : string` | 读取一个已登记只读游戏值并转换成 `int`。附带 2 个查询参数。 |
+| `@game_read_int` | 查询 | `int` | `key : string, arg1 : string, arg2 : string, arg3 : string` | 读取一个已登记只读游戏值并转换成 `int`。附带 3 个查询参数。 |
+| `@game_read_int` | 查询 | `int` | `key : string, arg1 : string, arg2 : string, arg3 : string, arg4 : string` | 读取一个已登记只读游戏值并转换成 `int`。附带 4 个查询参数。 |
+| `@game_read_float` | 查询 | `float` | `key : string` | 读取一个已登记只读游戏值并转换成 `float`。 |
+| `@game_read_float` | 查询 | `float` | `key : string, arg1 : string` | 读取一个已登记只读游戏值并转换成 `float`。附带 1 个查询参数。 |
+| `@game_read_float` | 查询 | `float` | `key : string, arg1 : string, arg2 : string` | 读取一个已登记只读游戏值并转换成 `float`。附带 2 个查询参数。 |
+| `@game_read_float` | 查询 | `float` | `key : string, arg1 : string, arg2 : string, arg3 : string` | 读取一个已登记只读游戏值并转换成 `float`。附带 3 个查询参数。 |
+| `@game_read_float` | 查询 | `float` | `key : string, arg1 : string, arg2 : string, arg3 : string, arg4 : string` | 读取一个已登记只读游戏值并转换成 `float`。附带 4 个查询参数。 |
+| `@game_read_bool` | 查询 | `bool` | `key : string` | 读取一个已登记只读游戏值并转换成 `bool`。 |
+| `@game_read_bool` | 查询 | `bool` | `key : string, arg1 : string` | 读取一个已登记只读游戏值并转换成 `bool`。附带 1 个查询参数。 |
+| `@game_read_bool` | 查询 | `bool` | `key : string, arg1 : string, arg2 : string` | 读取一个已登记只读游戏值并转换成 `bool`。附带 2 个查询参数。 |
+| `@game_read_bool` | 查询 | `bool` | `key : string, arg1 : string, arg2 : string, arg3 : string` | 读取一个已登记只读游戏值并转换成 `bool`。附带 3 个查询参数。 |
+| `@game_read_bool` | 查询 | `bool` | `key : string, arg1 : string, arg2 : string, arg3 : string, arg4 : string` | 读取一个已登记只读游戏值并转换成 `bool`。附带 4 个查询参数。 |
+| `@game_read_string` | 查询 | `string` | `key : string` | 读取一个已登记只读游戏值并转换成 `string`。 |
+| `@game_read_string` | 查询 | `string` | `key : string, arg1 : string` | 读取一个已登记只读游戏值并转换成 `string`。附带 1 个查询参数。 |
+| `@game_read_string` | 查询 | `string` | `key : string, arg1 : string, arg2 : string` | 读取一个已登记只读游戏值并转换成 `string`。附带 2 个查询参数。 |
+| `@game_read_string` | 查询 | `string` | `key : string, arg1 : string, arg2 : string, arg3 : string` | 读取一个已登记只读游戏值并转换成 `string`。附带 3 个查询参数。 |
+| `@game_read_string` | 查询 | `string` | `key : string, arg1 : string, arg2 : string, arg3 : string, arg4 : string` | 读取一个已登记只读游戏值并转换成 `string`。附带 4 个查询参数。 |
+
+- 只能读，不能写：没有赋值、反射、任意方法调用、对象引用或 C# 通道。
+- `arg1`–`arg4` 只作为该键的查询参数，实现不得把它们拼接成一段完整表达式再求值。
+- 键不存在报 `PEVTR4501`，参数不满足键的要求报 `PEVTR4502`，结果无法转换成目标类型报 `PEVTR4503`。
+- 已有的领域查询（`@counter_get`、`@quest_status` 等）继续保留：它们的契约更强，通用读取不取代它们。
+
 ### Alice In Cradle 领域扩展
 
 | 语句 | 执行方式 | 返回值 | 参数签名 | 作用 |
@@ -249,7 +285,9 @@ PEVT-异步协程与等待模型.md
 - `appearanceId`、`emoteId` 和人物专用 `position` 必须来自对应 `.pactor`，或来自 PolarisEvent 的通用登记表。
 - `position` 使用语义锚点，第一版至少包含 `left`、`center`、`right`、`near-left`、`near-right`、`far-left`、`far-right`、`off-left`、`off-right`。
 - `easing` 第一版只接受 `linear`、`ease_in`、`ease_out`、`ease_in_out`。
+- `@game_read_*` 的 `key` 是宿主只读查询表登记的键；取值集在运行期登记，静态侧看不全，因此未知键不是 `.pevt` 静态错误，真正缺失在执行时使用 `PEVTR4501`。
 - `color` 使用 `#RRGGBB` 或 `#RRGGBBAA`；同时可以接受 PolarisEvent 登记的颜色名。
+- `text` 是直接显示给玩家看的文案：`@say`/`@narrate`/`@board` 的 `text`、`@talker_bind` 的 `displayName`、`@choose`/`@choice_show` 的 `prompt` 与各选项、`@choice_add` 的 `text`、`@cg_show` 的 `caption`、`@alert` 的 `text`、`@title_show` 的 `text`。这些实参在进入处理器之前统一过一次宿主的显示文案解析：`&` 开头按本地化键查表（`.plang` 与原版语言表都在这条链上），`&&` 开头脱转义成字面 `&`，其余原样通过。任何字符串都是合法文案，因此这个域永远不产生静态诊断；查不到的键在游戏里显示成键本身，便于定位漏掉的文案。
 - `opacity`、`volume`、`scale` 的常规范围为 `0.0`–`1.0`；越界值是运行时参数错误，不静默截断。
 - `frames`、`durationFrames`、`fadeFrames` 不能为负数；只有显式写明为超时的参数才允许使用 `0` 表示无超时。
 - `scope`、`kind`、`style`、`mode`、`capability` 不是任意游戏 API 名称；每个处理器必须登记可接受值集，未登记值必须报错。
@@ -261,4 +299,4 @@ PEVT-异步协程与等待模型.md
 - 复杂演出使用图层、镜头、状态和 `_start` 异步变体，不需要回到原版 `PIC_*`、`TL/MTL` 或 MoveScript 文本。
 - 表中实体、地图、玩家和战斗操作只能通过受控服务查找 ID，不向 PEVT 暴露对象引用或任意游戏 API。
 - 商店、炼金、烹饪、长椅、小游戏和特定 NPC 不进入通用表；稳定能力以领域扩展注册，其余保留 `$raw cmd`。
-- 不提供 `@game`、`@command`、`@api`、`@ui_open` 这类接受任意字符串的通用入口。
+- 不提供 `@game`、`@command`、`@api`、`@ui_open` 这类「用任意字符串驱动任意动作」的通用入口。`@game_read_*` 不属于这一类：它的字符串只用于选定一个已登记的只读键，返回类型在签名里固定，既不能写入也拿不到对象。

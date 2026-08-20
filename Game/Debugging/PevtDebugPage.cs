@@ -1,4 +1,5 @@
 using System;
+using Polaris.Pevt.Runtime;
 using UnityEngine;
 using XX;
 
@@ -20,13 +21,17 @@ namespace Polaris.Event.Game.Debugging
         private static GameObject _host;
         private static bool _open;
         private static bool _inputHeld;
+        private static bool _cursorHeld;
+        private static bool _previousCursorVisible;
+        private static CursorLockMode _previousCursorLockState;
 
         private static Rect _window = new Rect(40f, 40f, 980f, 640f);
         private static int _tab;
         private static string _notice = string.Empty;
+        private static long _lastObservedFinishedInstanceId;
 
         private static readonly string[] TabTitles =
-            { "Overview", "Stack", "Async", "Ownership", "Source", "Events", "History" };
+            { "Overview", "Stack", "Async", "Ownership", "Source", "Events", "Live", "Queries", "History" };
 
         private static readonly Vector2[] Scroll = new Vector2[TabTitles.Length];
 
@@ -48,6 +53,33 @@ namespace Polaris.Event.Game.Debugging
             // 玩家在原版文本框里打字时不会被热键打断。
             if (PevtGameHost.Safe(() => IN.getKD(PevtDebugSettings.HotkeyCode), false))
                 Toggle();
+
+            if (_open)
+                ObserveFinishedInstances();
+        }
+
+        /// <summary>
+        /// 调试按钮拿到实例时它通常还只是 Created；真正的运行错误要到后续 Update 才出现。
+        /// 主动观察宿主保留的终态，避免页脚永远停在 "Started ..."、让 PEVTR 看起来像被吞掉。
+        /// </summary>
+        private static void ObserveFinishedInstances()
+        {
+            PevtGameRuntime runtime = PolarisEventComponent.Runtime;
+            if (runtime == null)
+                return;
+
+            foreach (PevtEventInstance instance in runtime.Host.Instances)
+            {
+                if (!instance.IsFinished || instance.Id <= _lastObservedFinishedInstanceId)
+                    continue;
+
+                _lastObservedFinishedInstanceId = instance.Id;
+                if (instance.Status != PevtExecutionStatus.Faulted || instance.Diagnostic == null)
+                    continue;
+
+                _notice = "Runtime error: " + OneLine(instance.Diagnostic.Describe());
+                _tab = TabTitles.Length - 1;
+            }
         }
 
         internal static void Toggle()
@@ -68,6 +100,7 @@ namespace Polaris.Event.Game.Debugging
             EnsureHost();
             ClampWindow();
             HoldInput(true);
+            HoldCursor(true);
         }
 
         internal static void Close()
@@ -77,6 +110,7 @@ namespace Polaris.Event.Game.Debugging
 
             _open = false;
             HoldInput(false);
+            HoldCursor(false);
         }
 
         /// <summary>插件卸载：收起页面、放开输入标记并销毁宿主对象。</summary>
@@ -107,6 +141,33 @@ namespace Polaris.Event.Game.Debugging
                     IN.FlgUiUse.Add(InputFlag);
                 else
                     IN.FlgUiUse.Rem(InputFlag);
+            });
+        }
+
+        /// <summary>
+        /// IMGUI 需要系统光标才能点击。打开时记住游戏原有状态并临时显示、解锁，
+        /// 关闭或卸载时原样恢复，避免调试页改变正常游玩时的鼠标行为。
+        /// </summary>
+        private static void HoldCursor(bool hold)
+        {
+            if (hold == _cursorHeld)
+                return;
+
+            PevtGameHost.Guard("DebugPage.HoldCursor", () =>
+            {
+                if (hold)
+                {
+                    _previousCursorVisible = Cursor.visible;
+                    _previousCursorLockState = Cursor.lockState;
+                    Cursor.lockState = CursorLockMode.None;
+                    Cursor.visible = true;
+                    _cursorHeld = true;
+                    return;
+                }
+
+                Cursor.lockState = _previousCursorLockState;
+                Cursor.visible = _previousCursorVisible;
+                _cursorHeld = false;
             });
         }
 
@@ -193,6 +254,8 @@ namespace Polaris.Event.Game.Debugging
                 case 3: DrawOwnership(); break;
                 case 4: DrawSource(); break;
                 case 5: DrawEvents(); break;
+                case 6: DrawLive(); break;
+                case 7: DrawQueries(); break;
                 default: DrawHistory(); break;
             }
         }

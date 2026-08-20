@@ -77,6 +77,19 @@ namespace Polaris.Pevt.Binding
         /// <summary>资源 ID（图像、CG、剪影等）。</summary>
         public static ParameterDomain AssetId { get; } = new ParameterDomain("asset-id", PevtType.String, false);
 
+        /// <summary>
+        /// 直接显示给玩家看的文本。凡是带这个域的实参都会在进入处理器之前过一遍
+        /// <see cref="Runtime.IPevtLocalization"/>：<c>&amp;</c> 开头按本地化键查表，<c>&amp;&amp;</c> 开头脱转义，
+        /// 其余原样。取值不可能"未知"（任何字符串都是合法文案），因此永远不产生静态诊断。
+        /// </summary>
+        public static ParameterDomain Text { get; } = new ParameterDomain("text", PevtType.String, false);
+
+        /// <summary>
+        /// 已登记只读游戏查询键（PEVT-E01）。取值集由宿主在运行期登记，静态侧看不全，
+        /// 因此未知键只影响补全，不产生静态错误——真正的判定在 PEVTR4501。
+        /// </summary>
+        public static ParameterDomain GameQueryKey { get; } = new ParameterDomain("game-query-key", PevtType.String, false);
+
         public override string ToString() => Name;
     }
 }

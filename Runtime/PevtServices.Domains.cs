@@ -11,6 +11,9 @@ namespace Polaris.Pevt.Runtime
     {
         // ---- 地图切换 ----
 
+        /// <summary>当前已加载地图的稳定 ID；尚未加载地图时为 null。</summary>
+        string CurrentMapId { get; }
+
         bool ResolveMap(string mapId);
 
         bool ResolveAnchor(string mapId, string anchorId);

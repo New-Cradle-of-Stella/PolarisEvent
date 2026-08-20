@@ -262,6 +262,16 @@ namespace Polaris.Pevt.Core.Tests.Runtime
         }
 
         [Fact]
+        public void ActorHideAllCallsTheSinglePortraitAtom()
+        {
+            PevtTestHost host = Host();
+            PevtExecutionResult result = Run(host, "@actor_hide_all(12)\n");
+
+            Assert.Equal(PevtExecutionStatus.Completed, result.Status);
+            Assert.Equal(new[] { "HideAll(12)" }, host.Portrait.Calls);
+        }
+
+        [Fact]
         public void Pevtr4402_UnregisteredEmoteAndMotion()
         {
             AssertFails("@actor_emote(\"aic:noel\", \"unknown\")\n", "PEVTR4402");
@@ -421,6 +431,15 @@ namespace Polaris.Pevt.Core.Tests.Runtime
                 .ToList();
 
             Assert.Equal(new[] { "SetLetterboxVisible(False)", "SetGlobalVisible(True)", "StopAmbience()" }, restores);
+        }
+
+        [Fact]
+        public void NativeUiPortraitVisibilityIsAnIndependentRestoredAtom()
+        {
+            PevtTestHost host = Host();
+            Run(host, "@ui_portrait_visible(false)\n");
+
+            Assert.Equal(new[] { "SetPortraitVisible(False)", "SetPortraitVisible(True)" }, host.Stage.Calls);
         }
 
         [Fact]

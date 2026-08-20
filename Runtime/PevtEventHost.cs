@@ -203,6 +203,30 @@ namespace Polaris.Pevt.Runtime
         public bool TryGetInstance(long id, out PevtEventInstance instance) => _instances.TryGetValue(id, out instance);
 
         /// <summary>
+        /// 丢弃某个事件 ID 的全部编译缓存条目，返回丢弃的条数。
+        /// <para>
+        /// 缓存键带内容哈希，所以源码换了本来就不会命中旧条目——这个方法不是为了正确性，
+        /// 而是为了热重载：作者改一个事件改上百遍，每一版都会在缓存里留下一份编译产物，
+        /// 那是一条只增不减的内存占用。重新导入时顺手把这个 ID 的旧版本清掉。
+        /// </para>
+        /// </summary>
+        public int DropCompiled(string eventId)
+        {
+            string prefix = (eventId ?? string.Empty) + "@";
+            var stale = new List<string>();
+            foreach (string key in _compiled.Keys)
+            {
+                if (key.StartsWith(prefix, StringComparison.Ordinal))
+                    stale.Add(key);
+            }
+
+            foreach (string key in stale)
+                _compiled.Remove(key);
+
+            return stale.Count;
+        }
+
+        /// <summary>
         /// 把已结束实例的保留量压回 <see cref="FinishedHistoryLimit"/>，最旧的先丢。
         /// </summary>
         private void PruneFinished()

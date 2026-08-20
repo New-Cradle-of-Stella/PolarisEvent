@@ -116,6 +116,8 @@ namespace Polaris.Pevt.Runtime
 
         PevtWait Exit(string actorId, int frames);
 
+        PevtWait HideAll(int frames);
+
         bool ValidateEmote(string actorId, string emoteId);
 
         void PlayEmote(string actorId, string emoteId);
@@ -245,6 +247,8 @@ namespace Polaris.Pevt.Runtime
 
         void SetStatusVisible(bool visible);
 
+        void SetPortraitVisible(bool visible);
+
         PevtWait SetLetterboxVisible(bool visible, int frames);
 
         PevtWait SetBlurVisible(bool visible, int frames);
@@ -289,6 +293,20 @@ namespace Polaris.Pevt.Runtime
         bool ValidateKey(string key);
 
         void SetKeyEnabled(string key, bool enabled);
+    }
+
+    /// <summary>
+    /// 把"显示用字符串"解析成最终文案。
+    ///
+    /// Core 不认识 <c>&amp;</c> 这个约定，也不该认识：本地化键的判定、查表顺序与兜底策略全部属于
+    /// 宿主（游戏侧接的是 <c>PolarisAPI.Localization.Text</c>，它同时服务于设置文案、<c>.pui</c> 与
+    /// <c>.plang</c>）。Core 只负责一件事——凡是带 <see cref="Binding.ParameterDomain.Text"/> 的实参，
+    /// 在交给处理器之前都要经过这里，因此"哪些参数是给玩家看的文案"只在描述目录里声明一次。
+    /// </summary>
+    public interface IPevtLocalization
+    {
+        /// <summary>解析一个显示用字符串。实现必须对 null 返回 null，且不得抛异常。</summary>
+        string Text(string raw);
     }
 
     /// <summary>
@@ -379,6 +397,19 @@ namespace Polaris.Pevt.Runtime
         public PevtDomainServices Domains { get; }
 
         /// <summary>
+        /// 任意已登记游戏值的只读查询表（PEVT-E01）。宿主没有接时为 null，
+        /// 此时任何 <c>@game_read_*</c> 都以 PEVTR4501 结束——查不到键与"没有查询表"对脚本是同一件事。
+        /// </summary>
+        public IPevtGameQuery GameQuery { get; }
+
+        /// <summary>
+        /// 显示用文案的解析器。宿主没有接时为 null，此时带 <see cref="Binding.ParameterDomain.Text"/> 的
+        /// 实参原样进处理器——脱离游戏跑的可移植场景里没有语言表可查，把 <c>&amp;key</c> 显示出来
+        /// 恰好也是最有用的行为。
+        /// </summary>
+        public IPevtLocalization Localization { get; }
+
+        /// <summary>
         /// <c>$raw cmd</c> 的进程级通道；宿主没有接时为 null，此时任何 <c>$raw cmd</c> 都以
         /// PEVTR9001 结束（编译出了指令却没有执行器，属于宿主接线不变量被破坏）。
         /// </summary>
@@ -410,8 +441,10 @@ namespace Polaris.Pevt.Runtime
             IPevtUi ui = null,
             IPevtInput input = null,
             PevtDomainServices domains = null,
+            IPevtGameQuery gameQuery = null,
             IPevtRawCommands rawCommands = null,
-            Raw.PevtRawCsExecutor rawCs = null)
+            Raw.PevtRawCsExecutor rawCs = null,
+            IPevtLocalization localization = null)
         {
             Clock = clock ?? throw new ArgumentNullException(nameof(clock));
             Session = session ?? throw new ArgumentNullException(nameof(session));
@@ -429,8 +462,10 @@ namespace Polaris.Pevt.Runtime
             Ui = ui;
             Input = input;
             Domains = domains ?? PevtDomainServices.Empty;
+            GameQuery = gameQuery;
             RawCommands = rawCommands;
             RawCs = rawCs;
+            Localization = localization;
         }
     }
 }

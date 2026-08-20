@@ -43,6 +43,11 @@ namespace Polaris.Event.Game
         /// <summary>本事件建出来的立绘，事件结束时逐个退场。</summary>
         private readonly Dictionary<string, TalkDrawer> _drawers = new Dictionary<string, TalkDrawer>(StringComparer.Ordinal);
 
+        /// <summary>
+        /// 已选中的外观。<c>@actor_enter</c> 会先选外观再创建 TalkDrawer，必须暂存到创建时再应用。
+        /// </summary>
+        private readonly Dictionary<string, string> _appearances = new Dictionary<string, string>(StringComparer.Ordinal);
+
         public PevtGamePortrait(
             PevtActorRegistry actors,
             PevtGameClock clock)
@@ -117,8 +122,11 @@ namespace Polaris.Event.Game
                     || !actor.TryGetAppearance(appearanceId, out ActorAppearance appearance))
                     return;
 
+                string group = appearance.Pose + "__" + appearance.Frame;
+                _appearances[actorId] = group;
+
                 TalkDrawer drawer = Drawer(actorId);
-                drawer?.setGrp(appearance.Pose + "__" + appearance.Frame, string.Empty);
+                drawer?.setGrp(group, string.Empty);
             });
         }
 
@@ -140,6 +148,9 @@ namespace Polaris.Event.Game
                     return;
 
                 _drawers[actorId] = drawer;
+
+                if (_appearances.TryGetValue(actorId, out string appearance))
+                    drawer.setGrp(appearance, string.Empty);
 
                 // 从入场坐标滑到站位坐标；frames 为 0 时 initMove 会立刻到位。
                 drawer.moveTo(Coord(enterX), Coord(enterY), Coord(x), Coord(y), frames, string.Empty);
@@ -174,6 +185,23 @@ namespace Polaris.Event.Game
                 // auto_deactivate=true 让原版在淡出结束后自己收掉显示实例，不留半透明残影。
                 drawer.fadeout(frames, true);
                 _drawers.Remove(actorId ?? string.Empty);
+            });
+
+            return TrackFrames(frames);
+        }
+
+        /// <summary>
+        /// 收掉本次 PEVT 会话创建的全部人物立绘。对应原版事件中的 <c>PIC_HIDE_ALL</c>，
+        /// 但严格限制在 PEVT 自己拥有的 TalkDrawer，不会误伤游戏或其他模组的绘制对象。
+        /// </summary>
+        public PevtWait HideAll(int frames)
+        {
+            PevtGameHost.Guard("PortraitHideAll", () =>
+            {
+                foreach (TalkDrawer drawer in _drawers.Values)
+                    drawer.fadeout(frames, true);
+
+                _drawers.Clear();
             });
 
             return TrackFrames(frames);
@@ -214,6 +242,7 @@ namespace Polaris.Event.Game
             }
 
             _drawers.Clear();
+            _appearances.Clear();
         }
 
         /// <summary>

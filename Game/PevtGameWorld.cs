@@ -33,6 +33,8 @@ namespace Polaris.Event.Game
 
         // ---- 地图切换 ----
 
+        public string CurrentMapId => PolarisAPI.Game.World.CurrentMap?.Key;
+
         public bool ResolveMap(string mapId) => PolarisAPI.Game.World.ResolveMap(mapId);
 
         /// <summary>
@@ -135,7 +137,7 @@ namespace Polaris.Event.Game
 
         public void SetElementActive(string kind, string elementId, bool active)
         {
-            if (!RequireMap().SetElementActive(kind, elementId, active))
+            if (!RequireMap().SetAnchorActive(elementId, active))
                 throw Failed($"地图元素 `{kind}:{elementId}` 开关失败。");
         }
 

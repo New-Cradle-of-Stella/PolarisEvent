@@ -5,6 +5,7 @@ using nel;
 using Polaris.Pevt.Actors;
 using Polaris.Pevt.Registration;
 using Polaris.Pevt.Runtime;
+using Polaris.Utils;
 using XX;
 
 namespace Polaris.Event.Game
@@ -15,8 +16,11 @@ namespace Polaris.Event.Game
     /// </summary>
     internal sealed class PevtGameDialogue : IPevtDialogue
     {
-        /// <summary>没有说话人时使用的原版旁白短键。</summary>
-        private const string NarratorPerson = "_";
+        /// <summary>
+        /// 原版独白仍走 Noel 的消息通道（<c>HKDS n C @CB MONOLOGUE</c>），
+        /// 只是 MONOLOGUE 边界隐藏说话人标题与气泡尾巴。
+        /// </summary>
+        private const string NarratorPerson = "n";
 
         private readonly PevtActorRegistry _actors;
         private readonly string _eventId;
@@ -30,6 +34,7 @@ namespace Polaris.Event.Game
         private int _logIndex;
         private bool _logEnabled = true;
         private bool _autoAdvance;
+        private bool _monologue;
 
         public PevtGameDialogue(PevtActorRegistry actors, string eventId)
         {
@@ -41,12 +46,14 @@ namespace Polaris.Event.Game
 
         public void SelectSpeaker(string actorId)
         {
+            _monologue = false;
             _speakerActorId = actorId;
             _personKey = ResolvePersonKey(actorId);
         }
 
         public void ClearSpeaker()
         {
+            _monologue = true;
             _speakerActorId = null;
             _personKey = NarratorPerson;
         }
@@ -86,21 +93,76 @@ namespace Polaris.Event.Game
 
                 EvPerson person = CurrentPerson();
 
-                // getByDrawer 按 hkds id 复用同一个气泡；同一个人连说几句不会每句都新建一个框。
-                NelMSG drawer = container.getByDrawer(_personKey, false, NelMSG.HKDSTYPE._MAX, false, -1);
+                // 原版 MSG 会在气泡出现前就把 T/THINK 之类的类型交给 getByDrawer。
+                // PEVT 的样式写在文本首标签中，若等文本渲染器逐字解析，会先闪过一帧普通气泡。
+                // 所以在创建/复用气泡时先预取首个样式标签，标签本身仍交给原版渲染器处理。
+                NelMSG.HKDSTYPE initialType = InitialBubbleType(text);
+                NelMSG drawer = container.getByDrawer(_personKey, false, initialType, false, -1);
                 if (drawer == null)
                     return;
 
                 if (!drawer.isSame(_personKey, person))
                     drawer.initPerson(_personKey, person);
 
-                var lines = new List<string> { text ?? string.Empty };
-                drawer.makeMessage(lines, person, true, false);
+                if (_monologue)
+                {
+                    // 对齐原版 s13_4b.cmd：HKDS n C @CB MONOLOGUE。
+                    // makeMessage 会在 reserveText 前消费这份信息并切换到无标题、无尾巴的居中旁白框。
+                    drawer.readInfo(new NelMSGContainer.HkdsInfo("C", "@CB", "MONOLOGUE", "="));
+                }
+
+                // 中文原版默认缩字而不换行。PEVT 在提交前自行按可见字符宽度插入真实换行，
+                // 不依赖 TextRenderer.auto_wrap 的语言与气泡初始化时序。
+                float textWidth = _monologue ? 665f : drawer.Tx.max_swidth_px;
+                string displayText = TextLayoutUtils.WrapRichText(text ?? string.Empty, textWidth);
+                ConfigureManualWrap(drawer);
+
+                var lines = new List<string> { displayText };
+                drawer.makeMessage(lines, person, initialType == NelMSG.HKDSTYPE._MAX, false);
+                ConfigureManualWrap(drawer);
+
                 drawer.activateFront();
 
                 _current = drawer;
                 RecordLog(text);
             });
+        }
+
+        private static void ConfigureManualWrap(NelMSG drawer)
+        {
+            if (drawer == null)
+                return;
+
+            drawer.Tx.auto_condense = false;
+            drawer.Tx.auto_condense_line = false;
+            drawer.Tx.auto_wrap = false;
+        }
+
+        /// <summary>
+        /// 预取原版文本渲染器支持的段首气泡标签。只识别紧贴文本开头的完整标签，
+        /// 避免把正文中的 <c>&lt;think&gt;</c> 误当成初始样式。
+        /// </summary>
+        private static NelMSG.HKDSTYPE InitialBubbleType(string text)
+        {
+            if (string.IsNullOrEmpty(text) || text[0] != '<')
+                return NelMSG.HKDSTYPE._MAX;
+
+            int close = text.IndexOf('>');
+            if (close <= 1)
+                return NelMSG.HKDSTYPE._MAX;
+
+            switch (text.Substring(1, close - 1).ToLowerInvariant())
+            {
+                case "normal": return NelMSG.HKDSTYPE.NORMAL;
+                case "circ": return NelMSG.HKDSTYPE.CIRC;
+                case "think": return NelMSG.HKDSTYPE.THINK;
+                case "angry": return NelMSG.HKDSTYPE.ANGRY;
+                case "device": return NelMSG.HKDSTYPE.DEVICE;
+                case "evil": return NelMSG.HKDSTYPE.EVIL;
+                case "book": return NelMSG.HKDSTYPE.BOOK;
+                case "oneline": return NelMSG.HKDSTYPE.ONELINE;
+                default: return NelMSG.HKDSTYPE._MAX;
+            }
         }
 
         /// <summary>

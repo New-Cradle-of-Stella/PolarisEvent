@@ -10,6 +10,8 @@
     <Portrait Id="default" Provider="game-pxls" Asset="EvImg/__ev_n.pxls" LegacyPerson="n" Lifetime="static" />
     <Portrait Id="bass" Provider="game-pxls" Asset="EvImg/__ev_n_bass.pxls" LegacyPerson="nb" Lifetime="event" />
     <Portrait Id="epbench" Provider="game-pxls" Asset="EvImg/__ev_n_epbench.pxls" LegacyPerson="nb2" Lifetime="event" />
+    <Appearance Id="forest-battle" Portrait="default" Pose="a_2/a0L2R1" Frame="F2__f1__m2__b1_u2" />
+    <Appearance Id="forest-rescue" Portrait="default" Pose="a_3/a1" Frame="F1__f3__m1__b1_u2" />
   </Actor>
   <Actor Id="laevi" DisplayKey="Talker_Laevi" Voice="talk_levi" Color="#C692F7" Icon="IconLaevi" DefaultPortrait="default">
     <WorldSprite Provider="game-pxls" Asset="MapChars/sub_v.pxls" />
@@ -22,6 +24,7 @@
   <Actor Id="ixia" DisplayKey="Talker_Ixia" Voice="talk_ixia" Color="#B7FABF" Icon="IconIxia" DefaultPortrait="default">
     <WorldSprite Provider="game-pxls" Asset="MapChars/sub_i.pxls" />
     <Portrait Id="default" Provider="game-pxls" Asset="EvImg/__ev_i.pxls" LegacyPerson="i" Lifetime="event" />
+    <Appearance Id="forest-battle" Portrait="default" Pose="i/a00d" Frame="F1__f1__m4__b3_u1" />
   </Actor>
   <Actor Id="nightingale" DisplayKey="Talker_Nightingale" Voice="talk_nightingale" Color="#A5AFE0" Icon="IconNightingale" DefaultPortrait="default">
     <WorldSprite Provider="game-pxls" Asset="MapChars/sub_t.pxls" />
@@ -40,6 +43,7 @@
   </Actor>
   <Actor Id="mepha" DisplayKey="Talker_Mepha" Voice="talk_mob_w3" Color="#9EA3B1" Icon="IconMepha" DefaultPortrait="default">
     <Portrait Id="default" Provider="game-pxls" Asset="EvImg/__ev_g.pxls" LegacyPerson="g" Lifetime="event" />
+    <Appearance Id="forest-rescue" Portrait="default" Pose="p1/a0L1R2" Frame="F2__f2m1" />
   </Actor>
   <Actor Id="ostrea" DisplayKey="Talker_Ostrea" Voice="talk_mob_m2" Color="#FFD9C0" Icon="IconOstrea" DefaultPortrait="default">
     <WorldSprite Provider="game-pxls" Asset="MapChars/sub_s.pxls" />

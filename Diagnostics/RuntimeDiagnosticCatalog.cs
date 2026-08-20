@@ -41,6 +41,9 @@ namespace Polaris.Pevt.Diagnostics
             new DiagnosticDescriptor("PEVTR4403", "ActorResourceFailed", DiagnosticSeverity.Error, "人物视觉引用的原版 PXLS 或 PolarisRes 资源不存在、加载失败或在等待上限内未就绪。"),
             new DiagnosticDescriptor("PEVTR4404", "ActorCatalogConflict", DiagnosticSeverity.Error, "多个已加载程序集注册相同最终人物 ID，人物目录无法得到唯一目标。"),
             new DiagnosticDescriptor("PEVTR4405", "ActorVisualContractViolation", DiagnosticSeverity.Error, "已登记视觉的实际资源类型、PXLS pose/frame 或生成注册契约与人物目录声明不一致。"),
+            new DiagnosticDescriptor("PEVTR4501", "GameQueryKeyNotFound", DiagnosticSeverity.Error, "执行 `@game_read_*` 时，宿主的只读查询表中没有登记指定的键，或当前运行时根本没有接查询表。"),
+            new DiagnosticDescriptor("PEVTR4502", "GameQueryArgumentsInvalid", DiagnosticSeverity.Error, "只读查询键存在，但给定的查询参数数量、取值或格式不满足该键的要求。"),
+            new DiagnosticDescriptor("PEVTR4503", "GameQueryResultNotConvertible", DiagnosticSeverity.Error, "只读查询成功回报了结果，但该结果无法转换成调用点要求的 PEVT 普通类型。"),
 
             new DiagnosticDescriptor("PEVTR5001", "AwaitFailedOperation", DiagnosticSeverity.Error, "对异常结束或已经被 `kill` 的句柄执行单句柄 `await`。原异步异常应作为该异常的内部原因保留。"),
             new DiagnosticDescriptor("PEVTR5002", "AsyncResultContractViolation", DiagnosticSeverity.Error, "异步操作报告正常完成，但没有提供其定义签名规定的返回值，或实际返回值类型不正确。"),

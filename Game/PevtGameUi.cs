@@ -16,8 +16,12 @@ namespace Polaris.Event.Game
         private readonly HashSet<string> _tutorials = new HashSet<string>(StringComparer.Ordinal);
 
         private bool _letterbox;
+        private bool _letterboxAnimating;
+        private long _letterboxDeadline;
+        private float _letterboxStep;
         private bool _blur;
         private bool _statusHidden;
+        private bool _portraitHidden;
         private bool _uiDisabled;
         private bool _titleShown;
 
@@ -50,7 +54,32 @@ namespace Polaris.Event.Game
             });
         }
 
-        /// <summary>黑边。原版按 <c>draw_letter_box</c> 自己做 40 帧的展开动画，这里只等它跑完。</summary>
+        /// <summary>
+        /// 游戏 HUD 自带的动态人物立绘（<see cref="UIBase.GobPictParent"/>），不是 PEVT 的 TalkDrawer。
+        /// 对应原版事件命令 <c>UIPICT_GOB_DEACTIVE</c> 使用的同一 Flagger。
+        /// </summary>
+        public void SetPortraitVisible(bool visible)
+        {
+            PevtGameHost.Guard("SetPortraitVisible", () =>
+            {
+                UIBase ui = Ui;
+                if (ui == null)
+                    return;
+
+                if (visible)
+                    ui.FlgNoelAreaDisable.Rem(PevtGameHost.Flag);
+                else
+                    ui.FlgNoelAreaDisable.Add(PevtGameHost.Flag);
+
+                _portraitHidden = !visible;
+            });
+        }
+
+        /// <summary>
+        /// 黑边。PEVT 会暂停游戏主循环，原版 <see cref="UIBase.run"/> 不再被地图侧推进，
+        /// 因此不能只改 <c>draw_letter_box</c> 后空等；动画步长由这里登记，随后由
+        /// <see cref="Update"/> 随 PEVT 时钟逐帧驱动原版 UI。
+        /// </summary>
         public PevtWait SetLetterboxVisible(bool visible, int frames)
         {
             PevtGameHost.Guard("SetLetterboxVisible", () =>
@@ -59,15 +88,73 @@ namespace Polaris.Event.Game
                 if (ui == null)
                     return;
 
+                float current = Math.Abs(ui.letter_box_t);
+                SetLetterboxOverride(visible);
                 ui.draw_letter_box = visible;
+
+                _letterboxAnimating = false;
                 if (frames <= 0)
-                    ui.letter_box_t = visible ? 40f : 0f;
+                {
+                    // 与原版 START_LETTERBOX 1 的立即完成路径相同：让 UIBase 自己建立/清掉网格与状态标记。
+                    ui.run(40f);
+                }
+                else
+                {
+                    float distance = visible ? Math.Max(0f, 40f - current) : current;
+                    // UIBase 展开每 fcnt 前进 1，收起每 fcnt 前进 3；换算后恰好在 frames 帧完成。
+                    _letterboxStep = distance / frames / (visible ? 1f : 3f);
+                    _letterboxDeadline = _clock.Frame + frames;
+                    _letterboxAnimating = true;
+                }
 
                 _letterbox = visible;
             });
 
             return TrackFrames(frames);
         }
+
+        /// <summary>由 PEVT 会话更新点调用；只在黑框过渡期间手动补上被暂停的原版 UI 帧。</summary>
+        internal void Update()
+        {
+            if (!_letterboxAnimating)
+                return;
+
+            PevtGameHost.Guard("UpdateLetterbox", () =>
+            {
+                UIBase ui = Ui;
+                if (ui == null)
+                    return;
+
+                ui.run(_letterboxStep);
+                if (_clock.Frame < _letterboxDeadline)
+                    return;
+
+                _letterboxAnimating = false;
+
+                // 浮点步进可能留下极小余量；用原版立即路径完成最后一次网格刷新。
+                float target = _letterbox ? 40f : 0f;
+                if (Math.Abs(Math.Abs(ui.letter_box_t) - target) > 0.001f)
+                    ui.run(40f);
+            });
+        }
+
+        private static bool _letterboxOverrideActive;
+        private static bool _letterboxOverrideVisible;
+
+        private static void SetLetterboxOverride(bool visible)
+        {
+            _letterboxOverrideVisible = visible;
+            _letterboxOverrideActive = true;
+        }
+
+        /// <summary>供 UIBase.run 的 Harmony 前缀调用，防止原版无 EvReader 的关闭路径覆盖 PEVT 状态。</summary>
+        internal static void ApplyLetterboxOverride(UIBase ui)
+        {
+            if (_letterboxOverrideActive && ui != null)
+                ui.draw_letter_box = _letterboxOverrideVisible;
+        }
+
+        private static void ClearLetterboxOverride() => _letterboxOverrideActive = false;
 
         public PevtWait SetBlurVisible(bool visible, int frames)
         {
@@ -214,18 +301,22 @@ namespace Polaris.Event.Game
         /// </summary>
         public void ReleaseAll()
         {
+            _letterboxAnimating = false;
             if (_letterbox)
                 SetLetterboxVisible(false, 0);
             if (_blur)
                 SetBlurVisible(false, 0);
             if (_statusHidden)
                 SetStatusVisible(true);
+            if (_portraitHidden)
+                SetPortraitVisible(true);
             if (_uiDisabled)
                 SetGlobalVisible(true);
             if (_titleShown)
                 HideTitle(0);
             if (_tutorials.Count > 0)
                 ClearTutorials();
+            ClearLetterboxOverride();
         }
 
         private PevtWait TrackFrames(int frames)

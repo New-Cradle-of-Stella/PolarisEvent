@@ -33,6 +33,14 @@ namespace Polaris.Pevt.Runtime.Routines
             yield return portrait.Exit(actor.ActorId, frames);
         }
 
+        public static IEnumerator<PevtWait> ActorHideAll(PevtRoutineContext context, PevtArguments args)
+        {
+            IPevtPortrait portrait = PevtArgumentDomains.RequireService(context.Services.Portrait, "Portrait");
+            int frames = PevtArgumentDomains.RequireFrames(args.Int(0), "frames");
+
+            yield return portrait.HideAll(frames);
+        }
+
         public static IEnumerator<PevtWait> ActorMove(PevtRoutineContext context, PevtArguments args)
         {
             IPevtPortrait portrait = PevtArgumentDomains.RequireService(context.Services.Portrait, "Portrait");

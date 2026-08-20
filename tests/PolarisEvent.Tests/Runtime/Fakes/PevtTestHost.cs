@@ -55,6 +55,21 @@ namespace Polaris.Pevt.Core.Tests.Runtime.Fakes
 
         public FakeBattle Battle { get; } = new FakeBattle();
 
+        public FakeGameQuery GameQuery { get; } = new FakeGameQuery();
+
+        /// <summary>把只读查询表整体换掉（传 null 就是"宿主没接查询表"）。</summary>
+        private IPevtGameQuery _gameQuery;
+        private bool _gameQueryOverridden;
+
+        public PevtTestHost UseGameQuery(IPevtGameQuery query)
+        {
+            _gameQuery = query;
+            _gameQueryOverridden = true;
+            return this;
+        }
+
+        public FakeLocalization Localization { get; } = new FakeLocalization();
+
         public FakeRawCommandBridge RawCommandBridge { get; } = new FakeRawCommandBridge();
 
         public Polaris.Pevt.Runtime.Raw.PevtRawCommandChannel RawCommands { get; }
@@ -154,8 +169,10 @@ namespace Polaris.Pevt.Core.Tests.Runtime.Fakes
                 Resources, Dialogue, Choice, Portrait,
                 Stage, Stage, Stage, Stage, Stage, Stage, Stage, Stage,
                 new PevtDomainServices(World, Entity, State, Inventory, Quest, Player, Battle),
+                _gameQueryOverridden ? _gameQuery : GameQuery,
                 RawCommands,
-                RawCs);
+                RawCs,
+                Localization);
 
             return new PevtExecution(program, Services, Commands, Limits) { SubEvents = SubEvents };
         }
