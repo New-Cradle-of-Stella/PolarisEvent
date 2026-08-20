@@ -219,6 +219,9 @@ namespace Polaris.Event.Game
             if (string.IsNullOrEmpty(entityId))
                 return null;
 
+            if (string.Equals(entityId, "player", StringComparison.OrdinalIgnoreCase))
+                return PolarisAPI.Game.World.CurrentPlayer;
+
             return PolarisAPI.Game.World.CurrentMap?.FindCharacter(entityId);
         }
 

@@ -74,6 +74,44 @@ namespace Polaris.Pevt.Syntax
         }
     }
 
+    /// <summary>
+    /// <c>ifdef 全局标记 ... [elsedef ...]? endifdef</c>。条件只检查全局标记是否已登记，
+    /// 不读取标记当前的 true/false 值。
+    /// </summary>
+    public sealed class IfDefStatementSyntax : StatementSyntax
+    {
+        public SyntaxToken IfDefKeyword { get; }
+        public SyntaxToken FlagName { get; }
+        public IReadOnlyList<StatementSyntax> Body { get; }
+        public SyntaxToken ElseDefKeyword { get; }
+        public IReadOnlyList<StatementSyntax> ElseBody { get; }
+        public SyntaxToken EndIfDefKeyword { get; }
+
+        public IfDefStatementSyntax(SyntaxToken ifDefKeyword, SyntaxToken flagName,
+            IReadOnlyList<StatementSyntax> body, SyntaxToken elseDefKeyword,
+            IReadOnlyList<StatementSyntax> elseBody, SyntaxToken endIfDefKeyword)
+        {
+            IfDefKeyword = ifDefKeyword;
+            FlagName = flagName;
+            Body = SyntaxCollections.Freeze(body);
+            ElseDefKeyword = elseDefKeyword;
+            ElseBody = SyntaxCollections.Freeze(elseBody);
+            EndIfDefKeyword = endIfDefKeyword;
+        }
+
+        public bool HasElse => ElseDefKeyword != null;
+
+        public string FlagKey => FlagName.Value.Kind == TokenValueKind.String
+            ? FlagName.Value.AsString
+            : FlagName.Text;
+
+        public override TextSpan Span => TextSpan.FromBounds(IfDefKeyword.Span.Start, EndIfDefKeyword.Span.End);
+
+        public override string ToString() => HasElse
+            ? $"IfDef({FlagKey}, [{string.Join(", ", Body)}], ElseDef([{string.Join(", ", ElseBody)}]))"
+            : $"IfDef({FlagKey}, [{string.Join(", ", Body)}])";
+    }
+
     /// <summary><c>while 表达式 ... endwhile</c>（5 节）。</summary>
     public sealed class WhileStatementSyntax : StatementSyntax
     {

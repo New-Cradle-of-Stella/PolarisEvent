@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Linq;
 using Polaris.Pevt.Binding;
 using Polaris.Pevt.Commands;
 using Polaris.Pevt.Flow;
@@ -128,7 +129,10 @@ namespace Polaris.Pevt.Runtime
         public IReadOnlyList<PevtOwnershipNode> OwnershipRoots => _scheduler.Ownership.Roots;
 
         /// <summary>按事件 ID 启动一个已注册事件。找不到目标时 PEVTR4301。</summary>
-        public PevtEventInstance Start(string eventId)
+        public PevtEventInstance Start(string eventId) => Start(eventId, Array.Empty<PevtValue>());
+
+        /// <summary>按事件 ID 启动并提供位置实参；缺失的尾部可选形参由其默认值补齐。</summary>
+        public PevtEventInstance Start(string eventId, params PevtValue[] arguments)
         {
             if (!Registry.Events.TryGet(eventId, out PevtEventCandidate candidate))
             {
@@ -136,15 +140,19 @@ namespace Polaris.Pevt.Runtime
                     $"`/event/{eventId}.pevt` 不在当前运行时注册表中。"));
             }
 
-            return StartCore(candidate.Definition, candidate.Owner);
+            return StartCore(candidate.Definition, candidate.Owner, arguments);
         }
 
         /// <summary>直接启动一个已经通过全部静态门的程序定义。宿主自测与工具预览用。</summary>
-        public PevtEventInstance Start(PevtProgramDefinition definition, string owner = null)
+        public PevtEventInstance Start(PevtProgramDefinition definition, string owner = null) =>
+            StartWithArguments(definition, Array.Empty<PevtValue>(), owner);
+
+        /// <summary>直接启动已经通过静态门的程序定义，并提供位置实参。</summary>
+        public PevtEventInstance StartWithArguments(PevtProgramDefinition definition, IReadOnlyList<PevtValue> arguments, string owner = null)
         {
             if (definition == null)
                 throw new ArgumentNullException(nameof(definition));
-            return StartCore(definition, owner);
+            return StartCore(definition, owner, arguments == null ? Array.Empty<PevtValue>() : arguments.ToArray());
         }
 
         /// <summary>
@@ -260,10 +268,16 @@ namespace Polaris.Pevt.Runtime
             return min;
         }
 
-        private PevtEventInstance StartCore(PevtProgramDefinition definition, string owner)
+        private PevtEventInstance StartCore(PevtProgramDefinition definition, string owner, PevtValue[] arguments)
         {
             PevtCompiledProgram program = GetOrCompile(definition);
-            var execution = new PevtExecution(program, _servicesFactory(program.EventId), _commands, Limits)
+            if (!PevtParameterBinding.TryBind(program.Parameters, arguments, out _, out string argumentError))
+            {
+                throw new PevtEventStartException(new PevtRuntimeDiagnostic("PEVTR4305",
+                    $"事件 `{program.EventId}` 启动参数不匹配：{argumentError}"));
+            }
+
+            var execution = new PevtExecution(program, _servicesFactory(program.EventId), arguments, _commands, Limits)
             {
                 // callevt 的目标解析要查注册表，而解释器不认识注册表；宿主自己就是那个解析器。
                 SubEvents = this,

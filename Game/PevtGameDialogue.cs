@@ -26,7 +26,18 @@ namespace Polaris.Event.Game
         private readonly string _eventId;
 
         /// <summary>被 <c>@talker_bind</c> 改过资料的人物，事件结束时逐个还原。</summary>
-        private readonly Dictionary<string, string> _boundNames = new Dictionary<string, string>(StringComparer.Ordinal);
+        private readonly Dictionary<string, ProfileSnapshot> _boundProfiles =
+            new Dictionary<string, ProfileSnapshot>(StringComparer.Ordinal);
+
+        /// <summary>原版 HKDS/TALKER_REPLACE 为事件临时 talker 保存的抽屉配置。</summary>
+        private readonly Dictionary<string, NelMSGContainer.HkdsInfo> _legacyTalkers =
+            new Dictionary<string, NelMSGContainer.HkdsInfo>(StringComparer.Ordinal);
+
+        private struct ProfileSnapshot
+        {
+            public string TalkerName;
+            public string TalkSound;
+        }
 
         private string _speakerActorId;
         private string _personKey = NarratorPerson;
@@ -49,6 +60,21 @@ namespace Polaris.Event.Game
             _monologue = false;
             _speakerActorId = actorId;
             _personKey = ResolvePersonKey(actorId);
+        }
+
+        public void SelectTalker(string talkerId)
+        {
+            _monologue = false;
+            if (!string.IsNullOrEmpty(talkerId) && _actors.Directory.TryGetActor(talkerId, out ActorRegistration _))
+            {
+                _speakerActorId = talkerId;
+                _personKey = ResolvePersonKey(talkerId);
+            }
+            else
+            {
+                _speakerActorId = null;
+                _personKey = string.IsNullOrEmpty(talkerId) ? NarratorPerson : talkerId;
+            }
         }
 
         public void ClearSpeaker()
@@ -103,6 +129,9 @@ namespace Polaris.Event.Game
 
                 if (!drawer.isSame(_personKey, person))
                     drawer.initPerson(_personKey, person);
+
+                if (_legacyTalkers.TryGetValue(_personKey, out NelMSGContainer.HkdsInfo legacyInfo))
+                    drawer.readInfo(legacyInfo);
 
                 if (_monologue)
                 {
@@ -191,6 +220,41 @@ namespace Polaris.Event.Game
             _current = null;
         }
 
+        public void ConfigureTalker(string talkerId, string position, string followTarget, string bounds, string displayName, string voiceId)
+        {
+            if (string.IsNullOrEmpty(talkerId))
+                return;
+            string personKey = _actors.Directory.TryGetActor(talkerId, out ActorRegistration _)
+                ? ResolvePersonKey(talkerId) : talkerId;
+            if (!_legacyTalkers.TryGetValue(personKey, out NelMSGContainer.HkdsInfo info))
+                _legacyTalkers[personKey] = info = new NelMSGContainer.HkdsInfo();
+            if (position != "=")
+                info.pos_fix_key = position;
+            if (followTarget != "=")
+                info.follow_to_key = followTarget;
+            if (bounds != "=")
+                info.bounds_key = bounds;
+            if (string.Equals(bounds, "MONOLOGUE", StringComparison.OrdinalIgnoreCase))
+                _monologue = true;
+            if (displayName != "=")
+                info.talker_replace_key = displayName;
+            if (voiceId != "=")
+                info.talker_snd_key = voiceId;
+            ApplyLegacyInfoToActiveDrawer(personKey, info);
+        }
+
+        private static void ApplyLegacyInfoToActiveDrawer(string talkerId, NelMSGContainer.HkdsInfo info)
+        {
+            PevtGameHost.Guard("ApplyLegacyTalker", () =>
+            {
+                if (!(PevtGameHost.Messages is NelMSGContainer container))
+                    return;
+                NelMSG drawer = container.GetById(talkerId);
+                if (drawer != null && drawer.isActive())
+                    drawer.readInfo(info);
+            });
+        }
+
         // ---- 推进状态，供 PevtDialogueAdvanceWait 使用 ----
 
         private bool AllCharsShown() =>
@@ -246,7 +310,17 @@ namespace Polaris.Event.Game
         }
 
         public PevtWait WaitBoardClose() =>
-            new PevtPredicateWait(() => !BoardActive(), "文本板关闭");
+            new PevtPredicateWait(() =>
+            {
+                if (!BoardActive())
+                    return true;
+
+                if (!Debugging.PevtDebugPage.ConsumeAutoplayAdvance())
+                    return false;
+
+                CloseBoard();
+                return true;
+            }, "文本板关闭输入", allowsIndefiniteWait: true);
 
         /// <summary>
         /// <c>EvtWait(false)</c> 在原版里的含义是"还得继续等"——它为 true 表示描述框上还有一个
@@ -269,8 +343,14 @@ namespace Polaris.Event.Game
                 if (person == null)
                     return;
 
-                if (!_boundNames.ContainsKey(key))
-                    _boundNames[key] = person.talker_name;
+                if (!_boundProfiles.ContainsKey(key))
+                {
+                    _boundProfiles[key] = new ProfileSnapshot
+                    {
+                        TalkerName = person.talker_name,
+                        TalkSound = person.talk_snd,
+                    };
+                }
 
                 if (!string.IsNullOrEmpty(displayName))
                     person.talker_name = displayName;
@@ -284,14 +364,17 @@ namespace Polaris.Event.Game
             PevtGameHost.Guard("ResetProfile", () =>
             {
                 string key = ResolvePersonKey(actorId);
-                if (!_boundNames.TryGetValue(key, out string original))
+                if (!_boundProfiles.TryGetValue(key, out ProfileSnapshot original))
                     return;
 
                 EvPerson person = EvPerson.getPerson(key, null);
                 if (person != null)
-                    person.talker_name = original;
+                {
+                    person.talker_name = original.TalkerName;
+                    person.talk_snd = original.TalkSound;
+                }
 
-                _boundNames.Remove(key);
+                _boundProfiles.Remove(key);
             });
         }
 
@@ -332,19 +415,22 @@ namespace Polaris.Event.Game
         /// <summary>事件结束时把改过的人物资料全部还原。</summary>
         public void RestoreProfiles()
         {
-            var keys = new List<string>(_boundNames.Keys);
+            var keys = new List<string>(_boundProfiles.Keys);
             foreach (string key in keys)
             {
-                string original = _boundNames[key];
+                ProfileSnapshot original = _boundProfiles[key];
                 PevtGameHost.Guard("RestoreProfile", () =>
                 {
                     EvPerson person = EvPerson.getPerson(key, null);
                     if (person != null)
-                        person.talker_name = original;
+                    {
+                        person.talker_name = original.TalkerName;
+                        person.talk_snd = original.TalkSound;
+                    }
                 });
             }
 
-            _boundNames.Clear();
+            _boundProfiles.Clear();
         }
 
         /// <summary>
@@ -359,6 +445,8 @@ namespace Polaris.Event.Game
             public PevtDialogueAdvanceWait(PevtGameDialogue dialogue) => _dialogue = dialogue;
 
             public override string ProgressSource => "对话推进输入";
+
+            public override bool AllowsIndefiniteWait => true;
 
             protected override void OnTick(PevtWaitContext context)
             {

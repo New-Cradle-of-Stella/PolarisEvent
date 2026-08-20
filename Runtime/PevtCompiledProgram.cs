@@ -54,6 +54,9 @@ namespace Polaris.Pevt.Runtime
         /// <summary>把本帧的 switch 值槽压栈，用于与各 case 表达式比较。</summary>
         LoadSwitch,
 
+        /// <summary>检查一个原版全局旗标键是否已登记，并把结果压栈；不读取旗标值。</summary>
+        PushGlobalFlagDefined,
+
         /// <summary>终止整个事件执行。</summary>
         End,
 
@@ -200,6 +203,7 @@ namespace Polaris.Pevt.Runtime
                 PevtOpCode.JumpIfTrue => $"JumpIfTrue -> {Target}",
                 PevtOpCode.StoreSwitch => $"StoreSwitch {Index}",
                 PevtOpCode.LoadSwitch => $"LoadSwitch {Index}",
+                PevtOpCode.PushGlobalFlagDefined => $"PushGlobalFlagDefined {Name}",
                 PevtOpCode.CallBuiltin => $"CallBuiltin @{Descriptor?.Name} /{Index}",
                 PevtOpCode.CallBlock => $"CallBlock #{Index}",
                 PevtOpCode.CallAsync => $"CallAsync {Name} -> {HandlerName ?? "<discard>"}",
@@ -222,7 +226,7 @@ namespace Polaris.Pevt.Runtime
         public int EntryPoint { get; }
 
         /// <summary>形参名与类型，按声明顺序。</summary>
-        public IReadOnlyList<KeyValuePair<string, PevtType>> Parameters { get; }
+        public IReadOnlyList<PevtParameterInfo> Parameters { get; }
 
         /// <summary>返回类型；null 表示无返回值。</summary>
         public PevtType? ReturnType { get; }
@@ -232,7 +236,7 @@ namespace Polaris.Pevt.Runtime
 
         public TextSpan Span { get; }
 
-        internal PevtBlockInfo(string name, int entryPoint, IReadOnlyList<KeyValuePair<string, PevtType>> parameters, PevtType? returnType, bool isAsync, TextSpan span)
+        internal PevtBlockInfo(string name, int entryPoint, IReadOnlyList<PevtParameterInfo> parameters, PevtType? returnType, bool isAsync, TextSpan span)
         {
             Name = name;
             EntryPoint = entryPoint;
@@ -277,7 +281,7 @@ namespace Polaris.Pevt.Runtime
         /// PEVT-E07：事件头声明的参数，按声明顺序。空列表表示旧语法（无参事件）。
         /// <c>callevt</c> 的晚绑定阶段用它核对调用方实参的数量与类型（PEVTR4305）。
         /// </summary>
-        public IReadOnlyList<KeyValuePair<string, PevtType>> Parameters { get; }
+        public IReadOnlyList<PevtParameterInfo> Parameters { get; }
 
         /// <summary>PEVT-E08：文件头声明的资源预载组，按声明顺序。空列表表示没有声明任何组。</summary>
         public IReadOnlyList<PevtResourceGroupInfo> ResourceGroups { get; }
@@ -298,17 +302,21 @@ namespace Polaris.Pevt.Runtime
         /// <summary>源文件是否声明了 <c>enable async</c>。<c>callevt</c> 的异步形式与 <c>exec</c> 都要看它。</summary>
         public bool HasAsyncCapability { get; }
 
+        /// <summary>源文件是否声明了 <c>enable cmdarg</c>；动态 <c>exec</c> 片段继承此解析模式。</summary>
+        public bool HasCmdArgCapability { get; }
+
         private PevtCompiledProgram(
             string eventId,
             SourceText source,
             IReadOnlyList<PevtInstruction> code,
             IReadOnlyList<PevtBlockInfo> blocks,
-            IReadOnlyList<KeyValuePair<string, PevtType>> parameters,
+            IReadOnlyList<PevtParameterInfo> parameters,
             IReadOnlyList<PevtResourceGroupInfo> resourceGroups,
             int declarationCount,
             int switchSlotCount,
             bool hasCsCapability,
-            bool hasAsyncCapability)
+            bool hasAsyncCapability,
+            bool hasCmdArgCapability)
         {
             EventId = eventId;
             Source = source;
@@ -320,6 +328,7 @@ namespace Polaris.Pevt.Runtime
             SwitchSlotCount = switchSlotCount;
             HasCsCapability = hasCsCapability;
             HasAsyncCapability = hasAsyncCapability;
+            HasCmdArgCapability = hasCmdArgCapability;
 
             _blocksByName = new Dictionary<string, PevtBlockInfo>(StringComparer.Ordinal);
             foreach (PevtBlockInfo block in blocks)
@@ -379,12 +388,13 @@ namespace Polaris.Pevt.Runtime
                     _definition.Source,
                     new ReadOnlyCollection<PevtInstruction>(_code),
                     new ReadOnlyCollection<PevtBlockInfo>(_blocks),
-                    new ReadOnlyCollection<KeyValuePair<string, PevtType>>(CollectEventParameters()),
+                    new ReadOnlyCollection<PevtParameterInfo>(CollectEventParameters()),
                     new ReadOnlyCollection<PevtResourceGroupInfo>(CollectResourceGroups()),
                     _declarationCount,
                     _maxSwitchDepth,
                     _definition.HasCsCapability,
-                    _definition.HasAsyncCapability);
+                    _definition.HasAsyncCapability,
+                    _definition.HasCmdArgCapability);
 
                 return new PevtCompileResult(program, Array.AsReadOnly(Array.Empty<string>()));
             }
@@ -396,9 +406,9 @@ namespace Polaris.Pevt.Runtime
             }
 
             /// <summary>PEVT-E07：事件头声明的参数，按声明顺序；旧语法（无参事件）返回空列表。</summary>
-            private List<KeyValuePair<string, PevtType>> CollectEventParameters()
+            private List<PevtParameterInfo> CollectEventParameters()
             {
-                var parameters = new List<KeyValuePair<string, PevtType>>();
+                var parameters = new List<PevtParameterInfo>();
                 ParameterListSyntax declared = _definition.Document.IdDeclaration?.Parameters;
                 if (declared == null)
                     return parameters;
@@ -406,10 +416,24 @@ namespace Polaris.Pevt.Runtime
                 foreach (ParameterSyntax parameter in declared.Parameters)
                 {
                     if (!parameter.Name.IsMissing)
-                        parameters.Add(new KeyValuePair<string, PevtType>(parameter.Name.Text, PevtTypeFacts.FromTypeKeyword(parameter.Type.Kind)));
+                        parameters.Add(CompileParameter(parameter));
                 }
 
                 return parameters;
+            }
+
+            private static PevtParameterInfo CompileParameter(ParameterSyntax parameter)
+            {
+                PevtType type = PevtTypeFacts.FromTypeKeyword(parameter.Type.Kind);
+                if (!parameter.HasDefaultValue)
+                    return new PevtParameterInfo(parameter.Name.Text, type);
+
+                // Binder 已经保证这是类型匹配的编译期常量；这里保留防御性检查，避免构造损坏的编译产物。
+                if (!PevtParameterDefaults.TryEvaluate(parameter.DefaultValue, out PevtValue defaultValue)
+                    || defaultValue.Type != type)
+                    throw new InvalidOperationException($"形参 `{parameter.Name.Text}` 的默认值没有通过静态绑定。");
+
+                return new PevtParameterInfo(parameter.Name.Text, type, defaultValue);
             }
 
             /// <summary>
@@ -451,14 +475,12 @@ namespace Polaris.Pevt.Runtime
             {
                 bool isAsync = definition.AsyncKeyword != null && !definition.AsyncKeyword.IsMissing;
 
-                var parameters = new List<KeyValuePair<string, PevtType>>();
+                var parameters = new List<PevtParameterInfo>();
                 if (definition.Parameters != null)
                 {
                     foreach (ParameterSyntax parameter in definition.Parameters.Parameters)
                     {
-                        parameters.Add(new KeyValuePair<string, PevtType>(
-                            parameter.Name.Text,
-                            PevtTypeFacts.FromTypeKeyword(parameter.Type.Kind)));
+                        parameters.Add(CompileParameter(parameter));
                     }
                 }
 
@@ -489,7 +511,7 @@ namespace Polaris.Pevt.Runtime
                 _blocks.Add(new PevtBlockInfo(
                     definition.Name.Text,
                     entry,
-                    new ReadOnlyCollection<KeyValuePair<string, PevtType>>(parameters),
+                    new ReadOnlyCollection<PevtParameterInfo>(parameters),
                     returnType,
                     isAsync,
                     definition.Span));
@@ -531,6 +553,10 @@ namespace Polaris.Pevt.Runtime
 
                     case IfStatementSyntax ifStatement:
                         EmitIf(ifStatement);
+                        return;
+
+                    case IfDefStatementSyntax ifDefStatement:
+                        EmitIfDef(ifDefStatement);
                         return;
 
                     case WhileStatementSyntax whileStatement:
@@ -626,6 +652,24 @@ namespace Polaris.Pevt.Runtime
 
                 foreach (int jump in endJumps)
                     Patch(jump, _code.Count);
+            }
+
+            private void EmitIfDef(IfDefStatementSyntax statement)
+            {
+                Emit(PevtOpCode.PushGlobalFlagDefined, statement.IfDefKeyword.Span, name: statement.FlagKey);
+                int elseJump = EmitPlaceholder(PevtOpCode.JumpIfFalse, statement.IfDefKeyword.Span);
+                EmitStatements(statement.Body);
+
+                if (!statement.HasElse)
+                {
+                    Patch(elseJump, _code.Count);
+                    return;
+                }
+
+                int endJump = EmitPlaceholder(PevtOpCode.Jump, statement.ElseDefKeyword.Span);
+                Patch(elseJump, _code.Count);
+                EmitStatements(statement.ElseBody);
+                Patch(endJump, _code.Count);
             }
 
             private void EmitWhile(WhileStatementSyntax statement)

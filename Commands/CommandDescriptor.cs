@@ -88,6 +88,9 @@ namespace Polaris.Pevt.Commands
         /// <summary>内置能力规范里的能力标识，例如 <c>dialogue.show</c>。只作文档追溯用，不是可调用名称。</summary>
         public string Capability { get; }
 
+        /// <summary>面向事件作者的简短说明，描述这条 API 实际会做什么。</summary>
+        public string Description { get; }
+
         /// <summary>调用是否立即返回 <c>handler</c>。只有派生出来的 <c>_start</c> 变体为 true。</summary>
         public bool IsAsync { get; }
 
@@ -100,8 +103,9 @@ namespace Polaris.Pevt.Commands
             PevtType? returnType,
             CommandWaitKind waitKind,
             CommandPriority priority,
-            string capability)
-            : this(name, parameters, returnType, waitKind, priority, capability, isAsync: false, parallelSource: null)
+            string capability,
+            string description = null)
+            : this(name, parameters, returnType, waitKind, priority, capability, description, isAsync: false, parallelSource: null)
         {
             if (name.EndsWith(StartSuffix, StringComparison.Ordinal))
                 throw new ArgumentException($"`{name}`：`{StartSuffix}` 变体由可并行条目自动派生，不能单独登记。", nameof(name));
@@ -114,6 +118,7 @@ namespace Polaris.Pevt.Commands
             CommandWaitKind waitKind,
             CommandPriority priority,
             string capability,
+            string description,
             bool isAsync,
             CommandDescriptor parallelSource)
         {
@@ -148,6 +153,7 @@ namespace Polaris.Pevt.Commands
             WaitKind = waitKind;
             Priority = priority;
             Capability = capability ?? string.Empty;
+            Description = description ?? string.Empty;
             IsAsync = isAsync;
             ParallelSource = parallelSource;
         }
@@ -174,6 +180,7 @@ namespace Polaris.Pevt.Commands
                 WaitKind,
                 Priority,
                 Capability,
+                Description,
                 isAsync: true,
                 parallelSource: this);
         }

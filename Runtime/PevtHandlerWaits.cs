@@ -29,6 +29,8 @@ namespace Polaris.Pevt.Runtime
         /// <summary>子协程本身由调度器每帧推进；只有它内部的等待可能失去推进源。</summary>
         public override bool HasProgressSource => _routine.HasProgressSource;
 
+        public override bool AllowsIndefiniteWait => _routine.AllowsIndefiniteWait;
+
         protected override void OnTick(PevtWaitContext context)
         {
             if (!_routine.IsFinished)
@@ -91,6 +93,20 @@ namespace Polaris.Pevt.Runtime
             }
         }
 
+        public override bool AllowsIndefiniteWait
+        {
+            get
+            {
+                foreach (PevtAsyncRoutine routine in _routines)
+                {
+                    if (!routine.IsFinished && routine.AllowsIndefiniteWait)
+                        return true;
+                }
+
+                return false;
+            }
+        }
+
         protected override void OnTick(PevtWaitContext context)
         {
             int succeeded = 0;
@@ -149,6 +165,20 @@ namespace Polaris.Pevt.Runtime
                 }
 
                 return true;
+            }
+        }
+
+        public override bool AllowsIndefiniteWait
+        {
+            get
+            {
+                foreach (PevtAsyncRoutine routine in _routines)
+                {
+                    if (!routine.IsFinished && routine.AllowsIndefiniteWait)
+                        return true;
+                }
+
+                return false;
             }
         }
 

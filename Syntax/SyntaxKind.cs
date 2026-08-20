@@ -8,8 +8,9 @@ namespace Polaris.Pevt.Syntax
         IdentifierToken, EventIdLiteralToken, IntegerLiteralToken, FloatLiteralToken,
         StringLiteralToken, CharLiteralToken, RawContentToken,
 
-        IdKeyword, EnableKeyword, CsKeyword, CmdKeyword, EndKeyword, BlockKeyword, CallEvtKeyword,
+        IdKeyword, EnableKeyword, CsKeyword, CmdKeyword, CmdArgKeyword, EndKeyword, BlockKeyword, CallEvtKeyword,
         IfKeyword, ElifKeyword, ElseKeyword, EndIfKeyword,
+        IfDefKeyword, ElseDefKeyword, EndIfDefKeyword,
         WhileKeyword, EndWhileKeyword,
         SwitchKeyword, CaseKeyword, DefaultKeyword, EndSwitchKeyword,
         GotoKeyword, VarKeyword, ConstKeyword,

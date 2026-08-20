@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using Polaris.Pevt.Diagnostics;
+using Polaris.Pevt.Runtime;
 using Polaris.Pevt.Syntax;
 using Polaris.Pevt.Text;
 
@@ -83,6 +84,7 @@ namespace Polaris.Pevt.Binding
             // 调用方（callevt 的晚绑定阶段）提供的实参快照，静态侧只管声明和普通读取规则。
             if (document.IdDeclaration?.Parameters != null)
             {
+                BindParameterDefaults(document.IdDeclaration.Parameters);
                 foreach (ParameterSyntax parameter in document.IdDeclaration.Parameters.Parameters)
                 {
                     if (!parameter.Name.IsMissing)
@@ -110,6 +112,11 @@ namespace Polaris.Pevt.Binding
                             CollectBlockNames(elif.Body);
                         if (ifStatement.ElseClause != null)
                             CollectBlockNames(ifStatement.ElseClause.Body);
+                        break;
+                    case IfDefStatementSyntax ifDefStatement:
+                        CollectBlockNames(ifDefStatement.Body);
+                        if (ifDefStatement.HasElse)
+                            CollectBlockNames(ifDefStatement.ElseBody);
                         break;
                     case WhileStatementSyntax whileStatement:
                         CollectBlockNames(whileStatement.Body);
@@ -139,6 +146,7 @@ namespace Polaris.Pevt.Binding
                 case AssignmentStatementSyntax assignment: BindAssignment(assignment, env); break;
                 case ReturnStatementSyntax returnStatement: BindReturnTarget(returnStatement, env); break;
                 case IfStatementSyntax ifStatement: BindIf(ifStatement, env); break;
+                case IfDefStatementSyntax ifDefStatement: BindIfDef(ifDefStatement, env); break;
                 case WhileStatementSyntax whileStatement: BindWhile(whileStatement, env); break;
                 case SwitchStatementSyntax switchStatement: BindSwitch(switchStatement, env); break;
                 case ExpressionStatementSyntax expressionStatement:
@@ -266,6 +274,18 @@ namespace Polaris.Pevt.Binding
             env.Restore(BoundEnvironment.Merge(branchStates, isExhaustive: node.ElseClause != null, preState));
         }
 
+        private void BindIfDef(IfDefStatementSyntax node, BoundEnvironment env)
+        {
+            Dictionary<string, bool> preState = env.SnapshotFlowState();
+            var branchStates = new List<Dictionary<string, bool>>();
+
+            BindBranch(node.Body, env, preState, branchStates);
+            if (node.HasElse)
+                BindBranch(node.ElseBody, env, preState, branchStates);
+
+            env.Restore(BoundEnvironment.Merge(branchStates, isExhaustive: node.HasElse, preState));
+        }
+
         /// <summary>
         /// 5 节：循环体可能一次也不执行，因此循环之后的状态就是循环之前的状态。
         /// 循环体仍然用一份克隆单独走一遍绑定，只为在体内报告读取与声明相关的诊断，不做不动点分析。
@@ -370,6 +390,7 @@ namespace Polaris.Pevt.Binding
 
             var parameterTypes = new List<PevtType>();
             var blockEnv = new BoundEnvironment();
+            BindParameterDefaults(block.Parameters);
             foreach (ParameterSyntax parameter in block.Parameters.Parameters)
             {
                 PevtType parameterType = PevtTypeFacts.FromTypeKeyword(parameter.Type.Kind);
@@ -384,7 +405,36 @@ namespace Polaris.Pevt.Binding
             _blockReturnTypeStack.Pop();
 
             if (!block.Name.IsMissing && !duplicateName)
-                _readyBlocks[block.Name.Text] = new BlockSignature(block.Name.Text, block.AsyncKeyword != null, parameterTypes, returnType);
+                _readyBlocks[block.Name.Text] = new BlockSignature(
+                    block.Name.Text,
+                    block.AsyncKeyword != null,
+                    parameterTypes,
+                    block.Parameters.Parameters.Count(parameter => !parameter.HasDefaultValue),
+                    returnType);
+        }
+
+        private void BindParameterDefaults(ParameterListSyntax parameters)
+        {
+            if (parameters == null)
+                return;
+
+            foreach (ParameterSyntax parameter in parameters.Parameters)
+            {
+                if (!parameter.HasDefaultValue)
+                    continue;
+
+                if (!PevtParameterDefaults.TryEvaluate(parameter.DefaultValue, out PevtValue defaultValue))
+                {
+                    Report("PEVT1120", parameter.DefaultValue.Span);
+                    continue;
+                }
+
+                PevtType actual = BindExpression(parameter.DefaultValue, new BoundEnvironment());
+                PevtType expected = PevtTypeFacts.FromTypeKeyword(parameter.Type.Kind);
+                if (actual.IsOrdinaryType() && expected.IsOrdinaryType()
+                    && (actual != expected || defaultValue.Type != expected))
+                    Report("PEVT1121", parameter.DefaultValue.Span);
+            }
         }
 
         /// <summary>15.2 节：初始化器本身仍然是一次普通调用绑定（校验签名/参数），只是结果类型被丢弃——
@@ -484,7 +534,7 @@ namespace Polaris.Pevt.Binding
 
             if (!signature.IsAsync)
                 Report("PEVT7507", target.Span);
-            if (signature.ParameterTypes.Count != 0)
+            if (signature.RequiredParameterCount != 0)
                 Report("PEVT7508", target.Span);
         }
 
@@ -883,7 +933,7 @@ namespace Polaris.Pevt.Binding
 
         private void CheckBlockCallArguments(CustomBlockCallExpressionSyntax call, IReadOnlyList<PevtType> argumentTypes, BlockSignature signature)
         {
-            if (argumentTypes.Count != signature.ParameterTypes.Count)
+            if (argumentTypes.Count < signature.RequiredParameterCount || argumentTypes.Count > signature.ParameterTypes.Count)
             {
                 Report("PEVT7112", call.Arguments.Span);
                 return;

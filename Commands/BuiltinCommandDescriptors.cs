@@ -20,7 +20,8 @@ namespace Polaris.Pevt.Commands
             CommandPriority priority,
             string capability,
             params CommandParameter[] parameters) =>
-            new CommandDescriptor(name, parameters, returnType, wait, priority, capability);
+            new CommandDescriptor(name, parameters, returnType, wait, priority, capability,
+                BuiltinCommandDescriptions.Get(name, capability, parameters?.Length ?? 0));
 
         private static ParameterDomain Actor => ParameterDomain.ActorId;
         private static ParameterDomain Appearance => ParameterDomain.ActorAppearance;
@@ -75,7 +76,8 @@ namespace Polaris.Pevt.Commands
                         parameters.Add(P("arg" + a, PevtType.String));
 
                     descriptors.Add(new CommandDescriptor(
-                        names[i], parameters, returns[i], Query, P1, "game.query.read"));
+                        names[i], parameters, returns[i], Query, P1, "game.query.read",
+                        BuiltinCommandDescriptions.Get(names[i], "game.query.read", parameters.Count)));
                 }
             }
         }
@@ -94,6 +96,10 @@ namespace Polaris.Pevt.Commands
 
             // ---- 对话与选择 ----
             Cmd("say", Wait, null, P0, "dialogue.show", P("actorId", PevtType.String, Actor), P("text", PevtType.String, Text)),
+            Cmd("say", Wait, null, P0, "dialogue.show.cmdLayout",
+                P("talkerId", PevtType.String), P("text", PevtType.String, Text),
+                P("position", PevtType.String), P("followTarget", PevtType.String), P("bounds", PevtType.String),
+                P("displayName", PevtType.String, Text), P("voiceId", PevtType.String)),
             Cmd("narrate", Wait, null, P0, "dialogue.show", P("text", PevtType.String, Text)),
             Cmd("board", Wait, null, P0, "dialogue.board.show", P("text", PevtType.String, Text), P("style", PevtType.String)),
             Cmd("talker_bind", Immediate, null, P0, "dialogue.profile.bind",
@@ -240,6 +246,7 @@ namespace Polaris.Pevt.Commands
 
             // ---- 地图与场景实体 ----
             Cmd("require_map", Immediate, null, P1, "map.current.require", P("mapId", PevtType.String)),
+            Cmd("map_current", Query, PevtType.String, P1, "map.current.get"),
             Cmd("map_change", Wait, null, P1, "map.transfer",
                 P("mapId", PevtType.String), P("anchorId", PevtType.String)),
             Cmd("map_refresh", Wait, null, P1, "map.refresh", P("mode", PevtType.String)),

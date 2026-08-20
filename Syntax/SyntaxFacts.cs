@@ -15,6 +15,7 @@ namespace Polaris.Pevt.Syntax
             ["enable"] = SyntaxKind.EnableKeyword,
             ["cs"] = SyntaxKind.CsKeyword,
             ["cmd"] = SyntaxKind.CmdKeyword,
+            ["cmdarg"] = SyntaxKind.CmdArgKeyword,
             ["end"] = SyntaxKind.EndKeyword,
             ["block"] = SyntaxKind.BlockKeyword,
             ["callevt"] = SyntaxKind.CallEvtKeyword,
@@ -22,6 +23,9 @@ namespace Polaris.Pevt.Syntax
             ["elif"] = SyntaxKind.ElifKeyword,
             ["else"] = SyntaxKind.ElseKeyword,
             ["endif"] = SyntaxKind.EndIfKeyword,
+            ["ifdef"] = SyntaxKind.IfDefKeyword,
+            ["elsedef"] = SyntaxKind.ElseDefKeyword,
+            ["endifdef"] = SyntaxKind.EndIfDefKeyword,
             ["while"] = SyntaxKind.WhileKeyword,
             ["endwhile"] = SyntaxKind.EndWhileKeyword,
             ["switch"] = SyntaxKind.SwitchKeyword,
@@ -64,7 +68,7 @@ namespace Polaris.Pevt.Syntax
         public static IReadOnlyCollection<string> TypeNames { get; } = new[] { "int", "float", "bool", "char", "string" };
 
         /// <summary>2.1 节文件级能力声明允许的能力名称。</summary>
-        public static IReadOnlyCollection<string> EnableCapabilities { get; } = new[] { "cs", "async" };
+        public static IReadOnlyCollection<string> EnableCapabilities { get; } = new[] { "cs", "async", "cmdarg" };
 
         public static bool TryGetKeywordKind(string text, out SyntaxKind kind) => Keywords.TryGetValue(text, out kind);
 

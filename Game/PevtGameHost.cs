@@ -81,7 +81,13 @@ namespace Polaris.Event.Game
         }
 
         /// <summary>玩家是否按下了"推进"键。与原版 <c>INisKettei</c> 同源，尊重事件按键分配。</summary>
-        public static bool AdvancePressed() => Safe(EV.INisKettei, false);
+        public static bool AdvancePressed()
+        {
+            // 即使玩家本帧也按了键，仍消费自动播放脉冲，避免它被下一条消息重复使用。
+            bool pressed = Safe(EV.INisKettei, false);
+            bool autoplay = Debugging.PevtDebugPage.ConsumeAutoplayAdvance();
+            return pressed || autoplay;
+        }
 
         public static bool CancelPressed() => Safe(EV.INisCancel, false);
 

@@ -30,6 +30,14 @@ namespace Polaris.Event.Game.Debugging
         private static string _notice = string.Empty;
         private static long _lastObservedFinishedInstanceId;
 
+        private const float AutoplayBaseIntervalFrames = 45f;
+        private static bool _autoplayEnabled;
+        private static float _autoplaySpeed = 1f;
+        private static long _autoplayEventInstanceId = -1;
+        private static long _autoplayNextFrame = -1;
+        private static long _autoplayPulseFrame = -1;
+        private static bool _autoplayPulseConsumed;
+
         private static readonly string[] TabTitles =
             { "Overview", "Stack", "Async", "Ownership", "Source", "Events", "Live", "Queries", "History" };
 
@@ -55,7 +63,10 @@ namespace Polaris.Event.Game.Debugging
                 Toggle();
 
             if (_open)
+            {
+                UpdateAutoplay();
                 ObserveFinishedInstances();
+            }
         }
 
         /// <summary>
@@ -108,9 +119,93 @@ namespace Polaris.Event.Game.Debugging
             if (!_open)
                 return;
 
+            SetAutoplay(false);
             _open = false;
             HoldInput(false);
             HoldCursor(false);
+        }
+
+        /// <summary>
+        /// 由 PEVT 的输入等待消费一次自动推进。脉冲只活一个解释器帧且全局只能消费一次，
+        /// 防止一帧内创建的下一条消息把同一次自动点击也吃掉。
+        /// </summary>
+        internal static bool ConsumeAutoplayAdvance()
+        {
+            PevtGameRuntime runtime = Runtime;
+            if (!_open || !_autoplayEnabled || runtime == null || runtime.Frame != _autoplayPulseFrame || _autoplayPulseConsumed)
+                return false;
+
+            _autoplayPulseConsumed = true;
+            return true;
+        }
+
+        /// <summary>
+        /// 原版 EV 的输入查询可能在同一帧检查按下、按住等多个入口，所以 Harmony 层只观察脉冲、
+        /// 不抢先消费；PEVT 自己真正接收输入时仍走 <see cref="ConsumeAutoplayAdvance"/> 保证只推进一次。
+        /// </summary>
+        internal static bool PeekAutoplayAdvance()
+        {
+            PevtGameRuntime runtime = Runtime;
+            return _open
+                && _autoplayEnabled
+                && !_autoplayPulseConsumed
+                && runtime?.Current != null
+                && !runtime.Current.IsFinished
+                && runtime.Frame == _autoplayPulseFrame;
+        }
+
+        private static void UpdateAutoplay()
+        {
+            PevtGameRuntime runtime = Runtime;
+            PevtEventInstance current = runtime?.Current;
+            if (!_autoplayEnabled || current == null || current.IsFinished)
+            {
+                ResetAutoplaySchedule();
+                return;
+            }
+
+            long frame = runtime.Frame;
+            if (_autoplayEventInstanceId != current.Id)
+            {
+                _autoplayEventInstanceId = current.Id;
+                _autoplayNextFrame = frame + 1;
+                _autoplayPulseFrame = -1;
+                _autoplayPulseConsumed = false;
+            }
+
+            if (_autoplayPulseFrame < frame)
+                _autoplayPulseFrame = -1;
+
+            if (frame < _autoplayNextFrame)
+                return;
+
+            // 调试页在解释器之后更新，所以把点击投递给下一次解释器 Resume。
+            _autoplayPulseFrame = frame + 1;
+            _autoplayPulseConsumed = false;
+            _autoplayNextFrame = frame + AutoplayIntervalFrames();
+        }
+
+        private static int AutoplayIntervalFrames() =>
+            Math.Max(1, Mathf.RoundToInt(AutoplayBaseIntervalFrames / Mathf.Max(0.25f, _autoplaySpeed)));
+
+        private static void SetAutoplay(bool enabled)
+        {
+            _autoplayEnabled = enabled;
+            ResetAutoplaySchedule();
+
+            if (enabled && Runtime?.Current != null)
+            {
+                _autoplayEventInstanceId = Runtime.Current.Id;
+                _autoplayNextFrame = Runtime.Frame + 1;
+            }
+        }
+
+        private static void ResetAutoplaySchedule()
+        {
+            _autoplayEventInstanceId = -1;
+            _autoplayNextFrame = -1;
+            _autoplayPulseFrame = -1;
+            _autoplayPulseConsumed = false;
         }
 
         /// <summary>插件卸载：收起页面、放开输入标记并销毁宿主对象。</summary>
@@ -269,6 +364,21 @@ namespace Polaris.Event.Game.Debugging
 
             if (GUILayout.Button("Clear notice", Styles.Button, GUILayout.Width(110f)))
                 _notice = string.Empty;
+
+            string autoplayLabel = _autoplayEnabled ? "Autoplay: ON" : "Autoplay: OFF";
+            if (GUILayout.Button(autoplayLabel, Styles.Button, GUILayout.Width(110f)))
+                SetAutoplay(!_autoplayEnabled);
+
+            GUILayout.Label("Speed " + _autoplaySpeed.ToString("0.00") + "x", Styles.Dim, GUILayout.Width(82f));
+            float selectedSpeed = GUILayout.HorizontalSlider(_autoplaySpeed, 0.25f, 4f, GUILayout.Width(120f));
+            selectedSpeed = Mathf.Round(selectedSpeed * 4f) / 4f;
+            if (Math.Abs(selectedSpeed - _autoplaySpeed) >= 0.01f)
+            {
+                _autoplaySpeed = selectedSpeed;
+                // 改速后从当前帧重新计时，避免保留旧速度留下的一段长空窗。
+                if (_autoplayEnabled)
+                    SetAutoplay(true);
+            }
 
             GUILayout.Label(
                 string.IsNullOrEmpty(_notice)

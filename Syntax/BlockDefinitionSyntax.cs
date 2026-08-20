@@ -4,23 +4,32 @@ using Polaris.Pevt.Text;
 
 namespace Polaris.Pevt.Syntax
 {
-    /// <summary>自定义事件块签名中的单个形参 <c>名 : 类型</c>（14.1 节）。</summary>
+    /// <summary>形参声明 <c>名 : 类型 [= 常量表达式]</c>。事件头与自定义事件块共用。</summary>
     public sealed class ParameterSyntax : SyntaxNode
     {
         public SyntaxToken Name { get; }
         public SyntaxToken Colon { get; }
         public SyntaxToken Type { get; }
+        public SyntaxToken EqualsToken { get; }
+        public ExpressionSyntax DefaultValue { get; }
 
-        public ParameterSyntax(SyntaxToken name, SyntaxToken colon, SyntaxToken type)
+        public ParameterSyntax(SyntaxToken name, SyntaxToken colon, SyntaxToken type,
+            SyntaxToken equalsToken = null, ExpressionSyntax defaultValue = null)
         {
             Name = name;
             Colon = colon;
             Type = type;
+            EqualsToken = equalsToken;
+            DefaultValue = defaultValue;
         }
 
-        public override TextSpan Span => TextSpan.FromBounds(Name.Span.Start, Type.Span.End);
+        public bool HasDefaultValue => DefaultValue != null;
 
-        public override string ToString() => $"{Name.Text}: {Type.Text}";
+        public override TextSpan Span => TextSpan.FromBounds(Name.Span.Start, (DefaultValue?.Span ?? Type.Span).End);
+
+        public override string ToString() => DefaultValue == null
+            ? $"{Name.Text}: {Type.Text}"
+            : $"{Name.Text}: {Type.Text} = {DefaultValue}";
     }
 
     /// <summary>形参列表 <c>(名 : 类型, ...)</c>；空参数列表写作 <c>()</c>（14.1 节）。</summary>

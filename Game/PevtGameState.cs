@@ -35,6 +35,13 @@ namespace Polaris.Event.Game
             return PolarisAPI.Game.Progress.GetFlag(key);
         }
 
+        public bool HasFlag(string scope, string key)
+        {
+            if (scope == StoryScope)
+                return false;
+            return scope == GlobalScope && PolarisAPI.Game.Progress.HasFlag(key);
+        }
+
         public void SetFlag(string scope, string key, bool value)
         {
             if (scope == StoryScope)

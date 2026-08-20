@@ -110,7 +110,9 @@ namespace Polaris.Pevt.Runtime
                         return Fault("PEVTR1002", $"等待 `{wait.ProgressSource}` 没有推进源。", CurrentSpan());
                     }
 
-                    if (!Budget.RecordNoProgress())
+                    if (wait.AllowsIndefiniteWait)
+                        Budget.RecordWaitProgress();
+                    else if (!Budget.RecordNoProgress())
                         return Fault("PEVTR1002", $"事件 `{EventId}` 连续 {Budget.Limits.StallFrames} 帧没有任何进展。", CurrentSpan());
 
                     return new PevtExecutionResult(PevtExecutionStatus.Suspended, PevtSuspendReason.Wait);
@@ -340,12 +342,18 @@ namespace Polaris.Pevt.Runtime
         /// </summary>
         private PevtRuntimeDiagnostic EnterBlockAsRoot(PevtBlockInfo block, PevtValue[] arguments, TextSpan callSpan)
         {
-            var environment = new PevtEnvironment(block.Name);
-            for (int i = 0; i < block.Parameters.Count && i < arguments.Length; i++)
+            if (!PevtParameterBinding.TryBind(block.Parameters, arguments, out PevtValue[] boundArguments, out string argumentError))
             {
-                KeyValuePair<string, PevtType> parameter = block.Parameters[i];
-                PevtSlot slot = environment.Declare(parameter.Key, parameter.Value, PevtSlotKind.Variable);
-                slot.Set(arguments[i]);
+                return new PevtRuntimeDiagnostic("PEVTR9001", $"事件块 `{block.Name}` 调用参数不匹配：{argumentError}",
+                    LocationOf(callSpan), BuildCallStack());
+            }
+
+            var environment = new PevtEnvironment(block.Name);
+            for (int i = 0; i < block.Parameters.Count; i++)
+            {
+                PevtParameterInfo parameter = block.Parameters[i];
+                PevtSlot slot = environment.Declare(parameter.Name, parameter.Type, PevtSlotKind.Variable);
+                slot.Set(boundArguments[i]);
             }
 
             _frames.Clear();
@@ -362,18 +370,26 @@ namespace Polaris.Pevt.Runtime
         /// PEVT-E07：把 <c>callevt</c> 的实参写进子事件根帧的环境——和自定义事件块的形参完全一样，
         /// 调用方提供的是求值时刻的值快照，子事件不能回写调用方变量。旧语法（无参事件）没有参数可写，直接跳过。
         /// </summary>
-        private void SeedEventParameters(PevtValue[] arguments)
+        internal PevtRuntimeDiagnostic SeedEventParameters(PevtValue[] arguments)
         {
             if (_program.Parameters.Count == 0)
-                return;
+                return null;
+
+            if (!PevtParameterBinding.TryBind(_program.Parameters, arguments, out PevtValue[] boundArguments, out string argumentError))
+            {
+                return new PevtRuntimeDiagnostic("PEVTR4305", $"事件 `{EventId}` 调用参数不匹配：{argumentError}",
+                    LocationOf(new TextSpan(0, 0)), BuildCallStack());
+            }
 
             PevtEnvironment environment = _frames[0].Environment;
-            for (int i = 0; i < _program.Parameters.Count && i < arguments.Length; i++)
+            for (int i = 0; i < _program.Parameters.Count; i++)
             {
-                KeyValuePair<string, PevtType> parameter = _program.Parameters[i];
-                PevtSlot slot = environment.Declare(parameter.Key, parameter.Value, PevtSlotKind.Variable);
-                slot.Set(arguments[i]);
+                PevtParameterInfo parameter = _program.Parameters[i];
+                PevtSlot slot = environment.Declare(parameter.Name, parameter.Type, PevtSlotKind.Variable);
+                slot.Set(boundArguments[i]);
             }
+
+            return null;
         }
 
         /// <summary>
@@ -383,23 +399,12 @@ namespace Polaris.Pevt.Runtime
         private PevtRuntimeDiagnostic CheckEventCallSignature(
             string eventId, PevtCompiledProgram program, PevtValue[] arguments, TextSpan span)
         {
-            IReadOnlyList<KeyValuePair<string, PevtType>> parameters = program.Parameters;
+            IReadOnlyList<PevtParameterInfo> parameters = program.Parameters;
 
-            if (parameters.Count != arguments.Length)
+            if (!PevtParameterBinding.TryBind(parameters, arguments, out _, out string argumentError))
             {
                 return new PevtRuntimeDiagnostic("PEVTR4305",
-                    $"`callevt \"{eventId}\"` 提供了 {arguments.Length} 个实参，但目标事件声明了 {parameters.Count} 个参数。",
-                    LocationOf(span), BuildCallStack());
-            }
-
-            for (int i = 0; i < parameters.Count; i++)
-            {
-                if (arguments[i].Type == parameters[i].Value)
-                    continue;
-
-                return new PevtRuntimeDiagnostic("PEVTR4305",
-                    $"`callevt \"{eventId}\"` 的第 {i + 1} 个实参类型是 {arguments[i].Type.DisplayName()}，"
-                    + $"但目标事件声明 `{parameters[i].Key}` 为 {parameters[i].Value.DisplayName()}。",
+                    $"`callevt \"{eventId}\"` 参数不匹配：{argumentError}",
                     LocationOf(span), BuildCallStack());
             }
 
@@ -461,7 +466,9 @@ namespace Polaris.Pevt.Runtime
             try
             {
                 child = new PevtExecution(program, _services, _commands, Budget, SubEvents, DynamicDepth, TotalDepth);
-                child.SeedEventParameters(arguments);
+                PevtRuntimeDiagnostic seedError = child.SeedEventParameters(arguments);
+                if (seedError != null)
+                    return Fault(seedError);
             }
             catch (Exception ex)
             {
@@ -562,6 +569,8 @@ namespace Polaris.Pevt.Runtime
                 builder.Append("enable cs\n");
             if (_program.HasAsyncCapability)
                 builder.Append("enable async\n");
+            if (_program.HasCmdArgCapability)
+                builder.Append("enable cmdarg\n");
 
             int bodyStart = builder.Length;
             builder.Append(fragment);

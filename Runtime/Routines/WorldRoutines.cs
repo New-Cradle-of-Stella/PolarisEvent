@@ -10,6 +10,12 @@ namespace Polaris.Pevt.Runtime.Routines
         private static IPevtWorld World(PevtRoutineContext context) =>
             PevtArgumentDomains.RequireService(context.Services.Domains.World, "World");
 
+        public static IEnumerator<PevtWait> MapCurrent(PevtRoutineContext context, PevtArguments args)
+        {
+            context.Result.SetString(World(context).CurrentMapId ?? string.Empty);
+            yield break;
+        }
+
         public static IEnumerator<PevtWait> RequireMap(PevtRoutineContext context, PevtArguments args)
         {
             IPevtWorld world = World(context);

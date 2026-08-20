@@ -13,15 +13,19 @@ namespace Polaris.Event.Game
     public sealed class PevtGameRuntime
     {
         private readonly PevtGameClock _clock = new PevtGameClock();
+        private readonly RawCmd.PevtGameRawCommandBridge _rawCommandBridge;
 
         private PevtGameSessionServices _session;
+        private PevtGameStaticStateSnapshot _staticStateSnapshot;
+        private PevtGameStaticStateSnapshot _pendingStaticStateRestore;
         private bool _eventModeActive;
 
         public PevtGameRuntime()
         {
             // 两个逃生口都是进程级的：原版 EV 是单套静态执行器，所以会话通道必须跨事件共享；
             // `$raw cs` 的编译缓存同理，每个事件一份等于每次启动事件都重编一遍同一段 C#。
-            RawCommands = new PevtRawCommandChannel(new RawCmd.PevtGameRawCommandBridge());
+            _rawCommandBridge = new RawCmd.PevtGameRawCommandBridge();
+            RawCommands = new PevtRawCommandChannel(_rawCommandBridge);
 
             // Roslyn 延迟加载：整套编译器程序集只在真的遇到第一个 `$raw cs` 时才进入进程。
             // 绝大多数事件一行 `$raw cs` 都没有，没理由让它们为这个逃生口付启动成本。
@@ -102,9 +106,29 @@ namespace Polaris.Event.Game
         public PevtEventInstance Start(string eventId)
         {
             Stop();
-            PevtEventInstance instance = Host.Start(eventId);
-            EnterEventMode();
-            return instance;
+
+            // 上一场若刚结束、原 BGM 还在异步准备，就沿用它作为新的基线；不能把事件曲目
+            // 误拍成“事件前状态”。新事件结束后仍会继续把最初的地图 BGM 恢复回来。
+            PumpPendingStaticStateRestore();
+            _staticStateSnapshot = _pendingStaticStateRestore ?? PevtGameStaticStateSnapshot.Capture();
+            _pendingStaticStateRestore = null;
+
+            try
+            {
+                PevtEventInstance instance = Host.Start(eventId);
+
+                // 先让原版 EV 初始化自己的局部宿主，再重申 PEVT 的暂停/输入标记。
+                // 反过来调用的话 EV.evInit 会把 stop_game 清回 false，让世界在事件中继续运行。
+                _rawCommandBridge.OpenScope();
+                EnterEventMode();
+                return instance;
+            }
+            catch
+            {
+                // Host.Start 本身失败也属于事件异常退出；不能等下一帧才恢复静态状态。
+                ReportCleanupFailures(Stop());
+                throw;
+            }
         }
 
         /// <summary>替换当前根事件。旧事件必须先完整清理，否则它的遮罩和 UI 会盖掉新事件刚设好的那一份。</summary>
@@ -122,8 +146,9 @@ namespace Polaris.Event.Game
             // 必须排在 FinishSession 之前：ExitEventMode 以 `EV.isActive()` 为闸门决定要不要恢复 GMain / GHandle。
             // 一个还留在原版栈上的 raw reader 会让它误判成"原版事件在跑"而跳过恢复，游戏就停在暂停状态。
             failures.AddRange(RawCommands.ReleaseAll());
+            failures.AddRange(_rawCommandBridge.CloseScope());
 
-            FinishSession();
+            failures.AddRange(FinishSession());
             return failures;
         }
 
@@ -133,6 +158,8 @@ namespace Polaris.Event.Game
         /// </summary>
         public void Update()
         {
+            PumpPendingStaticStateRestore();
+
             if (_session == null && !_eventModeActive)
                 return;
 
@@ -141,7 +168,11 @@ namespace Polaris.Event.Game
             Host.Update();
 
             if (Host.Root == null)
-                FinishSession();
+            {
+                ReportCleanupFailures(RawCommands.ReleaseAll());
+                ReportCleanupFailures(_rawCommandBridge.CloseScope());
+                ReportCleanupFailures(FinishSession());
+            }
         }
 
         /// <summary>
@@ -163,8 +194,9 @@ namespace Polaris.Event.Game
 
             // 同 Stop：先把原版栈上的 reader 收掉，再让 ExitEventMode 判断要不要恢复游戏主循环。
             failures.AddRange(RawCommands.ReleaseAll());
+            failures.AddRange(_rawCommandBridge.CloseScope());
 
-            FinishSession();
+            failures.AddRange(FinishSession());
             return failures;
         }
 
@@ -189,20 +221,60 @@ namespace Polaris.Event.Game
         /// 会话收尾。幂等：正常结束会从 <see cref="Update"/> 走到，异常终止和卸载会从
         /// <see cref="Stop"/> / <see cref="Shutdown"/> 走到，两边可能都触发。
         /// </summary>
-        private void FinishSession()
+        private IReadOnlyList<Exception> FinishSession()
         {
+            var failures = new List<Exception>();
+
             if (_session != null)
             {
                 PevtGameSessionServices session = _session;
                 _session = null;
-                session.Release();
+                try
+                {
+                    failures.AddRange(session.Release());
+                }
+                catch (Exception ex)
+                {
+                    failures.Add(ex);
+                }
             }
 
-            if (!_eventModeActive)
+            if (_eventModeActive)
+            {
+                _eventModeActive = false;
+                PevtGameHost.ExitEventMode();
+            }
+
+            if (_staticStateSnapshot != null)
+            {
+                PevtGameStaticStateSnapshot snapshot = _staticStateSnapshot;
+                _staticStateSnapshot = null;
+                failures.AddRange(snapshot.RestoreStep());
+                if (!snapshot.IsRestoreComplete)
+                    _pendingStaticStateRestore = snapshot;
+            }
+
+            return failures.AsReadOnly();
+        }
+
+        private void PumpPendingStaticStateRestore()
+        {
+            PevtGameStaticStateSnapshot pending = _pendingStaticStateRestore;
+            if (pending == null)
                 return;
 
-            _eventModeActive = false;
-            PevtGameHost.ExitEventMode();
+            ReportCleanupFailures(pending.RestoreStep());
+            if (pending.IsRestoreComplete)
+                _pendingStaticStateRestore = null;
+        }
+
+        private static void ReportCleanupFailures(IReadOnlyList<Exception> failures)
+        {
+            if (failures == null)
+                return;
+
+            foreach (Exception failure in failures)
+                PolarisAPI.Errors.Report(failure, "PolarisEvent.Game.Cleanup");
         }
     }
 }

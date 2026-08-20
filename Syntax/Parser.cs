@@ -17,6 +17,15 @@ namespace Polaris.Pevt.Syntax
         private readonly SourceText _source;
         private int _position;
 
+        /// <summary>文件头声明 <c>enable cmdarg</c> 后，调用实参可在同一物理行内用空格分隔。</summary>
+        private bool _cmdArgumentMode;
+
+        /// <summary>
+        /// 正在读取一层空格实参时禁止内层调用再次省略括号，否则 <c>@outer @inner 1 2</c>
+        /// 无法确定 1、2 属于哪一层。内层调用仍可显式写成 <c>@inner(1)</c>。
+        /// </summary>
+        private int _cmdArgumentListDepth;
+
         /// <summary>
         /// 当前嵌套打开的自定义事件块，每层只记录是否声明了返回值类型。
         /// 这就是 <c>return</c>、块内 <c>end</c> 和嵌套定义三处检查唯一需要的上下文，不需要完整符号表。
@@ -85,10 +94,20 @@ namespace Polaris.Pevt.Syntax
         /// </summary>
         public ExpressionSyntax ParseExpression()
         {
+            return ParseExpressionCore(stopAtWhitespaceMinus: false);
+        }
+
+        /// <summary>
+        /// cmdarg 顶层实参中，带前导空白的 <c>-</c> 开始下一个实参并在下一轮按一元取负解析；
+        /// 普通表达式及括号内表达式仍按二元减法解析。
+        /// </summary>
+        private ExpressionSyntax ParseExpressionCore(bool stopAtWhitespaceMinus)
+        {
             ExpressionSyntax first = ParseFirstOperand();
             List<BinaryChainSegment> segments = null;
 
-            while (IsBinaryOperator(Current.Kind))
+            while (IsBinaryOperator(Current.Kind) &&
+                !(stopAtWhitespaceMinus && IsWhitespaceMinusArgumentBoundary(Current)))
             {
                 SyntaxToken operatorToken = Advance();
                 ExpressionSyntax operand = ParseRequiredOperand("PEVT5003");
@@ -97,6 +116,9 @@ namespace Polaris.Pevt.Syntax
 
             return segments == null ? first : new ChainedBinaryExpressionSyntax(first, segments);
         }
+
+        private static bool IsWhitespaceMinusArgumentBoundary(SyntaxToken token) =>
+            token.Kind == SyntaxKind.MinusToken && token.LeadingTrivia.Count > 0;
 
         /// <summary>
         /// 表达式的第一个操作数要单独处理"二元运算符左侧根本没有操作数"（PEVT5002）。这里不消费该 token，
@@ -252,7 +274,7 @@ namespace Polaris.Pevt.Syntax
             }
         }
 
-        private ExpressionSyntax ParseIdentifierStartedOperand()
+        private ExpressionSyntax ParseIdentifierStartedOperand(bool forceCmdArgumentCall = false)
         {
             SyntaxToken name = Advance();
 
@@ -268,6 +290,13 @@ namespace Polaris.Pevt.Syntax
                 // 语法层面 "标识符(...)" 一律按自定义事件块调用搭建节点；有没有 "_" 前缀、是否对应
                 // 一个真实存在的块定义，都是需要跨源码查找定义的语义问题，留给后续阶段核对。
                 return new CustomBlockCallExpressionSyntax(name, ParseArgumentList());
+
+            // cmdarg 形式只把带下划线前缀的名称识别为自定义块调用。表达式位置的裸 `_name`
+            // 仍可能是变量，所以零实参调用只在语句、handler、schedule 等调用上下文由调用方强制识别；
+            // 有同行实参时形状本身已无歧义，可以直接建立调用节点。
+            if (_cmdArgumentMode && _cmdArgumentListDepth == 0 && IsCustomBlockSpelling(name.Text) &&
+                (forceCmdArgumentCall || CanStartWhitespaceArgumentAfter(name)))
+                return new CustomBlockCallExpressionSyntax(name, ParseWhitespaceArgumentList(name));
 
             var nameExpression = new NameExpressionSyntax(name);
 
@@ -341,7 +370,7 @@ namespace Polaris.Pevt.Syntax
             if (!name.IsMissing && (name.LeadingTrivia.Count > 0 || name.Span.Start != at.Span.End))
                 ReportError("PEVT7003", TextSpan.FromBounds(at.Span.Start, name.Span.End));
 
-            return new BuiltinCallExpressionSyntax(at, name, ParseArgumentList());
+            return new BuiltinCallExpressionSyntax(at, name, ParseCallArgumentList(name));
         }
 
         /// <summary>
@@ -439,7 +468,11 @@ namespace Polaris.Pevt.Syntax
             SyntaxToken target = ParseEventCallTarget();
 
             // 括号是可选的（PEVT-E07）：省略括号的旧语法等价于零实参，不强求作者为无参事件写 "()"。
-            ArgumentListSyntax arguments = Check(SyntaxKind.OpenParenToken) ? ParseArgumentList() : null;
+            ArgumentListSyntax arguments = Check(SyntaxKind.OpenParenToken)
+                ? ParseArgumentList()
+                : _cmdArgumentMode && _cmdArgumentListDepth == 0
+                    ? ParseWhitespaceArgumentList(target)
+                    : null;
             return new EventCallExpressionSyntax(callEvtKeyword, target, arguments);
         }
 
@@ -627,5 +660,50 @@ namespace Polaris.Pevt.Syntax
             SyntaxToken close = Check(SyntaxKind.CloseParenToken) ? Advance() : SyntaxToken.CreateMissing(SyntaxKind.CloseParenToken, Current.Span.Start);
             return new ArgumentListSyntax(open, arguments, commas, close);
         }
+
+        /// <summary>
+        /// 普通调用优先保留括号语法；只有文件声明 <c>enable cmdarg</c> 且当前不是另一份空格实参
+        /// 的内部时，才把调用名后同行的表达式逐个作为实参。嵌套调用必须使用括号明确自己的边界。
+        /// </summary>
+        private ArgumentListSyntax ParseCallArgumentList(SyntaxToken anchor)
+        {
+            if (Check(SyntaxKind.OpenParenToken))
+                return ParseArgumentList();
+
+            if (_cmdArgumentMode && _cmdArgumentListDepth == 0)
+                return ParseWhitespaceArgumentList(anchor);
+
+            return ParseArgumentList();
+        }
+
+        private ArgumentListSyntax ParseWhitespaceArgumentList(SyntaxToken anchor)
+        {
+            int line = LineOf(anchor);
+            var arguments = new List<ExpressionSyntax>();
+
+            _cmdArgumentListDepth++;
+            try
+            {
+                while (!Check(SyntaxKind.EndOfFileToken) && LineOf(Current) == line && CanStartExpression(Current.Kind))
+                {
+                    int before = _position;
+                    arguments.Add(ParseExpressionCore(stopAtWhitespaceMinus: true));
+                    if (_position == before)
+                        break;
+                }
+            }
+            finally
+            {
+                _cmdArgumentListDepth--;
+            }
+
+            return new ArgumentListSyntax(arguments, anchor.Span.End);
+        }
+
+        private bool CanStartWhitespaceArgumentAfter(SyntaxToken anchor) =>
+            !Check(SyntaxKind.EndOfFileToken) && LineOf(Current) == LineOf(anchor) && CanStartExpression(Current.Kind);
+
+        private static bool IsCustomBlockSpelling(string text) =>
+            !string.IsNullOrEmpty(text) && text.Length > 1 && text[0] == '_';
     }
 }

@@ -38,6 +38,7 @@ namespace Polaris.Pevt.Flow
         public string EventId { get; }
         public bool HasCsCapability { get; }
         public bool HasAsyncCapability { get; }
+        public bool HasCmdArgCapability { get; }
         public DocumentSyntax Document { get; }
         public SourceText Source { get; }
         public IReadOnlyList<ProgramSymbolSlot> TopLevelSymbols { get; }
@@ -45,12 +46,13 @@ namespace Polaris.Pevt.Flow
         /// <summary>源文本（不含 BOM）UTF-8 字节的 SHA-256，十六进制小写表示。</summary>
         public string SourceHash { get; }
 
-        private PevtProgramDefinition(string eventId, bool hasCsCapability, bool hasAsyncCapability,
+        private PevtProgramDefinition(string eventId, bool hasCsCapability, bool hasAsyncCapability, bool hasCmdArgCapability,
             DocumentSyntax document, SourceText source, IReadOnlyList<ProgramSymbolSlot> topLevelSymbols, string sourceHash)
         {
             EventId = eventId;
             HasCsCapability = hasCsCapability;
             HasAsyncCapability = hasAsyncCapability;
+            HasCmdArgCapability = hasCmdArgCapability;
             Document = document;
             Source = source;
             TopLevelSymbols = topLevelSymbols;
@@ -68,11 +70,12 @@ namespace Polaris.Pevt.Flow
                 : null;
             bool hasCs = document.EnableDeclarations.Any(e => e.Capability.Kind == SyntaxKind.CsKeyword);
             bool hasAsync = document.EnableDeclarations.Any(e => e.Capability.Kind == SyntaxKind.AsyncKeyword);
+            bool hasCmdArg = document.EnableDeclarations.Any(e => e.Capability.Kind == SyntaxKind.CmdArgKeyword);
             var symbols = new List<ProgramSymbolSlot>();
             CollectTopLevelSymbols(document.Statements, symbols);
             string hash = ComputeHash(source.Content);
 
-            return new PevtProgramDefinition(eventId, hasCs, hasAsync, document, source, symbols, hash);
+            return new PevtProgramDefinition(eventId, hasCs, hasAsync, hasCmdArg, document, source, symbols, hash);
         }
 
         /// <summary>
@@ -97,6 +100,11 @@ namespace Polaris.Pevt.Flow
                             CollectTopLevelSymbols(elif.Body, symbols);
                         if (ifStatement.ElseClause != null)
                             CollectTopLevelSymbols(ifStatement.ElseClause.Body, symbols);
+                        break;
+                    case IfDefStatementSyntax ifDefStatement:
+                        CollectTopLevelSymbols(ifDefStatement.Body, symbols);
+                        if (ifDefStatement.HasElse)
+                            CollectTopLevelSymbols(ifDefStatement.ElseBody, symbols);
                         break;
                     case WhileStatementSyntax whileStatement:
                         CollectTopLevelSymbols(whileStatement.Body, symbols);

@@ -65,6 +65,9 @@ namespace Polaris.Pevt.Runtime
     {
         void SelectSpeaker(string actorId);
 
+        /// <summary>选择带 CMD 对话布局的 talker；既可传 Actor ID，也可传 mb1/dj/bt 一类临时键。</summary>
+        void SelectTalker(string talkerId);
+
         void ClearSpeaker();
 
         void OpenText(string text);
@@ -82,6 +85,9 @@ namespace Polaris.Pevt.Runtime
         void BindProfile(string actorId, string displayName, string voiceId);
 
         void ResetProfile(string actorId);
+
+        /// <summary>为一次带 CMD 布局的 @say 准备 HKDS 与 TALKER_REPLACE 参数。</summary>
+        void ConfigureTalker(string talkerId, string position, string followTarget, string bounds, string displayName, string voiceId);
 
         void SetVisible(bool visible, bool immediate);
 

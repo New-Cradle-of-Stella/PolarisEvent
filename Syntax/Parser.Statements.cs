@@ -12,6 +12,8 @@ namespace Polaris.Pevt.Syntax
     public sealed partial class Parser
     {
         private static readonly SyntaxKind[] IfBodyTerminators = { SyntaxKind.ElifKeyword, SyntaxKind.ElseKeyword, SyntaxKind.EndIfKeyword };
+        private static readonly SyntaxKind[] IfDefBodyTerminators = { SyntaxKind.ElseDefKeyword, SyntaxKind.EndIfDefKeyword };
+        private static readonly SyntaxKind[] ElseDefBodyTerminators = { SyntaxKind.ElseDefKeyword, SyntaxKind.EndIfDefKeyword };
         private static readonly SyntaxKind[] WhileBodyTerminators = { SyntaxKind.EndWhileKeyword };
         // else 的正文遇到 elif/else 也要停下来，好让错位分支恢复（2005/2007）接手，
         // 而不是把它们当成 else 正文里的普通语句、落到孤立闭合符分支报错。
@@ -35,6 +37,8 @@ namespace Polaris.Pevt.Syntax
             var enables = new List<EnableDeclarationSyntax>();
             while (Check(SyntaxKind.EnableKeyword))
                 enables.Add(ParseEnableDeclaration(seenCapabilities));
+
+            _cmdArgumentMode = seenCapabilities.Contains(SyntaxKind.CmdArgKeyword);
 
             // PEVT-E08：资源预载组声明紧跟 enable 区域之后，同样是文件头声明——预载在加载阶段就要开始。
             var seenGroupIds = new HashSet<string>();
@@ -121,7 +125,7 @@ namespace Polaris.Pevt.Syntax
         private EnableDeclarationSyntax ParseEnableDeclaration(HashSet<SyntaxKind> seenCapabilities)
         {
             SyntaxToken enableKeyword = Advance();
-            if (!Check(SyntaxKind.CsKeyword) && !Check(SyntaxKind.AsyncKeyword))
+            if (!Check(SyntaxKind.CsKeyword) && !Check(SyntaxKind.AsyncKeyword) && !Check(SyntaxKind.CmdArgKeyword))
             {
                 ReportError("PEVT1109", Current.Span);
                 SyntaxToken missing = SyntaxToken.CreateMissing(SyntaxKind.CsKeyword, Current.Span.Start);
@@ -214,6 +218,7 @@ namespace Polaris.Pevt.Syntax
             {
                 case SyntaxKind.EndKeyword: return ParseEndOrBlockErrorStatement();
                 case SyntaxKind.IfKeyword: return ParseIfStatement();
+                case SyntaxKind.IfDefKeyword: return ParseIfDefStatement();
                 case SyntaxKind.WhileKeyword: return ParseWhileStatement();
                 case SyntaxKind.SwitchKeyword: return ParseSwitchStatement();
                 case SyntaxKind.HashToken: return ParseLabelStatement();
@@ -223,6 +228,8 @@ namespace Polaris.Pevt.Syntax
                 case SyntaxKind.IdentifierToken when Peek(1).Kind == SyntaxKind.EqualsToken: return ParseAssignmentStatement();
                 case SyntaxKind.IdentifierToken when Peek(1).Kind == SyntaxKind.OpenParenToken:
                     return LooksLikeBlockSignatureMissingKeyword() ? ParseBlockDefinitionStatement(null) : ParseExpressionStatement();
+                case SyntaxKind.IdentifierToken when _cmdArgumentMode && IsCustomBlockSpelling(Current.Text):
+                    return new ExpressionStatementSyntax(ParseIdentifierStartedOperand(forceCmdArgumentCall: true));
                 case SyntaxKind.AtToken: return ParseExpressionStatement();
                 case SyntaxKind.AwaitKeyword: return ParseExpressionStatement();
                 case SyntaxKind.KillKeyword: return ParseKillStatement();
@@ -240,6 +247,8 @@ namespace Polaris.Pevt.Syntax
                 case SyntaxKind.ElifKeyword: return ParseOrphanTokenWithExpression("PEVT2003");
                 case SyntaxKind.ElseKeyword: return ParseOrphanToken("PEVT2006");
                 case SyntaxKind.EndIfKeyword: return ParseOrphanToken("PEVT2009");
+                case SyntaxKind.ElseDefKeyword: return ParseOrphanToken("PEVT2013");
+                case SyntaxKind.EndIfDefKeyword: return ParseOrphanToken("PEVT2016");
                 case SyntaxKind.EndWhileKeyword: return ParseOrphanToken("PEVT2103");
                 case SyntaxKind.CaseKeyword: return ParseOrphanTokenWithExpression("PEVT2405");
                 case SyntaxKind.DefaultKeyword: return ParseOrphanToken("PEVT2409");
@@ -439,6 +448,53 @@ namespace Polaris.Pevt.Syntax
                 CheckOneStatementPerLine();
             SyntaxToken endIf = ExpectClosingKeyword(SyntaxKind.EndIfKeyword, "PEVT2002", "PEVT2010");
             return new IfStatementSyntax(ifKeyword, condition, body, elifClauses, elseClause, endIf);
+        }
+
+        // ---- ifdef/elsedef/endifdef ----
+
+        private StatementSyntax ParseIfDefStatement()
+        {
+            SyntaxToken ifDefKeyword = Advance();
+            SyntaxToken flagName;
+            if (Check(SyntaxKind.IdentifierToken) || Check(SyntaxKind.StringLiteralToken))
+            {
+                flagName = Advance();
+            }
+            else
+            {
+                ReportError("PEVT2011", Current.Span);
+                flagName = SyntaxToken.CreateMissing(SyntaxKind.IdentifierToken, Current.Span.Start);
+            }
+
+            List<StatementSyntax> body = ParseStatementList(IfDefBodyTerminators);
+            if (body.Count == 0)
+                ReportError("PEVT2305", ifDefKeyword.Span);
+
+            SyntaxToken elseDefKeyword = null;
+            List<StatementSyntax> elseBody = new List<StatementSyntax>();
+            if (Check(SyntaxKind.ElseDefKeyword))
+            {
+                elseDefKeyword = Advance();
+                CheckNoTrailingExpression(elseDefKeyword, "PEVT2015");
+                elseBody = ParseStatementList(ElseDefBodyTerminators);
+                if (elseBody.Count == 0)
+                    ReportError("PEVT2306", elseDefKeyword.Span);
+            }
+
+            // 一个 ifdef 最多只能有一个 elsedef。重复分支只用于错误恢复，不进入正式 AST。
+            while (Check(SyntaxKind.ElseDefKeyword))
+            {
+                SyntaxToken duplicate = Advance();
+                ReportError("PEVT2014", duplicate.Span);
+                CheckNoTrailingExpression(duplicate, "PEVT2015");
+                ParseStatementList(ElseDefBodyTerminators);
+            }
+
+            bool hadContent = body.Count > 0 || elseBody.Count > 0;
+            if (hadContent)
+                CheckOneStatementPerLine();
+            SyntaxToken endIfDef = ExpectClosingKeyword(SyntaxKind.EndIfDefKeyword, "PEVT2012", "PEVT2017");
+            return new IfDefStatementSyntax(ifDefKeyword, flagName, body, elseDefKeyword, elseBody, endIfDef);
         }
 
         // ---- while/endwhile ----
@@ -794,6 +850,8 @@ namespace Polaris.Pevt.Syntax
                     return ParseBuiltinCall();
                 case SyntaxKind.IdentifierToken when Peek(1).Kind == SyntaxKind.OpenParenToken:
                     return ParseIdentifierStartedOperand();
+                case SyntaxKind.IdentifierToken when _cmdArgumentMode && IsCustomBlockSpelling(Current.Text):
+                    return ParseIdentifierStartedOperand(forceCmdArgumentCall: true);
                 case SyntaxKind.CallEvtKeyword:
                     return ParseEventCallExpression();
                 case SyntaxKind.ExecKeyword:
@@ -882,10 +940,14 @@ namespace Polaris.Pevt.Syntax
         /// </summary>
         private CustomBlockCallExpressionSyntax ParseScheduleTarget(SyntaxToken callKeyword)
         {
-            if (Check(SyntaxKind.IdentifierToken) && Peek(1).Kind == SyntaxKind.OpenParenToken)
+            if (Check(SyntaxKind.IdentifierToken) &&
+                (Peek(1).Kind == SyntaxKind.OpenParenToken || (_cmdArgumentMode && IsCustomBlockSpelling(Current.Text))))
             {
                 SyntaxToken name = Advance();
-                return new CustomBlockCallExpressionSyntax(name, ParseArgumentList());
+                ArgumentListSyntax arguments = Check(SyntaxKind.OpenParenToken)
+                    ? ParseArgumentList()
+                    : ParseWhitespaceArgumentList(name);
+                return new CustomBlockCallExpressionSyntax(name, arguments);
             }
 
             ReportError("PEVT7505", Current.Span);
@@ -956,6 +1018,7 @@ namespace Polaris.Pevt.Syntax
                 SyntaxKind.ExecKeyword => "PEVT7405",
                 SyntaxKind.AtToken => "PEVT7215",
                 SyntaxKind.IdentifierToken when Peek(1).Kind == SyntaxKind.OpenParenToken => "PEVT7215",
+                SyntaxKind.IdentifierToken when _cmdArgumentMode && IsCustomBlockSpelling(Current.Text) => "PEVT7215",
                 _ => "PEVT7201",
             };
             ReportError(diagnosticId, asyncKeyword.Span);
@@ -1046,18 +1109,27 @@ namespace Polaris.Pevt.Syntax
             var parameters = new List<ParameterSyntax>();
             var commas = new List<SyntaxToken>();
 
+            bool sawOptional = false;
             if (!Check(SyntaxKind.CloseParenToken) && !Check(SyntaxKind.EndOfFileToken))
             {
-                parameters.Add(ParseParameter(diagnosticId));
+                AddParameter(ParseParameter(diagnosticId));
                 while (Check(SyntaxKind.CommaToken))
                 {
                     commas.Add(Advance());
-                    parameters.Add(ParseParameter(diagnosticId));
+                    AddParameter(ParseParameter(diagnosticId));
                 }
             }
 
             SyntaxToken close = Expect(SyntaxKind.CloseParenToken, diagnosticId);
             return new ParameterListSyntax(open, parameters, commas, close);
+
+            void AddParameter(ParameterSyntax parameter)
+            {
+                if (sawOptional && !parameter.HasDefaultValue)
+                    ReportError("PEVT1119", parameter.Span);
+                sawOptional |= parameter.HasDefaultValue;
+                parameters.Add(parameter);
+            }
         }
 
         private ParameterSyntax ParseParameter(string diagnosticId = "PEVT7102")
@@ -1065,7 +1137,14 @@ namespace Polaris.Pevt.Syntax
             SyntaxToken name = Expect(SyntaxKind.IdentifierToken, diagnosticId);
             SyntaxToken colon = Expect(SyntaxKind.ColonToken, diagnosticId);
             SyntaxToken type = ParseTypeNameOrMissing();
-            return new ParameterSyntax(name, colon, type);
+            SyntaxToken equalsToken = null;
+            ExpressionSyntax defaultValue = null;
+            if (Check(SyntaxKind.EqualsToken))
+            {
+                equalsToken = Advance();
+                defaultValue = ParseExpression();
+            }
+            return new ParameterSyntax(name, colon, type, equalsToken, defaultValue);
         }
 
         /// <summary>

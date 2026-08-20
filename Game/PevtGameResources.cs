@@ -101,6 +101,13 @@ namespace Polaris.Event.Game
         /// <summary>本事件加载过的 BGM sheet；结束时统一卸载，避免把事件专用音轨留在内存里。</summary>
         private readonly List<string> _loadedSheets = new List<string>();
 
+        /// <summary>
+        /// 已经成功经过 <see cref="BgmPrepared"/> 的 BGM ID。原版把准备好的 OthPl 切换为实际播放后，
+        /// <c>isPrepared()</c> 会重新变成 false；资源组票据若到这之后才第一次 Tick，不能把一首已经
+        /// 开始播放的曲子重新判回 Loading，否则 <c>@wait_resources(..., 0)</c> 会永久卡住。
+        /// </summary>
+        private readonly HashSet<string> _preparedMusic = new HashSet<string>(StringComparer.Ordinal);
+
         /// <summary>已解析的立绘租约，键为 <c>&lt;actorId&gt;/&lt;visualKey&gt;</c>；同一事件内重复借用只借一次。</summary>
         private readonly Dictionary<string, PevtVisualLease> _portraits = new Dictionary<string, PevtVisualLease>(StringComparer.Ordinal);
 
@@ -278,7 +285,10 @@ namespace Polaris.Event.Game
                 BGM.load(sheet, cue, true);
             });
 
-            return new PevtResourceWait(resourceId, () => BgmPrepared() ? PevtResourceStatus.Ready : PevtResourceStatus.Loading);
+            return new PevtResourceWait(resourceId,
+                () => RememberMusicPrepared(audioId)
+                    ? PevtResourceStatus.Ready
+                    : PevtResourceStatus.Loading);
         }
 
         /// <summary>
@@ -290,7 +300,7 @@ namespace Polaris.Event.Game
             if (kind != MusicKind)
                 return new PevtMotionWait(() => CueExists(audioId), AudioReadyTimeoutFrames);
 
-            return new PevtMotionWait(BgmPrepared, AudioReadyTimeoutFrames);
+            return new PevtMotionWait(() => RememberMusicPrepared(audioId), AudioReadyTimeoutFrames);
         }
 
         /// <summary>
@@ -448,10 +458,14 @@ namespace Polaris.Event.Game
         public void ReleaseAudioSheets()
         {
             if (_loadedSheets.Count == 0)
+            {
+                _preparedMusic.Clear();
                 return;
+            }
 
             var sheets = new List<string>(_loadedSheets);
             _loadedSheets.Clear();
+            _preparedMusic.Clear();
 
             PevtGameHost.Guard("ReleaseAudioSheets", () =>
             {
@@ -480,6 +494,22 @@ namespace Polaris.Event.Game
 
         private static bool BgmPrepared() =>
             PevtGameHost.Safe(() => BGM.OthPl != null && BGM.OthPl.isPrepared(), false);
+
+        /// <summary>
+        /// BGM 的“准备完成”是一次性跃迁而不是稳定状态：开始播放后原版播放器不再报告 prepared。
+        /// 这里按资源 ID 锁存成功结果，让预载组和显式 <c>@music_play</c> 共享同一事实。
+        /// </summary>
+        private bool RememberMusicPrepared(string audioId)
+        {
+            if (_preparedMusic.Contains(audioId))
+                return true;
+
+            if (!BgmPrepared())
+                return false;
+
+            _preparedMusic.Add(audioId);
+            return true;
+        }
 
         /// <summary>
         /// <c>@music_play</c> 的 ID 写成 <c>sheet/cue</c>；只给一段时把它同时当 sheet 和 cue，

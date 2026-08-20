@@ -88,13 +88,15 @@ id "事件ID"
 语法：
 
 ```pevt
-id "事件ID"(参数名 : 类型, ...)
+id "事件ID"(必填参数 : 类型, 可选参数 : 类型 = 默认值, ...)
 ```
 
 规则：
 
 - 参数列表可选；省略时等价于 `()`，是旧语法的严格超集，不影响任何既有 `.pevt`。
 - 参数类型只能是 `int`、`float`、`bool`、`char`、`string` 之一，与自定义事件块形参同一套规则。
+- 任何带 `= 编译期常量表达式` 的形参都是可选形参；未提供对应实参时使用该默认值。
+- 与 C# 一样，可选形参必须连续位于形参列表末尾；第一个可选形参之后不得再声明必填形参。
 - 参数进入事件正文时已经声明且已经初始化，和自定义事件块形参一样；正文不能重新声明同名变量或常量。
 - 参数值只能由 `callevt "id"(实参...)` 在调用时提供；子事件不能回写调用方的变量。
 - 目标事件通常位于另一个文件甚至另一个模组程序集里，静态阶段无法核对调用方实参与目标参数是否匹配——
@@ -108,12 +110,13 @@ id "事件ID"(参数名 : 类型, ...)
 id "事件ID"
 enable cs
 enable async
+enable cmdarg
 ```
 
 规则：
 
-- `enable` 是文件级能力声明，目前只允许 `enable cs` 和 `enable async`。
-- 一个文件可以不声明能力，也可以声明其中一种或同时声明两种能力。
+- `enable` 是文件级能力声明，目前只允许 `enable cs`、`enable async` 和 `enable cmdarg`。
+- 一个文件可以不声明能力，也可以声明其中任意一种或多种能力。
 - 全部 `enable` 声明必须作为连续的语法语句紧跟在 `id` 之后；不同能力的声明顺序不限。
 - 同一种能力在同一文件中最多声明一次。
 - `enable` 声明不参与事件顺序执行，只作为 PEVT 解释器的文件元数据。
@@ -122,7 +125,14 @@ enable async
 - `enable async` 将当前事件标记为异步事件；该标记只改变其他事件通过 `callevt` 调用当前事件时的调用方式。
 - 未声明 `enable async` 的事件通过 `callevt` 被同步调用；声明后通过 `callevt` 被异步调用。
 - `enable async` 不会自动把当前事件内部的 `@` 指令、自定义事件块或 `$raw` 调用改为异步操作。
-- 当前只接受精确的全小写能力名称 `cs` 和 `async`，不接受额外参数。
+- `enable cmdarg` 开启面向熟悉原版 CMD 作者的调用实参兼容形式：`@名称 实参 实参`、`_块名 实参 实参`、
+  `callevt "事件ID" 实参 实参`。它只改变当前文件中调用实参的解析，不改变形参声明、类型检查、默认参数或运行语义。
+- 原有括号与逗号形式在 `enable cmdarg` 文件中仍然有效，不要求作者改写已有调用。
+- 空格实参必须和调用名称位于同一物理行；换行结束本次调用。为了明确参数边界，空格实参内部的嵌套调用必须保留括号。
+- 在空格实参顶层，前面带空白的 `-` 默认开始下一个一元取负实参，例如 `@move "x" 160.0 -600.0` 有三个实参；
+  如需把减法作为同一个实参，应显式分组为 `@move "x" (160.0 - 600.0)`。无空白的 `a-b` 仍是普通二元减法。
+- `id` 和 `block` 的形参声明始终使用括号、逗号、冒号及可选的 `= 默认值`，不受 `enable cmdarg` 影响。
+- 当前只接受精确的全小写能力名称 `cs`、`async` 和 `cmdarg`，不接受额外参数。
 
 ### 2.2 资源预载组（PEVT-E08）
 
@@ -242,6 +252,26 @@ endif
 - 每个 `if` 必须有且只有一个对应的 `endif`。
 - `endif` 不接受参数。
 - `endif` 不能独立出现。
+
+### 4.5 `ifdef` / `elsedef` / `endifdef`
+
+语法：
+
+```pevt
+ifdef "全局标记名"
+    事件语句
+elsedef
+    事件语句
+endifdef
+```
+
+规则：
+
+- `ifdef` 只检查该名称是否登记在原版全局旗标表中，不读取旗标当前的 `true`/`false` 值。
+- 标记名可以写作标识符或字符串字面量；包含保留字或特殊字符时必须使用字符串。
+- 一个 `ifdef` 最多包含一个 `elsedef`，不支持 `elifdef`。
+- 每个 `ifdef` 必须由独立的 `endifdef` 闭合；三个关键字不能与普通 `if/else/endif` 混用。
+- `elsedef` 与 `endifdef` 不接受参数；分支正文为空时产生静态警告。
 
 完整形式：
 
@@ -847,7 +877,7 @@ snapshot = 1
 以下名称是 PEVT 保留关键字：
 
 ```text
-id enable cs cmd end block
+id enable cs cmd cmdarg end block
 callevt
 if elif else endif
 while endwhile
@@ -883,6 +913,7 @@ callevt "OtherEvent"
 - PEVT 加载器只检查目标 ID 字面量的语法，不查找当前工程、模组或文件系统中是否实际存在对应事件。
 - 目标事件由 PolarisEvent 在执行到 `callevt` 时通过当前运行时事件注册表解析，因此允许调用其他模组在运行时注册的事件。
 - `callevt` 可以携带实参列表（PEVT-E07，见 10.5 节）；省略括号等价于零实参，与旧语法完全兼容。
+- 声明 `enable cmdarg` 后，也可写成 `callevt "OtherEvent" 1 "text"`；每个实参仍按普通 PEVT 表达式解析并接受相同的运行时签名核对。
 - `callevt` 不产生普通 `int`、`float`、`bool`、`char` 或 `string` 返回值。
 - `callevt` 不能作为普通表达式、普通变量初始化器、常量初始化器、赋值右侧或调用参数使用。
 - 调用位置不书写 `async callevt`；目标事件是否异步由其自身的 `enable async` 标记决定。
@@ -961,6 +992,7 @@ handler h = callevt "AsyncEvent"(1)
 - 内置事件语句名称后必须跟参数列表。
 - 参数列表使用 `(` 和 `)` 包裹。
 - 多个参数使用 `,` 分隔。
+- 声明 `enable cmdarg` 后，调用位置也可以省略括号与逗号，在同一物理行用空格分隔实参；API 签名声明本身不变。
 - 参数可以是任意类型正确且已经完成求值的表达式。
 - `.pevt` 文件不能声明或覆盖内置事件语句。
 - 未登记在内置事件语句 API 表中的 `@` 语句无效。
@@ -1285,10 +1317,11 @@ endblock
 - 自定义事件块的完整名称必须以 `_` 开头。
 - `_` 后必须紧跟事件块名称。
 - 自定义事件块定义必须以关键字 `block` 开始。
-- 自定义事件块的定义签名为 `block _名称(参数名 : 参数类型, ...)`。
+- 自定义事件块的定义签名为 `block _名称(参数名 : 参数类型 [= 默认值], ...)`。
 - `block` 用于明确区分定义与 `_名称(...)` 调用。
 - 自定义事件块可以不声明参数，空参数列表写作 `()`。
 - 参数必须显式使用后置类型，允许的类型只有 `int`、`float`、`bool`、`char`、`string`。
+- 自定义事件块与事件头共用默认形参规则：默认值必须是类型匹配的编译期常量，可选形参必须位于必填形参之后。
 - 参数在事件块内是已经初始化的同名局部变量，其值为调用时实参结果的快照。
 - 返回值类型写在参数列表之后，语法为 `: 返回值类型`。
 - `block` 前可以使用 `async` 和至少一个空白字符，将该自定义事件块声明为异步操作，完整形式为 `async block _名称(...)`。
@@ -1350,6 +1383,8 @@ _事件块名(参数表达式, 参数表达式)
 - 调用自定义事件块时必须书写包含 `_` 的完整名称。
 - 调用位置必须位于对应自定义事件块定义的 `endblock` 之后。
 - 参数列表与内置事件语句调用相同，可以包含任意类型正确且已经完成求值的表达式。
+- 声明 `enable cmdarg` 后，也可写成 `_playLine name duration`；零实参语句调用可写成单独一行 `_playOpening`。
+- 在初始化器等表达式位置，零实参调用与同名变量无法仅靠空格区分，因此必须保留 `_name()`；带实参的 `_name value` 没有此限制。
 - 实参数量、顺序和类型必须与自定义事件块的定义签名完全匹配。
 - 参数匹配不进行隐式类型转换。
 - 无返回值事件块只能作为事件语句调用。
@@ -1669,11 +1704,14 @@ end
 document          = id-declaration, { capability-enable-declaration },
                     { custom-block-definition | event-statement },
                     end-of-file ;
-id-declaration    = "id", event-id-literal ;
-capability-enable-declaration = "enable", ( "cs" | "async" ) ;
+id-declaration    = "id", event-id-literal, [ parameter-list ] ;
+parameter-list    = "(", [ parameter, { ",", parameter } ], ")" ;
+parameter         = identifier, ":", type-name, [ "=", constant-expression ] ;
+capability-enable-declaration = "enable", ( "cs" | "async" | "cmdarg" ) ;
 
 event-statement   = end-statement
                   | if-statement
+                  | ifdef-statement
                   | while-statement
                   | switch-statement
                   | label-statement
@@ -1697,6 +1735,10 @@ if-statement      = "if", expression, { event-statement },
                     { "elif", expression, { event-statement } },
                     [ "else", { event-statement } ],
                     "endif" ;
+
+ifdef-statement   = "ifdef", ( identifier | string-literal ), { event-statement },
+                    [ "elsedef", { event-statement } ],
+                    "endifdef" ;
 
 while-statement   = "while", expression,
                     { event-statement },
@@ -1722,16 +1764,14 @@ constant-declaration = "const", identifier, ":", type-name,
 assignment-statement = variable-reference, "=", expression ;
 
 builtin-statement = builtin-call ;
-builtin-call      = "@", callable-name, "(",
-                    [ expression, { ",", expression } ],
-                    ")" ;
+builtin-call      = "@", callable-name, call-arguments ;
 builtin-signature = [ "async" ], "@", callable-name, "(",
                     [ parameter-declaration,
                       { ",", parameter-declaration } ],
                     ")", [ ":", type-name ] ;
 
 event-call-statement = event-call ;
-event-call           = "callevt", event-id-literal ;
+event-call           = "callevt", event-id-literal, [ call-arguments ] ;
 
 custom-block-definition = [ "async" ], "block", custom-block-signature,
                           { event-statement },
@@ -1744,9 +1784,14 @@ parameter-declaration   = identifier, ":", type-name ;
 block-return            = "return", [ identifier ] ;
 
 custom-block-call-statement = custom-block-call ;
-custom-block-call       = "_", callable-name, "(",
-                          [ expression, { ",", expression } ],
-                          ")" ;
+custom-block-call       = "_", callable-name, call-arguments ;
+
+call-arguments          = parenthesized-argument-list
+                       | [ whitespace-argument-list ] ;
+parenthesized-argument-list = "(", [ expression, { ",", expression } ], ")" ;
+whitespace-argument-list = expression, { space, expression } ;
+(* The whitespace alternative, including its empty zero-argument form, is available only with
+   enable cmdarg, stays on one physical line, and nested calls inside it use parentheses. *)
 
 handler-declaration = "handler", identifier, "=", handler-initializer ;
 handler-initializer = builtin-call | custom-block-call | event-call ;

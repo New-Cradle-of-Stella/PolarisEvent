@@ -14,11 +14,94 @@ namespace Polaris.Event.Game.RawCmd
         /// <summary>会话 reader 名前缀。<c>%</c> 让原版跳过磁盘查找。</summary>
         public const string NamePrefix = "%PEVT_RAW@";
 
+        /// <summary>
+        /// PEVT 根事件期间常驻的原版 reader。raw 片段作为它的子事件执行；这样一段 raw 读完时
+        /// <c>EV.evEnd</c> 只会切回本 reader，不会走“最后一个原版事件结束”的全局清场分支。
+        /// </summary>
+        private const string ScopeSource = "LABEL __PEVT_SCOPE_LOOP\nWAIT 3600\nGOTO __PEVT_SCOPE_LOOP";
+
         private int _sequence;
+        private string _scopeName;
+        private EvReader _scopeReader;
+
+        /// <summary>
+        /// 在 PEVT 第一条指令运行前建立原版解释器的局部宿主。它只维持 EV 生命周期，
+        /// 不产生演出；真正的 raw reader 各自保留自己的游标、标签和临时变量。
+        /// </summary>
+        public bool OpenScope()
+        {
+            if (!PevtGameHost.Ready)
+                return false;
+
+            if (ScopeAlive())
+                return true;
+
+            _scopeName = NamePrefix + "SCOPE@" + (++_sequence).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            try
+            {
+                EV.setEventContent(_scopeName, ScopeSource);
+                _scopeReader = CreateScopeReader();
+                EV.stackReader(_scopeReader);
+                return ScopeAlive();
+            }
+            catch (Exception ex)
+            {
+                PolarisAPI.Errors.Report(ex, "PolarisEvent.Game.RawCmd.OpenScope");
+                CloseScope();
+                return false;
+            }
+        }
+
+        /// <summary>释放常驻 reader。必须在 PEVT 退出事件模式之前调用。</summary>
+        public IReadOnlyList<Exception> CloseScope()
+        {
+            var failures = new List<Exception>();
+            string scopeName = _scopeName;
+
+            if (!string.IsNullOrEmpty(scopeName))
+            {
+                try
+                {
+                    // 正常状态只有一个当前 scope；强制停止时也可能还有一个排队中的接替 scope。
+                    for (int guard = 0; guard < 4; guard++)
+                    {
+                        EvReader current = EV.getCurrentEvent();
+                        if (current != null && string.Equals(current.name, scopeName, StringComparison.Ordinal))
+                        {
+                            EV.unstackReader(current);
+                            continue;
+                        }
+
+                        EvReader stacked = EV.getStacked(scopeName);
+                        if (stacked == null)
+                            break;
+
+                        EV.unstackReader(stacked);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    failures.Add(ex);
+                }
+
+                try
+                {
+                    EV.clearEventContent(scopeName);
+                }
+                catch (Exception ex)
+                {
+                    failures.Add(ex);
+                }
+            }
+
+            _scopeReader = null;
+            _scopeName = null;
+            return failures.AsReadOnly();
+        }
 
         public IPevtRawCommandSession Begin(string rawText)
         {
-            if (!PevtGameHost.Ready)
+            if (!OpenScope())
                 return null;
 
             string name = NamePrefix + (++_sequence).ToString(System.Globalization.CultureInfo.InvariantCulture);
@@ -28,7 +111,18 @@ namespace Polaris.Event.Game.RawCmd
             try
             {
                 EV.setEventContent(name, rawText ?? string.Empty);
-                reader = EV.stack(name, 0, -1, null, null);
+                reader = new EvReader(name);
+
+                // changeEvent 只终止当前的空 scope，并把 raw 放到栈首；紧接着排一个新的 scope。
+                // raw 结束后 EV 因而不会认为“全部事件结束”，也就不会清掉 PEVT 的对话框、图片和电影模式。
+                if (!EV.changeEvent(reader))
+                    reader = null;
+
+                if (reader != null)
+                {
+                    _scopeReader = CreateScopeReader();
+                    EV.stackReader(_scopeReader);
+                }
             }
             catch (Exception ex)
             {
@@ -45,6 +139,29 @@ namespace Polaris.Event.Game.RawCmd
             }
 
             return new PevtGameRawCommandSession(name, reader, profiles);
+        }
+
+        private EvReader CreateScopeReader()
+        {
+            var reader = new EvReader(_scopeName)
+            {
+                do_not_announce = true,
+                no_init_load = true,
+            };
+            return reader;
+        }
+
+        private bool ScopeAlive()
+        {
+            if (string.IsNullOrEmpty(_scopeName))
+                return false;
+
+            return PevtGameHost.Safe(() =>
+            {
+                EvReader current = EV.getCurrentEvent();
+                return (current != null && string.Equals(current.name, _scopeName, StringComparison.Ordinal))
+                    || EV.getStacked(_scopeName) != null;
+            }, false);
         }
     }
 
@@ -65,8 +182,14 @@ namespace Polaris.Event.Game.RawCmd
             _profiles = profiles;
         }
 
-        public bool IsFinished =>
-            PevtGameHost.Safe(() => EV.getStacked(_name) == null, true);
+        public bool IsFinished => PevtGameHost.Safe(() =>
+        {
+            // getStacked() 不包含正在执行的 curEv。旧实现只查它，raw 一进入 WAIT/MESSAGE 就会被
+            // 误判为完成并立刻 unstack，正是“图片闪现、对话中断、下一次启动卡死”的根因。
+            if (ReferenceEquals(EV.getCurrentEvent(), _reader))
+                return false;
+            return EV.getStacked(_name) == null;
+        }, true);
 
         /// <summary>
         /// 原版解释器不向外报告"这一行执行失败"——它自己打日志继续走。因此正常路径下没有失败消息；
@@ -89,7 +212,7 @@ namespace Polaris.Event.Game.RawCmd
             // 反过来的话，一个还在栈上的 reader 会读到已经被删掉的内容。
             PevtGameHost.Guard("RawCmd.Release.Unstack", () =>
             {
-                if (EV.getStacked(_name) != null)
+                if (ReferenceEquals(EV.getCurrentEvent(), _reader) || EV.getStacked(_name) != null)
                     EV.unstackReader(_reader);
             });
 

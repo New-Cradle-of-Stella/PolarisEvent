@@ -72,6 +72,11 @@ namespace Polaris.Pevt.Flow
                         if (ifStatement.ElseClause != null)
                             AnalyzeBlocksRecursively(ifStatement.ElseClause.Body);
                         break;
+                    case IfDefStatementSyntax ifDefStatement:
+                        AnalyzeBlocksRecursively(ifDefStatement.Body);
+                        if (ifDefStatement.HasElse)
+                            AnalyzeBlocksRecursively(ifDefStatement.ElseBody);
+                        break;
                     case WhileStatementSyntax whileStatement:
                         AnalyzeBlocksRecursively(whileStatement.Body);
                         break;
@@ -127,6 +132,18 @@ namespace Polaris.Pevt.Flow
                         break;
                     }
 
+                    case IfDefStatementSyntax ifDefStatement:
+                    {
+                        bool allTerminate = AnalyzeSequence(ifDefStatement.Body, isTerminator, jumpTargets, unreachableDiagnosticId);
+                        if (ifDefStatement.HasElse)
+                            allTerminate &= AnalyzeSequence(ifDefStatement.ElseBody, isTerminator, jumpTargets, unreachableDiagnosticId);
+                        else
+                            allTerminate = false;
+                        if (allTerminate)
+                            reachable = false;
+                        break;
+                    }
+
                     case WhileStatementSyntax whileStatement:
                         // 只为了标记体内的不可达语句；循环之后永远可达——不证明 while 会不会真正跑完。
                         AnalyzeSequence(whileStatement.Body, isTerminator, jumpTargets, unreachableDiagnosticId);
@@ -171,6 +188,11 @@ namespace Polaris.Pevt.Flow
                             CollectAllLabelNames(elif.Body);
                         if (ifStatement.ElseClause != null)
                             CollectAllLabelNames(ifStatement.ElseClause.Body);
+                        break;
+                    case IfDefStatementSyntax ifDefStatement:
+                        CollectAllLabelNames(ifDefStatement.Body);
+                        if (ifDefStatement.HasElse)
+                            CollectAllLabelNames(ifDefStatement.ElseBody);
                         break;
                     case WhileStatementSyntax whileStatement:
                         CollectAllLabelNames(whileStatement.Body);
@@ -268,6 +290,12 @@ namespace Polaris.Pevt.Flow
                             CollectLabelsAndGotos(elif.Body, Extend(path, elif.Body), enclosingSwitch, labelsByName, pathByLabel, gotos, caseGotos);
                         if (ifStatement.ElseClause != null)
                             CollectLabelsAndGotos(ifStatement.ElseClause.Body, Extend(path, ifStatement.ElseClause.Body), enclosingSwitch, labelsByName, pathByLabel, gotos, caseGotos);
+                        break;
+
+                    case IfDefStatementSyntax ifDefStatement:
+                        CollectLabelsAndGotos(ifDefStatement.Body, Extend(path, ifDefStatement.Body), enclosingSwitch, labelsByName, pathByLabel, gotos, caseGotos);
+                        if (ifDefStatement.HasElse)
+                            CollectLabelsAndGotos(ifDefStatement.ElseBody, Extend(path, ifDefStatement.ElseBody), enclosingSwitch, labelsByName, pathByLabel, gotos, caseGotos);
                         break;
 
                     case WhileStatementSyntax whileStatement:

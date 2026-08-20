@@ -109,6 +109,9 @@ namespace Polaris.Pevt.Runtime
             }
         }
 
+        /// <summary>当前子协程是否正合法地等待玩家输入。</summary>
+        public bool AllowsIndefiniteWait => !IsFinished && _driver.CurrentWait?.AllowsIndefiniteWait == true;
+
         /// <summary>PEVT <c>status</c> 的取值：0 未结束，1 成功，2 失败或已取消（第 8 节）。</summary>
         public int StatusCode
         {

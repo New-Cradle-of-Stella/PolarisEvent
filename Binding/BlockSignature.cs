@@ -11,13 +11,16 @@ namespace Polaris.Pevt.Binding
         public string Name { get; }
         public bool IsAsync { get; }
         public IReadOnlyList<PevtType> ParameterTypes { get; }
+        public int RequiredParameterCount { get; }
         public PevtType? ReturnType { get; }
 
-        public BlockSignature(string name, bool isAsync, IReadOnlyList<PevtType> parameterTypes, PevtType? returnType)
+        public BlockSignature(string name, bool isAsync, IReadOnlyList<PevtType> parameterTypes,
+            int requiredParameterCount, PevtType? returnType)
         {
             Name = name;
             IsAsync = isAsync;
             ParameterTypes = parameterTypes;
+            RequiredParameterCount = requiredParameterCount;
             ReturnType = returnType;
         }
     }

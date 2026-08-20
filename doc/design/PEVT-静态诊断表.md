@@ -40,8 +40,8 @@
 | `PEVT1105` | `EventIdMustBeString` | Error | `id` 后的事件 ID 不是双引号字符串。 |
 | `PEVT1106` | `UnexpectedEventIdArgument` | Error | 事件 ID 字符串后还有额外参数。 |
 | `PEVT1107` | `InvalidEnablePlacement` | Error | `enable` 能力声明没有位于紧跟 `id` 的连续能力声明区域中。 |
-| `PEVT1108` | `DuplicateEnableDeclaration` | Error | 同一文件重复声明相同的 `cs` 或 `async` 能力。 |
-| `PEVT1109` | `InvalidEnabledCapability` | Error | `enable` 后不是精确的 `cs` 或 `async`，或能力名称后还有额外参数。 |
+| `PEVT1108` | `DuplicateEnableDeclaration` | Error | 同一文件重复声明相同的 `cs`、`async` 或 `cmdarg` 能力。 |
+| `PEVT1109` | `InvalidEnabledCapability` | Error | `enable` 后不是精确的 `cs`、`async` 或 `cmdarg`，或能力名称后还有额外参数。 |
 | `PEVT1110` | `EmptyEventId` | Error | 事件 ID 双引号内没有任何字符。 |
 | `PEVT1111` | `InvalidEventIdCharacter` | Error | 事件 ID 包含 ASCII 字母、数字和 Unicode 中文汉字以外的字符。 |
 | `PEVT1112` | `InvalidEventParameterSignature` | Error | `id` 的事件参数列表不符合 `(参数名 : 类型, ...)` 语法（PEVT-E07）。 |
@@ -194,8 +194,8 @@
 | --- | --- | --- | --- |
 | `PEVT7001` | `MissingBuiltinName` | Error | `@` 后没有内置事件语句名称。 |
 | `PEVT7002` | `UnknownBuiltinStatement` | Error | `@` 后的名称未登记在内置事件语句 API 表中。 |
-| `PEVT7003` | `InvalidBuiltinCallSyntax` | Error | 内置事件语句调用不符合 `@名称(参数...)` 语法。 |
-| `PEVT7004` | `MissingArgumentList` | Error | 内置事件语句名称后没有 `()` 参数列表。 |
+| `PEVT7003` | `InvalidBuiltinCallSyntax` | Error | 内置事件语句调用不符合 `@名称(参数...)` 语法；声明 `enable cmdarg` 后也可使用同行空格实参。 |
+| `PEVT7004` | `MissingArgumentList` | Error | 内置事件语句名称后没有 `()` 参数列表；如需省略括号，文件必须声明 `enable cmdarg`。 |
 | `PEVT7005` | `ArgumentCountMismatch` | Error | 实参数量与 API 签名中的形参数量不同。 |
 | `PEVT7006` | `ArgumentTypeMismatch` | Error | 实参表达式类型与对应形参类型不同。 |
 | `PEVT7007` | `NoMatchingBuiltinSignature` | Error | 找不到名称和参数签名完全匹配的内置事件语句 API。 |

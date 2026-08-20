@@ -55,6 +55,7 @@ namespace Polaris.Pevt.Runtime.Routines
         private static void RegisterWorld(PevtCommandRegistry registry)
         {
             Add(registry, "require_map", WorldRoutines.RequireMap, Str);
+            Add(registry, "map_current", WorldRoutines.MapCurrent);
             Add(registry, "map_change", WorldRoutines.MapChange, Str, Str);
             Add(registry, "map_refresh", WorldRoutines.MapRefresh, Str);
             Add(registry, "map_layer_load", WorldRoutines.MapLayerLoad, Str);

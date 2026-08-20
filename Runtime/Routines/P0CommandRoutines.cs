@@ -56,6 +56,7 @@ namespace Polaris.Pevt.Runtime.Routines
         private static void RegisterDialogue(PevtCommandRegistry registry)
         {
             Add(registry, "say", DialogueRoutines.Say, Str, Str);
+            Add(registry, "say", DialogueRoutines.SayWithLayout, Str, Str, Str, Str, Str, Str, Str);
             Add(registry, "narrate", DialogueRoutines.Narrate, Str);
             Add(registry, "board", DialogueRoutines.Board, Str, Str);
             Add(registry, "talker_bind", DialogueRoutines.TalkerBind, Str, Str, Str);

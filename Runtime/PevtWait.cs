@@ -58,6 +58,12 @@ namespace Polaris.Pevt.Runtime
         /// <summary>本等待当前是否还有推进源。返回 false 且未完成时，调度器报 PEVTR1002。</summary>
         public virtual bool HasProgressSource => true;
 
+        /// <summary>
+        /// 是否允许等待源无限期保持 Pending。只应由玩家输入这类“等多久都合法”的等待开启；
+        /// 资源、动作和状态轮询仍受全局停滞预算保护。
+        /// </summary>
+        public virtual bool AllowsIndefiniteWait => false;
+
         /// <summary>由调度器调用一次，把 <see cref="PevtWaitState.Created"/> 转成 <see cref="PevtWaitState.Pending"/>。</summary>
         public void Attach()
         {
@@ -195,14 +201,21 @@ namespace Polaris.Pevt.Runtime
     {
         private readonly Func<bool> _predicate;
         private readonly string _source;
+        private readonly bool _allowsIndefiniteWait;
 
-        public PevtPredicateWait(Func<bool> predicate, string progressSource = "状态轮询")
+        public PevtPredicateWait(
+            Func<bool> predicate,
+            string progressSource = "状态轮询",
+            bool allowsIndefiniteWait = false)
         {
             _predicate = predicate ?? throw new ArgumentNullException(nameof(predicate));
             _source = progressSource;
+            _allowsIndefiniteWait = allowsIndefiniteWait;
         }
 
         public override string ProgressSource => _source;
+
+        public override bool AllowsIndefiniteWait => _allowsIndefiniteWait;
 
         protected override void OnTick(PevtWaitContext context)
         {
@@ -347,6 +360,9 @@ namespace Polaris.Pevt.Runtime
 
         public override string ProgressSource => "输入服务";
 
+        // 显式 timeoutFrames 由本等待自己处理；0 的语言语义就是永久等待玩家输入。
+        public override bool AllowsIndefiniteWait => true;
+
         protected override void OnTick(PevtWaitContext context)
         {
             if (_startFrame < 0)
@@ -397,6 +413,20 @@ namespace Polaris.Pevt.Runtime
                 }
 
                 return _members.Count == 0;
+            }
+        }
+
+        public override bool AllowsIndefiniteWait
+        {
+            get
+            {
+                foreach (PevtWait member in _members)
+                {
+                    if (!member.IsCompleted && member.AllowsIndefiniteWait)
+                        return true;
+                }
+
+                return false;
             }
         }
 

@@ -125,6 +125,9 @@ namespace Polaris.Pevt.Runtime
         /// <summary><c>scope</c> 不是任意游戏 API 名称；未登记值必须报错（内置事件语句表「参数域」）。</summary>
         bool ValidateScope(string scope);
 
+        /// <summary>只检查键是否已登记，不读取旗标当前值。</summary>
+        bool HasFlag(string scope, string key);
+
         bool GetFlag(string scope, string key);
 
         void SetFlag(string scope, string key, bool value);

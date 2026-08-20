@@ -251,7 +251,10 @@ namespace Polaris.Event.Game
 
         /// <summary>教程框是玩家自行关闭的浮层；等到本条被移出为止。</summary>
         public PevtWait WaitTutorialClose() =>
-            new PevtPredicateWait(() => _tutorials.Count == 0 || PevtGameHost.AdvancePressed(), "教程框关闭输入");
+            new PevtPredicateWait(
+                () => _tutorials.Count == 0 || PevtGameHost.AdvancePressed(),
+                "教程框关闭输入",
+                allowsIndefiniteWait: true);
 
         public void HideTutorial(string tutorialId)
         {

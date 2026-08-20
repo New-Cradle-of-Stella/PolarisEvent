@@ -15,12 +15,14 @@ namespace Polaris.Event.Game
 
         /// <summary>按加入顺序记录选项键，用来把原版返回的键换算成从 1 开始的序号。</summary>
         private readonly List<string> _keys = new List<string>();
+        private readonly List<string> _selectableKeys = new List<string>();
 
         private string _initialKey;
 
         public void Reset()
         {
             _keys.Clear();
+            _selectableKeys.Clear();
             _initialKey = null;
             PevtGameHost.Guard("ChoiceReset", () => PevtGameHost.Selector?.clear());
         }
@@ -32,6 +34,7 @@ namespace Polaris.Event.Game
         public void Begin(string prompt)
         {
             _keys.Clear();
+            _selectableKeys.Clear();
             _initialKey = null;
 
             PevtGameHost.Guard("ChoiceBegin", () =>
@@ -80,6 +83,8 @@ namespace Polaris.Event.Game
             });
 
             _keys.Add(key);
+            if (enabled)
+                _selectableKeys.Add(key);
         }
 
         public void SetInitial(string initialKey) => _initialKey = initialKey;
@@ -124,6 +129,23 @@ namespace Polaris.Event.Game
         private static void Dismiss() =>
             PevtGameHost.Guard("ChoiceDismiss", () => PevtGameHost.Selector?.deactivate());
 
+        private void AutoplaySelect()
+        {
+            string key = !string.IsNullOrEmpty(_initialKey) && _selectableKeys.Contains(_initialKey)
+                ? _initialKey
+                : (_selectableKeys.Count > 0 ? _selectableKeys[0] : null);
+
+            if (key == null)
+                return;
+
+            PevtGameHost.Guard("ChoiceAutoplay", () =>
+            {
+                EvSelector selector = PevtGameHost.Selector;
+                if (selector != null && string.IsNullOrEmpty(selector.result))
+                    selector.result = key;
+            });
+        }
+
         /// <summary>
         /// 选择等待。激活失败（一条选项都没有）直接以 PEVTR4001 结束，而不是永远挂着——
         /// 停滞检测只能报"没有推进源"，定位不到真正的原因。
@@ -142,6 +164,8 @@ namespace Polaris.Event.Game
 
             public override string ProgressSource => "选择 UI";
 
+            public override bool AllowsIndefiniteWait => true;
+
             protected override void OnTick(PevtWaitContext context)
             {
                 if (!_activated)
@@ -155,6 +179,9 @@ namespace Polaris.Event.Game
                     _activated = true;
                     return;
                 }
+
+                if (Debugging.PevtDebugPage.ConsumeAutoplayAdvance())
+                    _choice.AutoplaySelect();
 
                 string result = PollResult();
                 if (result == null)

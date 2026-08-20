@@ -180,8 +180,9 @@ namespace Polaris.Event.Game
             PevtGameHost.Guard("ImageFlip", () => Layer(layerId, true)?.flip(horizontal, vertical, string.Empty));
 
         /// <summary>
-        /// 层次。原版只有"背景层"和"前景层"两档可用键名，所以非负 order 归前景、负数归背景，
-        /// 用 <see cref="EvDrawer.rewriteKeyAndLayer"/> 原地改写而不是重建图层。
+        /// 层次。符号决定原版的背景/前景大层，完整数值写入 <see cref="EvDrawer.id_in_layer_"/>
+        /// 作为层内顺序。图层键仍使用 9100 起的保留编号避免与 raw CMD 的 #1、#2 等键冲突，
+        /// 但排序不能沿用该保留编号，否则 PEVT 背景会盖住原版生成的剪影。
         /// </summary>
         public void SetOrder(string layerId, int order) =>
             PevtGameHost.Guard("ImageSetOrder", () =>
@@ -193,11 +194,15 @@ namespace Polaris.Event.Game
                 string id = layerId ?? string.Empty;
                 string oldKey = VanillaKey(id, true);
                 string key = (order >= 0 ? FrontPrefix : BackPrefix) + oldKey.Substring(1);
-                if (key == oldKey)
-                    return;
+                if (key != oldKey)
+                {
+                    drawer.rewriteKeyAndLayer(key);
+                    _layers[id] = key;
+                }
 
-                drawer.rewriteKeyAndLayer(key);
-                _layers[id] = key;
+                // id_in_layer 属性的原版 setter 只会清除缓存，并不会保存传入值；这里必须写
+                // Publicizer 暴露的 backing field，才能表达 PEVT 的完整整数 order。
+                drawer.id_in_layer_ = order;
 
                 // 容器只在 need_sort 置位的那一帧重排图层；不置位的话改完键名层序也不会立刻生效。
                 EvDrawerContainer drawers = PevtGameHost.Drawers;
@@ -246,7 +251,10 @@ namespace Polaris.Event.Game
 
         /// <summary>单张 CG 由玩家的确认或取消键关闭，与原版看图界面一致。</summary>
         public PevtWait WaitSingleClose() =>
-            new PevtPredicateWait(() => !_singleOpen || PevtGameHost.AdvancePressed() || PevtGameHost.CancelPressed(), "单张 CG 关闭输入");
+            new PevtPredicateWait(
+                () => !_singleOpen || PevtGameHost.AdvancePressed() || PevtGameHost.CancelPressed(),
+                "单张 CG 关闭输入",
+                allowsIndefiniteWait: true);
 
         public void CloseSingle()
         {

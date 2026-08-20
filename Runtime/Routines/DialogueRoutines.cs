@@ -31,6 +31,18 @@ namespace Polaris.Pevt.Runtime.Routines
             dialogue.CommitLog();
         }
 
+        /// <summary>CMD 兼容重载：HKDS/TALKER_REPLACE 已折叠进同一条 @say。</summary>
+        public static IEnumerator<PevtWait> SayWithLayout(PevtRoutineContext context, PevtArguments args)
+        {
+            IPevtDialogue dialogue = PevtArgumentDomains.RequireService(context.Services.Dialogue, "Dialogue");
+            PevtArgumentDomains.RequireId(args.String(0), "talkerId");
+            dialogue.SelectTalker(args.String(0));
+            dialogue.ConfigureTalker(args.String(0), args.String(2), args.String(3), args.String(4), args.String(5), args.String(6));
+            dialogue.OpenText(args.String(1));
+            yield return dialogue.WaitAdvance();
+            dialogue.CommitLog();
+        }
+
         /// <summary>`Dialogue.OpenBoard` → `WaitBoardClose` → `CloseBoard`；关闭动作登记为清理，异常路径也会执行。</summary>
         public static IEnumerator<PevtWait> Board(PevtRoutineContext context, PevtArguments args)
         {

@@ -211,6 +211,10 @@ namespace Polaris.Pevt.Runtime.Raw
 
         public override string ProgressSource => _session != null ? "原版 EV 文本会话" : "原版 EV 文本会话队列";
 
+        // 原版 CMD 会话可能停在 MESSAGE/SELECT 等玩家输入点；通道本身负责取消与释放，
+        // 不能再让 PEVT 的 600 帧全局停滞预算提前杀掉它。
+        public override bool AllowsIndefiniteWait => true;
+
         protected override void OnTick(PevtWaitContext context)
         {
             if (_session == null)

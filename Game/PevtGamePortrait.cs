@@ -242,9 +242,25 @@ namespace Polaris.Event.Game
             return TrackFrames(frames);
         }
 
-        /// <summary>表情用原版漫符（ManpuDrawer）；可用值就是 <see cref="EMOT"/> 枚举。</summary>
-        public bool ValidateEmote(string actorId, string emoteId) =>
-            emoteId != null && Enum.IsDefined(typeof(EMOT), emoteId.ToUpperInvariant());
+        /// <summary>
+        /// 表情用原版漫符（ManpuDrawer）；可用值来自 <see cref="ManpuDrawer.MP"/>。
+        /// <see cref="EMOT"/> 是人物立绘的情绪/显示状态（JOY、SCARY 等），并不是
+        /// <c>PIC_MP</c> 使用的漫符 ID（EXQ、SWT、BLS 等），不能拿来校验本参数。
+        /// </summary>
+        public bool ValidateEmote(string actorId, string emoteId)
+        {
+            if (string.IsNullOrWhiteSpace(emoteId))
+                return false;
+
+            string[] parts = emoteId.Split('|');
+            foreach (string part in parts)
+            {
+                if (part.Length == 0 || !Enum.IsDefined(typeof(ManpuDrawer.MP), part.ToUpperInvariant()))
+                    return false;
+            }
+
+            return true;
+        }
 
         public void PlayEmote(string actorId, string emoteId) =>
             PevtGameHost.Guard("PlayEmote", () => Drawer(actorId)?.setManpu("_", emoteId, string.Empty, -1f, -1f));

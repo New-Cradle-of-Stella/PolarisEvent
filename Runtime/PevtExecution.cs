@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Linq;
 using Polaris.Pevt.Binding;
 using Polaris.Pevt.Commands;
 using Polaris.Pevt.Syntax;
@@ -135,6 +136,7 @@ namespace Polaris.Pevt.Runtime
         private readonly PevtCompiledProgram _program;
         private readonly PevtCommandRegistry _commands;
         private readonly PevtServices _services;
+        private readonly bool _ownsEventSession;
         private readonly List<PevtFrame> _frames = new List<PevtFrame>();
         private PevtCommandFrame _command;
 
@@ -165,12 +167,35 @@ namespace Polaris.Pevt.Runtime
             PevtServices services,
             PevtCommandRegistry commands = null,
             PevtBudgetLimits limits = null)
-            : this(program, services, commands, new PevtExecutionBudget(limits), null, 0, 0)
+            : this(program, services, commands, new PevtExecutionBudget(limits), null, 0, 0, true)
         {
+            InitializeRootParameters(Array.Empty<PevtValue>());
+        }
+
+        /// <summary>创建根执行实例并提供事件实参；缺失的尾部可选形参在构造完成前补齐。</summary>
+        public PevtExecution(
+            PevtCompiledProgram program,
+            PevtServices services,
+            IReadOnlyList<PevtValue> eventArguments,
+            PevtCommandRegistry commands = null,
+            PevtBudgetLimits limits = null)
+            : this(program, services, commands, new PevtExecutionBudget(limits), null, 0, 0, true)
+        {
+            PevtValue[] arguments = eventArguments == null ? Array.Empty<PevtValue>() : eventArguments.ToArray();
+            InitializeRootParameters(arguments);
+        }
+
+        private void InitializeRootParameters(PevtValue[] arguments)
+        {
+            PevtRuntimeDiagnostic error = SeedEventParameters(arguments);
+            if (error != null)
+                throw new PevtEventStartException(error);
         }
 
         /// <summary>
         /// 子执行实例（<c>async block</c>、<c>callevt</c> 子事件、<c>exec</c> 片段）的构造入口。
+        /// 子实例共享根事件的服务与 Session，但不拥有 Session 的最终恢复权；只有公开构造出来的
+        /// 根执行实例能调用 <see cref="PevtEventSession.RestoreAll"/>。
         /// </summary>
         private PevtExecution(
             PevtCompiledProgram program,
@@ -179,11 +204,13 @@ namespace Polaris.Pevt.Runtime
             PevtExecutionBudget budget,
             IPevtSubEventProvider subEvents,
             int dynamicDepth,
-            int depthOffset)
+            int depthOffset,
+            bool ownsEventSession = false)
         {
             _program = program ?? throw new ArgumentNullException(nameof(program));
             _services = services ?? throw new ArgumentNullException(nameof(services));
             _commands = commands;
+            _ownsEventSession = ownsEventSession;
             Budget = budget ?? new PevtExecutionBudget(null);
             SubEvents = subEvents;
             DynamicDepth = dynamicDepth;
@@ -332,7 +359,8 @@ namespace Polaris.Pevt.Runtime
             CollectUnobservedFailures();
 
             failures.AddRange(Cleanup.RunAll());
-            failures.AddRange(_services.Session.RestoreAll());
+            if (_ownsEventSession)
+                failures.AddRange(_services.Session.RestoreAll());
 
             Status = PevtExecutionStatus.Cancelled;
             return new ReadOnlyCollection<Exception>(failures);
@@ -413,6 +441,16 @@ namespace Polaris.Pevt.Runtime
                     frame.EvalStack.Add(frame.SwitchSlots[instruction.Index]);
                     frame.Ip++;
                     return null;
+
+                case PevtOpCode.PushGlobalFlagDefined:
+                {
+                    IPevtState state = _services.Domains?.State;
+                    if (state == null)
+                        return Fault("PEVTR4001", "`ifdef` 需要 State 服务，但当前宿主没有登记。", instruction.Span);
+                    frame.EvalStack.Add(PevtValue.FromBool(state.HasFlag("global", instruction.Name)));
+                    frame.Ip++;
+                    return null;
+                }
 
                 case PevtOpCode.End:
                     return Complete();
@@ -627,13 +665,16 @@ namespace Polaris.Pevt.Runtime
             for (int i = instruction.Index - 1; i >= 0; i--)
                 arguments[i] = Pop(frame);
 
+            if (!PevtParameterBinding.TryBind(block.Parameters, arguments, out PevtValue[] boundArguments, out string argumentError))
+                return Fault("PEVTR9001", $"事件块 `{block.Name}` 调用参数不匹配：{argumentError}", instruction.Span);
+
             // 每次调用都建立一个新的局部环境；事件块不隐式捕获外层变量。
             var environment = new PevtEnvironment(block.Name);
             for (int i = 0; i < block.Parameters.Count; i++)
             {
-                KeyValuePair<string, PevtType> parameter = block.Parameters[i];
-                PevtSlot slot = environment.Declare(parameter.Key, parameter.Value, PevtSlotKind.Variable);
-                slot.Set(arguments[i]);
+                PevtParameterInfo parameter = block.Parameters[i];
+                PevtSlot slot = environment.Declare(parameter.Name, parameter.Type, PevtSlotKind.Variable);
+                slot.Set(boundArguments[i]);
             }
 
             _frames.Add(new PevtFrame(
@@ -687,7 +728,9 @@ namespace Polaris.Pevt.Runtime
                     if (command.CurrentWait != null && !command.CurrentWait.HasProgressSource)
                         return FinishCommandWithFault(command, "PEVTR1002", $"`@{command.Descriptor.Name}` 的等待没有推进源（{command.CurrentWait.ProgressSource}）。");
 
-                    if (!Budget.RecordNoProgress())
+                    if (command.CurrentWait?.AllowsIndefiniteWait == true)
+                        Budget.RecordWaitProgress();
+                    else if (!Budget.RecordNoProgress())
                         return FinishCommandWithFault(command, "PEVTR1002", $"事件 `{EventId}` 连续 {Budget.Limits.StallFrames} 帧没有任何进展。");
 
                     return new PevtExecutionResult(PevtExecutionStatus.Suspended, PevtSuspendReason.Wait);
@@ -766,7 +809,9 @@ namespace Polaris.Pevt.Runtime
             CollectUnobservedFailures();
 
             IReadOnlyList<Exception> failures = Cleanup.RunAll();
-            var sessionFailures = new List<Exception>(_services.Session.RestoreAll());
+            var sessionFailures = _ownsEventSession
+                ? new List<Exception>(_services.Session.RestoreAll())
+                : new List<Exception>();
             sessionFailures.AddRange(failures);
             sessionFailures.AddRange(asyncFailures);
 
@@ -804,7 +849,8 @@ namespace Polaris.Pevt.Runtime
             CollectUnobservedFailures();
 
             Cleanup.RunAll();
-            _services.Session.RestoreAll();
+            if (_ownsEventSession)
+                _services.Session.RestoreAll();
 
             Status = PevtExecutionStatus.Faulted;
             Diagnostic = diagnostic.CallStack.Count > 0
