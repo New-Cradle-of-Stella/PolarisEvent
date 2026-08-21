@@ -6,7 +6,7 @@ using Polaris.Pevt.Commands;
 namespace Polaris.Pevt.Runtime.Routines
 {
     /// <summary>
-    /// P1（地图、实体、持久状态与进度）与 P2（Alice In Cradle 领域）处理器的登记表。
+    /// P1（地图、实体、持久状态与进度）处理器的登记表。
     /// </summary>
     public static class P1CommandRoutines
     {
@@ -67,7 +67,6 @@ namespace Polaris.Pevt.Runtime.Routines
 
         private static void RegisterEntities(PevtCommandRegistry registry)
         {
-            Add(registry, "entity_visible", EntityRoutines.EntityVisible, Str, Bool);
             Add(registry, "entity_pose", EntityRoutines.EntityPose, Str, Str);
             Add(registry, "entity_face", EntityRoutines.EntityFace, Str, Str);
             Add(registry, "entity_move_to", EntityRoutines.EntityMoveTo, Str, Str, Float);
@@ -106,36 +105,6 @@ namespace Polaris.Pevt.Runtime.Routines
         }
     }
 
-    /// <summary>P2：Alice In Cradle 领域扩展处理器。</summary>
-    public static class P2CommandRoutines
-    {
-        private static readonly PevtType Int = PevtType.Int;
-        private static readonly PevtType Bool = PevtType.Bool;
-        private static readonly PevtType Str = PevtType.String;
-
-        public static void RegisterAll(PevtCommandRegistry registry)
-        {
-            if (registry == null)
-                throw new ArgumentNullException(nameof(registry));
-
-            Add(registry, "player_outfit", PlayerRoutines.PlayerOutfit, Str);
-            Add(registry, "player_voice", PlayerRoutines.PlayerVoice, Str);
-            Add(registry, "player_status_apply", PlayerRoutines.PlayerStatusApply, Str, Int, Int);
-            Add(registry, "player_status_cure", PlayerRoutines.PlayerStatusCure, Str);
-            Add(registry, "player_magic_cancel", PlayerRoutines.PlayerMagicCancel, Bool);
-            Add(registry, "battle_summoner_active", BattleRoutines.BattleSummonerActive, Str, Bool, Bool);
-            Add(registry, "battle_enemy_action", BattleRoutines.BattleEnemyAction, Str, Str);
-            Add(registry, "battle_magic_effect", BattleRoutines.BattleMagicEffect, Str, Bool);
-        }
-
-        private static void Add(
-            PevtCommandRegistry registry,
-            string name,
-            Func<PevtRoutineContext, PevtArguments, IEnumerator<PevtWait>> run,
-            params PevtType[] parameterTypes) =>
-            registry.Register(name, parameterTypes, new PevtDelegateRoutine(run));
-    }
-
     /// <summary>
     /// 全部内置处理器的统一入口。
     /// </summary>
@@ -152,7 +121,6 @@ namespace Polaris.Pevt.Runtime.Routines
         {
             P0CommandRoutines.RegisterAll(registry);
             P1CommandRoutines.RegisterAll(registry);
-            P2CommandRoutines.RegisterAll(registry);
         }
     }
 }

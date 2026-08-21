@@ -1,3 +1,4 @@
+using Polaris.API;
 using Polaris.Pevt.Runtime;
 
 namespace Polaris.Event.Game
@@ -97,16 +98,40 @@ namespace Polaris.Event.Game
                 throw Failed($"主进度写入失败，实际值 {value}。");
         }
 
-        /// <summary>
-        /// 自动存档尚未接线：原版入口（<c>NelM2DEventListener.executeAutoSave</c> / <c>COOK.autoSave</c>）的布尔参数含义还没有动态验证过。
-        /// 这是唯一一个猜错就直接覆盖玩家存档的写操作，宁可让 <c>@autosave</c> 以 PEVTR4001 明确失败。
-        /// </summary>
-        public bool ValidateSaveMode(string mode) => false;
+        private bool _lastAutosaveSucceeded;
 
-        public void RequestAutosave(string mode) =>
-            throw Failed("当前宿主没有登记任何自动存档模式。");
+        /// <summary>验证 PEVT 自动存档模式。</summary>
+        public bool ValidateSaveMode(string mode) => TryParseSaveMode(mode, out _);
 
-        public PevtWait<bool> WaitAutosave() => new PevtMotionWait(() => true, 0);
+        public void RequestAutosave(string mode)
+        {
+            if (!TryParseSaveMode(mode, out GameAutosaveMode parsed))
+                throw Failed($"存档模式 `{mode}` 未登记。");
+
+            _lastAutosaveSucceeded = PolarisAPI.Game.Save.RequestAutosave(parsed);
+        }
+
+        /// <summary>返回已完成的存档等待。</summary>
+        public PevtWait<bool> WaitAutosave() => new PevtGameSettledWait(_lastAutosaveSucceeded);
+
+        private static bool TryParseSaveMode(string mode, out GameAutosaveMode parsed)
+        {
+            switch (mode)
+            {
+                case "normal":
+                    parsed = GameAutosaveMode.Normal;
+                    return true;
+                case "bench":
+                    parsed = GameAutosaveMode.Bench;
+                    return true;
+                case "force":
+                    parsed = GameAutosaveMode.Force;
+                    return true;
+                default:
+                    parsed = default;
+                    return false;
+            }
+        }
 
         private static PevtRoutineFailureException Failed(string message) =>
             new PevtRoutineFailureException("PEVTR4001", message);

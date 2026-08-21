@@ -164,6 +164,7 @@ namespace Polaris.Event.Game
                 return;
 
             _clock.Advance();
+            _session?.Entity.UpdateFollows();
             _session?.Ui.Update();
             Host.Update();
 

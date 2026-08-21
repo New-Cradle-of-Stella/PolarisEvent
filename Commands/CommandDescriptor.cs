@@ -32,9 +32,6 @@ namespace Polaris.Pevt.Commands
 
         /// <summary>地图内剧情与进度。</summary>
         P1,
-
-        /// <summary>游戏专用演出（Alice In Cradle 领域扩展）。</summary>
-        P2,
     }
 
     /// <summary>一条 <c>@</c> API 的形参：名称、普通类型与可选参数域。构造后不可变。</summary>

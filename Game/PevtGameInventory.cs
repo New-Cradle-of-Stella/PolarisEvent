@@ -5,7 +5,7 @@ namespace Polaris.Event.Game
 {
     /// <summary>
     /// 物品、货币、技能与魔法的游戏侧适配器，全部走 <see cref="PolarisAPI.Game"/> 的受控入口。
-    /// 商店没有对应的 GameAPI，<see cref="ResolveStore"/> 因此恒为 false，让 <c>@store_refresh</c> 以未登记明确失败。
+    /// 商店查询与刷新通过 Core 的 <see cref="PolarisAPI.Game"/> 受控入口完成。
     /// </summary>
     internal sealed class PevtGameInventory : IPevtInventory
     {
@@ -112,11 +112,16 @@ namespace Polaris.Event.Game
 
         // ---- 商店 ----
 
-        /// <summary>GameAPI 没有商店入口，恒为 false，让组合在第一个副作用之前就拒绝。</summary>
-        public bool ResolveStore(string storeId) => false;
+        public bool ResolveStore(string storeId) => PolarisAPI.Game.Stores.Resolve(storeId) != null;
 
-        public void RefreshStore(string storeId) =>
-            throw Failed("当前宿主没有提供商店服务。");
+        public void RefreshStore(string storeId)
+        {
+            GameStore store = PolarisAPI.Game.Stores.Resolve(storeId);
+            if (store == null)
+                throw Failed($"商店 `{storeId}` 在本版本里不存在。");
+            if (!store.Refresh())
+                throw Failed($"商店 `{storeId}` 刷新失败。");
+        }
 
         private static bool IsMagic(GameSkill skill) =>
             skill != null && (skill.Category & GameSkillCategory.Magic) != 0;

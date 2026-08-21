@@ -417,7 +417,7 @@ namespace Polaris.Pevt.Runtime
 
         public IPevtInput Input { get; }
 
-        /// <summary>P1/P2 领域服务包。宿主没有接时是 <see cref="PevtDomainServices.Empty"/>，不为 null。</summary>
+        /// <summary>P1 领域服务包。宿主没有接时是 <see cref="PevtDomainServices.Empty"/>，不为 null。</summary>
         public PevtDomainServices Domains { get; }
 
         /// <summary>

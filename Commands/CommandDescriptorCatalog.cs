@@ -78,7 +78,7 @@ namespace Polaris.Pevt.Commands
             Descriptors = new ReadOnlyCollection<CommandDescriptor>(all);
         }
 
-        /// <summary>规范登记的第一版 P0/P1/P2 全部 API。</summary>
+        /// <summary>规范登记的第一版 P0/P1 全部 API。</summary>
         public static CommandDescriptorCatalog Builtin { get; } = new CommandDescriptorCatalog(BuiltinCommandDescriptors.Create());
 
         public IReadOnlyList<CommandDescriptor> Find(string name) =>

@@ -95,7 +95,7 @@ namespace Polaris.Pevt.Runtime
         {
             Registry = registry ?? throw new ArgumentNullException(nameof(registry));
             _servicesFactory = servicesFactory ?? throw new ArgumentNullException(nameof(servicesFactory));
-            // 默认挂满 P0/P1/P2：只挂 P0 会让 `@flag_set` 这类调用通过全部静态检查，
+            // 默认挂满 P0/P1：只挂 P0 会让 `@flag_set` 这类调用通过全部静态检查，
             // 却在运行时报"没有登记处理器"。
             _commands = commands ?? Routines.PevtBuiltinRoutines.CreateRegistry(CommandDescriptorCatalog.Builtin);
             Limits = limits ?? PevtBudgetLimits.Default;

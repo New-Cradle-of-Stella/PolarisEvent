@@ -5,7 +5,7 @@ namespace Polaris.Pevt.Commands
 {
     /// <summary>
     /// 第一版 <c>@</c> API 的权威登记数据，逐条对应 PEVT-内置事件语句表.md，<c>Capability</c> 列对应 PEVT-内置能力规范.md。
-    /// 优先级按功能阶段划分（P0 演出，P1 地图实体与持久状态，P2 Alice In Cradle 领域）；<c>_start</c> 异步变体由
+    /// 优先级按功能阶段划分（P0 演出，P1 地图实体与持久状态）；<c>_start</c> 异步变体由
     /// <see cref="CommandWaitKind.WaitParallel"/> 条目自动派生，不在本表出现。
     /// </summary>
     public static class BuiltinCommandDescriptors
@@ -44,7 +44,6 @@ namespace Polaris.Pevt.Commands
 
         private const CommandPriority P0 = CommandPriority.P0;
         private const CommandPriority P1 = CommandPriority.P1;
-        private const CommandPriority P2 = CommandPriority.P2;
 
         public static IReadOnlyList<CommandDescriptor> Create()
         {
@@ -258,8 +257,6 @@ namespace Polaris.Pevt.Commands
             Cmd("danger_set", Wait, null, P1, "map.danger.set",
                 P("level", PevtType.Int), P("immediate", PevtType.Bool)),
             Cmd("darkness_set", Immediate, null, P1, "map.darkness.set", P("enabled", PevtType.Bool)),
-            Cmd("entity_visible", Immediate, PevtType.Bool, P1, "entity.visible.set",
-                P("entityId", PevtType.String), P("visible", PevtType.Bool)),
             Cmd("entity_pose", Immediate, PevtType.Bool, P1, "entity.pose.set",
                 P("entityId", PevtType.String), P("poseId", PevtType.String)),
             Cmd("entity_face", Immediate, PevtType.Bool, P1, "entity.facing.set",
@@ -317,20 +314,6 @@ namespace Polaris.Pevt.Commands
             Cmd("quest_remove", Immediate, null, P1, "quest.remove", P("questId", PevtType.String)),
             Cmd("autosave", Wait, PevtType.Bool, P1, "save.auto.request", P("mode", PevtType.String)),
             Cmd("store_refresh", Immediate, null, P1, "store.refresh", P("storeId", PevtType.String)),
-
-            // ---- Alice In Cradle 领域扩展 ----
-            Cmd("player_outfit", Immediate, PevtType.Bool, P2, "player.outfit.set", P("outfitId", PevtType.String)),
-            Cmd("player_voice", Immediate, null, P2, "player.voice.play", P("voiceId", PevtType.String)),
-            Cmd("player_status_apply", Immediate, PevtType.Bool, P2, "player.status.apply",
-                P("statusId", PevtType.String), P("strength", PevtType.Int), P("durationFrames", PevtType.Int)),
-            Cmd("player_status_cure", Immediate, null, P2, "player.status.cure", P("mode", PevtType.String)),
-            Cmd("player_magic_cancel", Immediate, null, P2, "player.magic.cancel", P("force", PevtType.Bool)),
-            Cmd("battle_summoner_active", Wait, PevtType.Bool, P2, "battle.summoner.setActive",
-                P("summonerId", PevtType.String), P("active", PevtType.Bool), P("effect", PevtType.Bool)),
-            Cmd("battle_enemy_action", Parallel, PevtType.Bool, P2, "battle.enemy.action",
-                P("enemyId", PevtType.String), P("actionId", PevtType.String)),
-            Cmd("battle_magic_effect", Immediate, null, P2, "battle.magicEffect.play",
-                P("effectId", PevtType.String), P("produceMana", PevtType.Bool)),
         };
     }
 }

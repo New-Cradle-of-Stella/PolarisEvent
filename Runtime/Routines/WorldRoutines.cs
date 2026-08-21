@@ -143,21 +143,6 @@ namespace Polaris.Pevt.Runtime.Routines
         private static IPevtEntity Entity(PevtRoutineContext context) =>
             PevtArgumentDomains.RequireService(context.Services.Domains.Entity, "Entity");
 
-        public static IEnumerator<PevtWait> EntityVisible(PevtRoutineContext context, PevtArguments args)
-        {
-            IPevtEntity entity = Entity(context);
-            string entityId = PevtArgumentDomains.RequireId(args.String(0), "entityId");
-
-            if (!entity.TryResolve(entityId))
-            {
-                context.Result.SetBool(false);
-                yield break;
-            }
-
-            entity.SetVisible(entityId, args.Bool(1));
-            context.Result.SetBool(true);
-        }
-
         public static IEnumerator<PevtWait> EntityPose(PevtRoutineContext context, PevtArguments args)
         {
             IPevtEntity entity = Entity(context);

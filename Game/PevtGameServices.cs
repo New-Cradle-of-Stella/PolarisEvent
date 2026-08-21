@@ -30,6 +30,8 @@ namespace Polaris.Event.Game
 
         public PevtGameUi Ui { get; }
 
+        public PevtGameEntity Entity { get; }
+
         private readonly PevtGameClock _clock;
         private bool _released;
 
@@ -59,6 +61,7 @@ namespace Polaris.Event.Game
             Audio = new PevtGameAudio(clock);
             Music = new PevtGameMusic(clock, Resources);
             Ui = new PevtGameUi(clock);
+            Entity = new PevtGameEntity(clock);
 
             var choice = new PevtGameChoice { ShowPrompt = Dialogue.OpenText };
 
@@ -78,11 +81,10 @@ namespace Polaris.Event.Game
                 Music,
                 Ui,
                 new PevtGameInput(),
-                // P1 领域全部接到 GameAPI 上。Player / Battle 仍然留空：运行时核对过原版声明成员，
-                // 服装、玩家状态效果与治疗在两个游戏程序集里都不存在对应系统，召唤点与魔法特效的激活语义也还没验证过。
+                // 不公开缺少可靠游戏语义的玩家和战斗命令。
                 new PevtDomainServices(
                     world: new PevtGameWorld(),
-                    entity: new PevtGameEntity(clock),
+                    entity: Entity,
                     state: new PevtGameState(),
                     inventory: new PevtGameInventory(),
                     quest: new PevtGameQuest()),
@@ -118,6 +120,7 @@ namespace Polaris.Event.Game
             Audio.ReleaseAll();
             Music.ReleaseAll();
             Ui.ReleaseAll();
+            Entity.ClearFollows();
             Resources.ReleaseAll();
             _clock.ClearMotions();
 

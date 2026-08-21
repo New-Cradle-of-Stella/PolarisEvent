@@ -71,8 +71,6 @@ namespace Polaris.Pevt.Runtime
         /// <summary>实体是否存在。实体消失是脚本可预期情况，按签名返回 bool，不产生运行异常。</summary>
         bool TryResolve(string entityId);
 
-        void SetVisible(string entityId, bool visible);
-
         bool TryResolvePose(string entityId, string poseId);
 
         void SetPose(string entityId, string poseId);
@@ -194,52 +192,6 @@ namespace Polaris.Pevt.Runtime
     }
 
     /// <summary>
-    /// Alice In Cradle 的玩家领域操作（内置能力规范第 14 节）。
-    /// 领域接口仍然只用字符串 ID 与数值：它是"可选领域模块"，不是所有 Polaris 项目的通用核心，
-    /// 但它同样不许把游戏对象泄漏给解释器。
-    /// </summary>
-    public interface IPevtPlayer
-    {
-        bool TryResolveOutfit(string outfitId);
-
-        void SetOutfit(string outfitId);
-
-        void PlayVoice(string voiceId);
-
-        bool TryResolveStatus(string statusId);
-
-        void ApplyStatus(string statusId, int strength, int durationFrames);
-
-        bool ValidateCureMode(string mode);
-
-        void Cure(string mode);
-
-        void CancelMagic(bool force);
-    }
-
-    /// <summary>Alice In Cradle 的战斗领域操作。</summary>
-    public interface IPevtBattle
-    {
-        bool TryResolveSummoner(string summonerId);
-
-        void SetSummonerActive(string summonerId, bool active, bool effect);
-
-        /// <summary>结果表示召唤点是否在等待上限内达到目标状态。</summary>
-        PevtWait<bool> WaitSummonerState(string summonerId, bool active);
-
-        bool TryResolveEnemy(string enemyId);
-
-        bool TryResolveEnemyAction(string enemyId, string actionId);
-
-        /// <summary>结果表示已登记敌人行为是否正常完成。</summary>
-        PevtWait<bool> RunEnemyAction(string enemyId, string actionId);
-
-        bool ResolveMagicEffect(string effectId);
-
-        void PlayMagicEffect(string effectId, bool produceMana);
-    }
-
-    /// <summary>
     /// <c>$raw cmd</c> 的进程级通道。
     /// </summary>
     public interface IPevtRawCommands
@@ -255,7 +207,7 @@ namespace Polaris.Pevt.Runtime
     }
 
     /// <summary>
-    /// 受控原子服务集合里 P1/P2 与两个逃生口的那一半。
+    /// 受控原子服务集合里 P1 与两个逃生口的那一半。
     /// </summary>
     public sealed class PevtDomainServices
     {
@@ -269,26 +221,18 @@ namespace Polaris.Pevt.Runtime
 
         public IPevtQuest Quest { get; }
 
-        public IPevtPlayer Player { get; }
-
-        public IPevtBattle Battle { get; }
-
         public PevtDomainServices(
             IPevtWorld world = null,
             IPevtEntity entity = null,
             IPevtState state = null,
             IPevtInventory inventory = null,
-            IPevtQuest quest = null,
-            IPevtPlayer player = null,
-            IPevtBattle battle = null)
+            IPevtQuest quest = null)
         {
             World = world;
             Entity = entity;
             State = state;
             Inventory = inventory;
             Quest = quest;
-            Player = player;
-            Battle = battle;
         }
 
         /// <summary>一个都没有接的空包。语言与 P0 测试用它，避免到处写 null 判断。</summary>

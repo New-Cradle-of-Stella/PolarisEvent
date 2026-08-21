@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Polaris.API;
 using Polaris.Pevt.Runtime;
 
@@ -17,6 +18,8 @@ namespace Polaris.Event.Game
         private const float MinStepPerFrame = 0.01f;
 
         private readonly PevtGameClock _clock;
+        private readonly Dictionary<string, FollowState> _follows =
+            new Dictionary<string, FollowState>(StringComparer.OrdinalIgnoreCase);
 
         /// <param name="clock">
         /// 按帧推进的位移要登记成受管动作票据，<c>@wait_motion</c> 才能等到它们；
@@ -25,13 +28,6 @@ namespace Polaris.Event.Game
         public PevtGameEntity(PevtGameClock clock = null) => _clock = clock;
 
         public bool TryResolve(string entityId) => Find(entityId) != null;
-
-        /// <summary>
-        /// 原版 <c>M2Mover</c> 上没有任何可见性成员（运行时核对过声明成员），因此这条明确失败而不是假装成功。
-        /// 想让实体消失只能用原版自己的登场/退场流程，那不是一个可见性开关。
-        /// </summary>
-        public void SetVisible(string entityId, bool visible) =>
-            throw Failed("原版没有实体可见性入口，`@entity_visible` 暂不可用。");
 
         /// <summary>
         /// 原版没有"姿态名表"可查，只能问当前姿态是不是某个名字，所以这里只能确认实体存在。
@@ -195,19 +191,89 @@ namespace Polaris.Event.Game
             return wait;
         }
 
-        /// <summary>原版没有跟随系统（<c>IHkdsFollowable</c> 只是气泡定位接口），按签名返回 false 而不是抛异常。</summary>
-        public bool StartFollow(string entityId, string targetId, float distance, float speed) => false;
+        /// <summary>登记一个由 PEVT 每帧推进的受管跟随；不使用原版 MoveScript。</summary>
+        public bool StartFollow(string entityId, string targetId, float distance, float speed)
+        {
+            if (string.Equals(entityId, targetId, StringComparison.OrdinalIgnoreCase)
+                || Find(entityId) == null
+                || !TryResolveTarget(targetId)
+                || distance < 0f
+                || speed <= 0f)
+            {
+                return false;
+            }
 
-        public bool StopFollow(string entityId) => false;
+            _follows[entityId] = new FollowState(targetId, distance, speed);
+            return true;
+        }
 
-        /// <summary>
-        /// 原版的"实体动作"就是 MoveScript 文本，而规范明确禁止把 MoveScript 交回原版解释器，
-        /// 因此没有任何已登记动作，恒为 false，<c>@entity_action</c> 会干净地返回 false。
-        /// </summary>
-        public bool TryResolveAction(string entityId, string actionId) => false;
+        public bool StopFollow(string entityId) =>
+            !string.IsNullOrEmpty(entityId) && _follows.Remove(entityId);
 
-        public PevtWait<bool> RunAction(string entityId, string actionId) =>
-            throw Failed("当前没有登记任何实体动作。");
+        /// <summary>动作只接受显式登记的强类型委托。</summary>
+        public bool TryResolveAction(string entityId, string actionId) =>
+            Find(entityId) != null && Polaris.Event.PevtGameEntityActionRegistry.Contains(actionId);
+
+        public PevtWait<bool> RunAction(string entityId, string actionId)
+        {
+            GameCharacter entity = Require(entityId);
+            if (!Polaris.Event.PevtGameEntityActionRegistry.TryGet(actionId, out Polaris.Event.PevtGameEntityAction action))
+                throw Failed($"实体动作 `{actionId}` 未登记。");
+
+            PevtWait<bool> wait = action(entity);
+            return wait ?? throw Failed($"实体动作 `{actionId}` 返回了空等待句柄。");
+        }
+
+        /// <summary>由游戏侧运行时每帧调用；目标或跟随者消失时自动撤销对应跟随。</summary>
+        internal void UpdateFollows()
+        {
+            if (_follows.Count == 0)
+                return;
+
+            List<string> stopped = null;
+            foreach (KeyValuePair<string, FollowState> pair in _follows)
+            {
+                GameCharacter mover = Find(pair.Key);
+                GameCharacter target = Find(pair.Value.TargetId);
+                if (mover == null || target == null)
+                {
+                    (stopped ??= new List<string>()).Add(pair.Key);
+                    continue;
+                }
+
+                float dx = target.X - mover.X;
+                float dy = target.Y - mover.Y;
+                float distance = (float)Math.Sqrt((dx * dx) + (dy * dy));
+                float remaining = distance - pair.Value.Distance;
+                if (remaining <= 0f || distance <= 0f)
+                    continue;
+
+                float step = Math.Min(pair.Value.Speed, remaining);
+                if (!mover.MoveBy(new GameVector2(dx / distance * step, dy / distance * step)))
+                    (stopped ??= new List<string>()).Add(pair.Key);
+            }
+
+            if (stopped == null)
+                return;
+            foreach (string entityId in stopped)
+                _follows.Remove(entityId);
+        }
+
+        internal void ClearFollows() => _follows.Clear();
+
+        private sealed class FollowState
+        {
+            internal FollowState(string targetId, float distance, float speed)
+            {
+                TargetId = targetId;
+                Distance = distance;
+                Speed = speed;
+            }
+
+            internal string TargetId { get; }
+            internal float Distance { get; }
+            internal float Speed { get; }
+        }
 
         private static PevtWait<bool> Step(string entityId, float speed, Func<(float dx, float dy, bool alive)> remaining) =>
             new PevtGameApproachWait(entityId, speed, remaining);
