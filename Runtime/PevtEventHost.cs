@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
-using Polaris.Pevt.Binding;
 using Polaris.Pevt.Commands;
 using Polaris.Pevt.Flow;
 using Polaris.Pevt.Registration;

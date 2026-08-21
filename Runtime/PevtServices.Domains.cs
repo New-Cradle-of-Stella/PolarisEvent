@@ -1,5 +1,3 @@
-using System;
-
 namespace Polaris.Pevt.Runtime
 {
     // 本文件补齐同步指令中间层规范第 5 节剩下的四行原子服务边界：World/Entity、State/Inventory/Quest、Player/Battle。

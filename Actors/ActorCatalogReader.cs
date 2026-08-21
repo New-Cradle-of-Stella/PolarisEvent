@@ -32,7 +32,6 @@ namespace Polaris.Pevt.Actors
         private const string UnknownVisualReference = "PEVT9114";
         private const string ForbiddenLegacyAlias = "PEVT9115";
         private const string InvalidAnchor = "PEVT9116";
-        private const string UnknownExtensionTarget = "PEVT9119";
         private const string DuplicateExtensionAppearance = "PEVT9120";
         private const string ForbiddenExtensionOverride = "PEVT9121";
         private const string InternalError = "PEVT9001";

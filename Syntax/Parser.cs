@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using Polaris.Pevt.Diagnostics;
 using Polaris.Pevt.Text;
 

@@ -4,7 +4,6 @@ using System.Text;
 using Polaris.Pevt.Binding;
 using Polaris.Pevt.Commands;
 using Polaris.Pevt.Diagnostics;
-using Polaris.Pevt.Flow;
 using Polaris.Pevt.Loading;
 using Polaris.Pevt.Syntax;
 using Polaris.Pevt.Text;
