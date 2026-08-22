@@ -6,8 +6,7 @@ using XX;
 namespace Polaris.Event.Game.Debugging
 {
     /// <summary>
-    /// PEVT 调试页。作用与原版 F7 的 <c>evt.EvDebugger</c> 相同——一个把解释器当下的状态摊开给作者看的窗口，
-    /// 但不复用原版 <c>Designer</c>：那套控件绑死在原版事件的数据结构上，而 PEVT 有自己的执行栈、协程与所有权树。
+    /// PEVT 调试页。作用与原版 F7 的 <c>evt.EvDebugger</c> 相同，但不复用原版 <c>Designer</c>：那套控件绑死在原版事件的数据结构上，而 PEVT 有自己的执行栈、协程与所有权树。
     /// 这里只用 IMGUI，界面全部由运行时的只读视图渲染，任何一格都不写回解释器。
     /// </summary>
     internal static partial class PevtDebugPage

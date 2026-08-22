@@ -3,9 +3,7 @@ using System.Collections.Generic;
 namespace Polaris.Pevt.Runtime.Routines
 {
     /// <summary>
-    /// UI、输入与等待组合，对应同步指令中间层规范第 10 节和第 6 节的调度部分。
-    ///
-    /// UI 可见性、黑边、模糊和输入能力都是事件临时状态，全部登记会话恢复；持久设置不在这一层改动。
+    /// UI、输入与等待组合。UI 可见性、黑边、模糊和输入能力都是事件临时状态，全部登记会话恢复；持久设置不在这一层改动。
     /// </summary>
     internal static class UiRoutines
     {

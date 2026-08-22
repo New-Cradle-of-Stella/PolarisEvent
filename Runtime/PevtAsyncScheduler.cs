@@ -5,7 +5,7 @@ using Polaris.Pevt.Binding;
 
 namespace Polaris.Pevt.Runtime
 {
-    /// <summary>异步协程的生命周期状态（异步协程与等待模型第 5 节）。后三个是终态。</summary>
+    /// <summary>异步协程的生命周期状态。后三个是终态。</summary>
     public enum PevtAsyncState
     {
         Running,
@@ -112,7 +112,7 @@ namespace Polaris.Pevt.Runtime
         /// <summary>当前子协程是否正合法地等待玩家输入。</summary>
         public bool AllowsIndefiniteWait => !IsFinished && _driver.CurrentWait?.AllowsIndefiniteWait == true;
 
-        /// <summary>PEVT <c>status</c> 的取值：0 未结束，1 成功，2 失败或已取消（第 8 节）。</summary>
+        /// <summary>PEVT <c>status</c> 的取值：0 未结束，1 成功，2 失败或已取消。</summary>
         public int StatusCode
         {
             get

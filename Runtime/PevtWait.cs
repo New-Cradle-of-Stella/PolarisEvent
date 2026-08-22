@@ -4,7 +4,7 @@ using System.Collections.ObjectModel;
 
 namespace Polaris.Pevt.Runtime
 {
-    /// <summary>等待对象的状态机（异步协程与等待模型第 3 节）。后三个是终态。</summary>
+    /// <summary>等待对象的状态机。后三个是终态。</summary>
     public enum PevtWaitState
     {
         /// <summary>已建立，尚未被调度器接管。</summary>

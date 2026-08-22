@@ -344,7 +344,7 @@ namespace Polaris.Pevt.Runtime.Raw
             _factory = factory ?? throw new ArgumentNullException(nameof(factory));
         }
 
-        /// <summary>底层编译器是否已经建出来。只读诊断与测试用。</summary>
+        /// <summary>底层编译器是否已经建出来，供只读诊断使用。</summary>
         public bool IsCreated => _inner != null;
 
         public string CacheScope => Inner.CacheScope;

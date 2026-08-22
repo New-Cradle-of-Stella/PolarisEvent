@@ -6,7 +6,7 @@ namespace Polaris.Pevt.Runtime
 {
     /// <summary>
     /// 单句柄 <c>await</c>。目标成功时返回它的普通值；失败或已被 <c>kill</c> 时产生
-    /// <c>PEVTR5001</c>，并把原始异步异常作为内部原因保留（异步模型第 9 节）。
+    /// <c>PEVTR5001</c>，并把原始异步异常作为内部原因保留。
     /// </summary>
     public sealed class PevtHandlerWait : PevtWait<PevtValue>
     {
@@ -57,7 +57,7 @@ namespace Polaris.Pevt.Runtime
     }
 
     /// <summary>
-    /// <c>await all</c>：全部目标进入终态后完成，结果是正常结束的数量（第 9 节）。
+    /// <c>await all</c>：全部目标进入终态后完成，结果是正常结束的数量。
     /// 失败句柄不参与结果绑定，但同样算作"已观察"。
     /// </summary>
     public sealed class PevtAllHandlersWait : PevtWait<int>

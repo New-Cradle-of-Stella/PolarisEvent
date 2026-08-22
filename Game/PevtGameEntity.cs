@@ -111,10 +111,7 @@ namespace Polaris.Event.Game
         // ---- 按像素与帧的位移（PEVT-E03）----
 
         /// <summary>
-        /// 按像素相对位移。
-        ///
-        /// 原版实体坐标以"格"为单位（<see cref="Map2d.CLEN"/> 像素一格，见 <c>canStandArea</c> 里
-        /// <c>drawx / CLEN</c> 的用法），而作者在素材上量到的是像素，因此这里按当前地图的 CLEN 换算。
+        /// 按像素相对位移。原版实体坐标以"格"为单位（<see cref="Map2d.CLEN"/> 像素一格），而作者在素材上量到的是像素，因此这里按当前地图的 CLEN 换算。
         /// 换算发生在适配层：PEVT 侧永远看不到格子尺寸。
         /// </summary>
         public PevtWait<bool> MoveByPixels(string entityId, float xPixels, float yPixels, int frames)
@@ -305,11 +302,8 @@ namespace Polaris.Event.Game
     }
 
     /// <summary>
-    /// PEVT-E03 的按帧位移：把剩余位移平均分到剩下的帧里，每帧走一段。
-    ///
-    /// 由 PEVT 时钟推进，不依赖地图主循环——事件期间主循环是停着的，靠它推进的位移会一动不动。
-    /// 每一步都走带落脚判定的位移（<see cref="GameCharacter.MoveBy"/> 的 <c>checkFoot</c>），
-    /// 因为让 NPC 穿墙比走不到位难查得多；被挡住时立刻以 false 结束，实体停在已经走到的位置。
+    /// PEVT-E03 的按帧位移：把剩余位移平均分到剩下的帧里，每帧走一段，由 PEVT 时钟推进而不依赖地图主循环（事件期间主循环是停着的）。
+    /// 每一步都走带落脚判定的位移（<see cref="GameCharacter.MoveBy"/> 的 <c>checkFoot</c>），被挡住时立刻以 false 结束，实体停在已经走到的位置。
     /// </summary>
     internal sealed class PevtGameEntityPixelWait : PevtWait<bool>
     {

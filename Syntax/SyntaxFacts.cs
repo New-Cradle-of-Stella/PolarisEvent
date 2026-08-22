@@ -4,8 +4,7 @@ using System.Linq;
 namespace Polaris.Pevt.Syntax
 {
     /// <summary>
-    /// 关键字、类型名、enable 能力与保留字表，逐字对应语法设计草案 2.1 节与 9.6 节。
-    /// 保留字表与关键字表使用同一份名称集合：9.6 节明确保留关键字就是词法关键字本身。
+    /// 关键字、类型名、enable 能力与保留字表。保留字表与关键字表使用同一份名称集合：保留关键字就是词法关键字本身。
     /// </summary>
     public static class SyntaxFacts
     {

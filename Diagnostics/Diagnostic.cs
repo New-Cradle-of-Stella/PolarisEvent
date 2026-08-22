@@ -4,8 +4,8 @@ using Polaris.Pevt.Text;
 namespace Polaris.Pevt.Diagnostics
 {
     /// <summary>
-    /// 一条不可变诊断记录。<see cref="Id"/> 使用规范中已分配的编号（例如 <c>PEVT1009</c>）；本类型本身
-    /// 不维护编号目录——编号、名称与默认消息的集中目录由后续阶段的 DiagnosticCatalog 实现。
+    /// 一条不可变诊断记录。<see cref="Id"/> 使用预先分配的编号（例如 <c>PEVT1009</c>）；本类型本身
+    /// 不维护编号目录——编号、名称与默认消息的集中目录由 DiagnosticCatalog 实现。
     /// </summary>
     public sealed class Diagnostic : IEquatable<Diagnostic>
     {

@@ -5,8 +5,7 @@ using Polaris.Pevt.Text;
 namespace Polaris.Pevt.Syntax
 {
     /// <summary>
-    /// 不可变语法节点的公共基类。<see cref="ToString"/> 在每个具体节点上被重写为紧凑的 s-表达式风格调试文本，
-    /// 供测试直接做 AST 快照比较，而不必逐字段手写断言。
+    /// 不可变语法节点的公共基类。<see cref="ToString"/> 在每个具体节点上被重写为紧凑的 s-表达式风格调试文本。
     /// </summary>
     public abstract class SyntaxNode
     {

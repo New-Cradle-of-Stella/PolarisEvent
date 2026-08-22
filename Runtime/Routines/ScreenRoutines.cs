@@ -3,7 +3,7 @@ using System.Collections.Generic;
 namespace Polaris.Pevt.Runtime.Routines
 {
     /// <summary>
-    /// 画面、镜头与后处理组合，对应同步指令中间层规范第 8 节。
+    /// 画面、镜头与后处理组合。
     /// </summary>
     internal static class ScreenRoutines
     {

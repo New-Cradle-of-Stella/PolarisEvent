@@ -10,11 +10,7 @@ namespace Polaris.Event.Game.Live
 {
     /// <summary>
     /// 把命名管道线程收到的推送搬到 Unity 主线程应用，再把回执送回等待中的连接。
-    /// <para>
-    /// 必须过这一道：导入会改注册表、可能重启当前事件，而重启要碰 UI、摄像机和原版 EV——
-    /// 那些只能在主线程动。管道线程直接调用的话，第一次热重载就会在 Unity 里炸出一个
-    /// 与真正原因毫无关系的线程错误。
-    /// </para>
+    /// 必须过这一道：导入会改注册表、可能重启当前事件，而重启要碰只能在主线程动的 UI 与摄像机，管道线程直接调用会在 Unity 里炸出无关的线程错误。
     /// </summary>
     internal sealed class PevtLivePump : MonoBehaviour
     {

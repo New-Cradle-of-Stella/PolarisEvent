@@ -62,7 +62,7 @@ namespace Polaris.Pevt.Actors
             return Read(loaded.Text, sourceKind, cancellationToken);
         }
 
-        /// <summary>测试与编辑器用的便捷入口：直接以 UTF-8 编码给定文本后读取。</summary>
+        /// <summary>编辑器用的便捷入口：直接以 UTF-8 编码给定文本后读取。</summary>
         public static ActorCatalogReadResult ReadText(
             string xml,
             string sourcePath,

@@ -7,7 +7,7 @@ namespace Polaris.Pevt.Syntax
     {
     }
 
-    /// <summary><c>end</c>（第 3 节）：终止当前执行路径。</summary>
+    /// <summary><c>end</c>：终止当前执行路径。</summary>
     public sealed class EndStatementSyntax : StatementSyntax
     {
         public SyntaxToken EndKeyword { get; }

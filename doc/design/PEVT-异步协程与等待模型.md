@@ -251,7 +251,7 @@ public IEnumerator<PevtWait> Run(PevtRoutineContext context, PevtArguments args)
 
 - 不允许同步版和 `_start` 版各自复制一份业务代码。
 - 不允许将 Unity `Coroutine` 返回的不透明句柄直接存入 PEVT `handler`。
-- 不允许产出任意 Unity yield 对象；全部等待都必须是可诊断、可取消、可测试的 `PevtWait`。
+- 不允许产出任意 Unity yield 对象；全部等待都必须是可诊断、可取消、可验证的 `PevtWait`。
 - 不允许在后台线程读写 Unity 对象或游戏状态。
 - 不允许 `kill` 只改句柄状态而不停止底层等待和副作用。
 - 不允许用一个包含字符串 `kind` 的万能等待类型代替明确的子类和契约。

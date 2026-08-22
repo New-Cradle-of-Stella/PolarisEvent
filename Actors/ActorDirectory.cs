@@ -22,7 +22,7 @@ namespace Polaris.Pevt.Actors
         public string CatalogHash { get; }
 
         /// <summary>
-        /// 已应用到本人物上的扩展，按应用顺序排列（PEVT-E06）。卸载必须按逆序进行。
+        /// 已应用到本人物上的扩展，按应用顺序排列（PEVT-E06），卸载须按逆序进行。
         /// 空列表表示这个人物完全来自基础目录。
         /// </summary>
         public IReadOnlyList<ActorExtensionRecord> Extensions { get; }
@@ -178,8 +178,7 @@ namespace Polaris.Pevt.Actors
     }
 
     /// <summary>
-    /// 合并后的只读人物空间。人物表与 `/event` 事件表分离，人物冲突不会影响事件登记
-    /// （PEVT-嵌入注册与ID冲突规范.md 第 10 节）。
+    /// 合并后的只读人物空间。人物表与 `/event` 事件表分离，人物冲突不会影响事件登记。
     /// </summary>
     public sealed class ActorDirectory
     {

@@ -23,7 +23,7 @@ namespace Polaris.Pevt.Runtime
     }
 
     /// <summary>
-    /// 一次同步 <c>@</c> 调用的临时指令帧（同步指令中间层规范第 4 节）。
+    /// 一次同步 <c>@</c> 调用的临时指令帧。
     /// </summary>
     public sealed class PevtCommandFrame
     {

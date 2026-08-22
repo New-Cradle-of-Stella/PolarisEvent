@@ -2,7 +2,7 @@ using System;
 
 namespace Polaris.Pevt.Actors
 {
-    /// <summary>视觉资源提供者。第一版只有两类（PEVT-人物目录与原版别名规范.md 第 4 节）。</summary>
+    /// <summary>视觉资源提供者，第一版只有两类。</summary>
     public enum ActorVisualProvider
     {
         /// <summary>借用游戏 StreamingAssets 内的原版 PXLS Bundle；仅 Polaris 内置目录可用。</summary>

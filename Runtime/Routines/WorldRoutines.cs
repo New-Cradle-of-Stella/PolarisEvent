@@ -3,7 +3,7 @@ using System.Collections.Generic;
 namespace Polaris.Pevt.Runtime.Routines
 {
     /// <summary>
-    /// 地图、天气与地图元素组合，对应同步指令中间层规范第 11 节的 World 部分。
+    /// 地图、天气与地图元素组合。
     /// </summary>
     internal static class WorldRoutines
     {
@@ -36,7 +36,7 @@ namespace Polaris.Pevt.Runtime.Routines
             string mapId = PevtArgumentDomains.RequireId(args.String(0), "mapId");
             string anchorId = PevtArgumentDomains.RequireId(args.String(1), "anchorId");
 
-            // 先把两个 ID 都验完再产生任何副作用（第 4 节执行顺序第 1 条）。
+            // 先把两个 ID 都验完再产生任何副作用。
             if (!world.ResolveMap(mapId))
                 throw new PevtRoutineFailureException("PEVTR4001", $"地图 `{mapId}` 无法解析。");
             if (!world.ResolveAnchor(mapId, anchorId))
@@ -136,7 +136,7 @@ namespace Polaris.Pevt.Runtime.Routines
     }
 
     /// <summary>
-    /// 场景实体组合，对应同步指令中间层规范第 11 节的 Entity 部分。
+    /// 场景实体组合。
     /// </summary>
     internal static class EntityRoutines
     {
@@ -213,8 +213,7 @@ namespace Polaris.Pevt.Runtime.Routines
         }
 
         /// <summary>
-        /// PEVT-E03：按像素相对位移。像素→地图单位的换算归适配器，这里只校验参数并把结果原样转出去。
-        /// 位移登记为当前事件的受管动作，因此 <c>@wait_motion</c> 能等到它。
+        /// PEVT-E03：按像素相对位移。像素→地图单位的换算归适配器，这里只校验参数并把结果原样转出去，登记为当前事件的受管动作，因此 <c>@wait_motion</c> 能等到它。
         /// </summary>
         public static IEnumerator<PevtWait> EntityMoveByPixels(PevtRoutineContext context, PevtArguments args)
         {

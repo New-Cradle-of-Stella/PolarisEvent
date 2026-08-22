@@ -84,8 +84,7 @@ namespace Polaris.Pevt.Actors
     }
 
     /// <summary>
-    /// 人物专用站位。坐标由 PolarisEvent 直接保存，不在运行时翻译回原版 <c>L/R/C</c> 组合键
-    /// 再交给原版解释器（PEVT-人物目录与原版别名规范.md 第 8 节）。
+    /// 人物专用站位。坐标由 PolarisEvent 直接保存，不在运行时翻译回原版 <c>L/R/C</c> 组合键再交给原版解释器。
     /// </summary>
     public sealed class ActorAnchor
     {

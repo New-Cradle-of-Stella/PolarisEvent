@@ -304,7 +304,7 @@ namespace Polaris.Event.Game
         }
 
         /// <summary>
-        /// 资源组解析。PEVT-E08 静态声明的组优先：既然加载阶段已经把它登记进来，它就一定"存在"。
+        /// 资源组解析。PEVT-E08 静态声明的组优先，既然加载阶段已经把它登记进来，它就一定"存在"。
         /// 没有被声明过的 groupId 落回第一版的隐式规则——"某个人物的全部立绘"或"某张事件图像"。
         /// </summary>
         public bool ResolveGroup(string groupId)

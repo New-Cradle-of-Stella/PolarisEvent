@@ -212,7 +212,7 @@ namespace Polaris.Pevt.Binding
         }
 
         /// <summary>PEVT6008 是通用的"初始化表达式类型不同"；当来源直接是一次 <c>@</c> 调用时，
-        /// 诊断表已经为这个更具体的场景单独分配了 PEVT7009，按计划规则优先使用更精确的编号。</summary>
+        /// 诊断表已经为这个更具体的场景单独分配了 PEVT7009，优先使用更精确的编号。</summary>
         private void ReportInitializerMismatch(ExpressionSyntax valueExpression) =>
             Report(valueExpression is BuiltinCallExpressionSyntax ? "PEVT7009" : "PEVT6008", valueExpression.Span);
 

@@ -6,8 +6,7 @@ using Polaris.Pevt.Text;
 namespace Polaris.Pevt.Actors
 {
     /// <summary>
-    /// 一个已校验的人物资料。构造函数把传入集合复制成只读快照，因此调用方之后修改原集合不会影响本对象；
-    /// 元素类型本身也不可变，整体满足计划要求的“深不可变”。
+    /// 一个已校验的人物资料，深不可变：构造函数把传入集合复制成只读快照，元素类型本身也不可变。
     /// </summary>
     public sealed class ActorDefinition
     {

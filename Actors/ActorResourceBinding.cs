@@ -65,7 +65,7 @@ namespace Polaris.Pevt.Actors
         public const string PxlsCharacterHandleTypeName = "PxlsCharacterHandle";
         public const string MImageTypeName = "MImage";
 
-        /// <summary>某个视觉分类要求的资源类型（PEVT-人物目录与原版别名规范.md 第 4 节）。</summary>
+        /// <summary>某个视觉分类要求的资源类型。</summary>
         public static ActorResourceType GetRequiredResourceType(ActorVisualKind kind)
         {
             switch (kind)

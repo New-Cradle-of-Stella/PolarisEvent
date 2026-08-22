@@ -276,7 +276,7 @@ namespace Polaris.Pevt.Runtime
         /// <summary>当前正在执行的 <c>@</c> 指令帧；没有时为 null。</summary>
         public PevtCommandFrame CurrentCommand => _command;
 
-        /// <summary>外层事件环境，供测试与调试查询。</summary>
+        /// <summary>外层事件环境，供调试查询。</summary>
         public PevtEnvironment RootEnvironment => _frames.Count > 0 ? _frames[0].Environment : null;
 
         public bool IsFinished =>

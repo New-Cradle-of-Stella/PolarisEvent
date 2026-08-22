@@ -7,8 +7,7 @@ using System.Text;
 namespace Polaris.Pevt.Loading
 {
     /// <summary>
-    /// 一个 PEVT 嵌入包：与模组一起编译进程序集的压缩原始源文本，不是 PEVT 字节码，也不是原版命令文本
-    /// （PEVT-嵌入注册与ID冲突规范.md 第 2 节）。
+    /// 一个 PEVT 嵌入包：与模组一起编译进程序集的压缩原始源文本，不是 PEVT 字节码，也不是原版命令文本。
     /// </summary>
     public sealed class PevtEmbeddedSource
     {
@@ -156,8 +155,7 @@ namespace Polaris.Pevt.Loading
 
     /// <summary>
     /// 加载嵌入包时的大小上限。解压前限制 Base64 载荷长度与包内声明的未压缩长度；
-    /// 解压过程中另外使用 <see cref="MaxUncompressedBytes"/> 作为硬上限，不信任包内长度
-    /// （PEVT-嵌入注册与ID冲突规范.md 第 8 节）。
+    /// 解压过程中另外使用 <see cref="MaxUncompressedBytes"/> 作为硬上限，不信任包内长度。
     /// </summary>
     public sealed class PevtEmbeddedSourceLimits
     {

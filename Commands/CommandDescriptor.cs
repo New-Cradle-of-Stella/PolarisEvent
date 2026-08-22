@@ -24,7 +24,7 @@ namespace Polaris.Pevt.Commands
         WaitParallel,
     }
 
-    /// <summary>第一版实现优先级（内置能力规范第 17 节）。</summary>
+    /// <summary>第一版实现优先级。</summary>
     public enum CommandPriority
     {
         /// <summary>足以完成普通 Galgame 演出。</summary>

@@ -5,8 +5,7 @@ using System.Linq;
 namespace Polaris.Pevt.Diagnostics
 {
     /// <summary>
-    /// PEVTxxxx 全部诊断编号的唯一集中目录，逐条对应 PEVT-静态诊断表.md。
-    /// 新增诊断只应追加到对应编号分区末尾；已分配编号不得改变含义，删除后不得复用。
+    /// PEVTxxxx 全部诊断编号的唯一集中目录。新增诊断只应追加到对应编号分区末尾；已分配编号不得改变含义，删除后不得复用。
     /// </summary>
     public static class DiagnosticCatalog
     {
@@ -288,7 +287,7 @@ namespace Polaris.Pevt.Diagnostics
             new DiagnosticDescriptor("PEVT9209", "EmbeddedDeclaredIdMismatch", DiagnosticSeverity.Error, "源码 `id` 与嵌入包 `DeclaredId` 不完全一致。"),
             new DiagnosticDescriptor("PEVT9210", "InvalidEmbeddedSourcePath", DiagnosticSeverity.Error, "`SourcePath` 为空、包含盘符或根路径、或包含 `..` 段，不是项目相对路径。"),
 
-            // 外部导入（PEVT-外部导入与热重载规范.md）：没有信封字段，只有"大小"与"编码"两条门。
+            // 外部导入：没有信封字段，只有"大小"与"编码"两条门。
             new DiagnosticDescriptor("PEVT9211", "ExternalSourceTooLarge", DiagnosticSeverity.Error, "外部导入的 `.pevt` 字节数超过单个事件源的上限。"),
             new DiagnosticDescriptor("PEVT9212", "InvalidExternalSourceEncoding", DiagnosticSeverity.Error, "外部导入的 `.pevt` 不是合法 UTF-8 源文本。"),
         };

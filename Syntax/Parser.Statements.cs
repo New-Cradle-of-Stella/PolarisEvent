@@ -1079,9 +1079,8 @@ namespace Polaris.Pevt.Syntax
             return Peek(2).Kind == SyntaxKind.IdentifierToken && Peek(3).Kind == SyntaxKind.ColonToken; // "_foo(name : type"
         }
 
-        /// <summary>14.1 节：完整名称必须以 <c>_</c> 开头。词法阶段把 <c>_playScene</c> 整体
-        /// 识别成一个 <see cref="SyntaxKind.IdentifierToken"/>（阶段 2 的既有设计），所以这里只需要
-        /// 检查该 token 的文本形状，不需要额外的词法支持。</summary>
+        /// <summary>完整名称必须以 <c>_</c> 开头。词法阶段已把 <c>_playScene</c> 整体
+        /// 识别成一个 <see cref="SyntaxKind.IdentifierToken"/>，所以这里只需要检查该 token 的文本形状，不需要额外的词法支持。</summary>
         private SyntaxToken ParseCustomBlockDefinitionName()
         {
             if (!Check(SyntaxKind.IdentifierToken))

@@ -3,8 +3,8 @@ using Polaris.Pevt.Text;
 namespace Polaris.Pevt.Syntax
 {
     /// <summary>
-    /// 文件头 <c>id "事件ID"[(参数...)]</c> 声明（2 节，参数列表见 PEVT-E07）。不是 <see cref="StatementSyntax"/>：
-    /// 文档语法把它单独列在事件语句之外。<see cref="Parameters"/> 为 null 表示旧语法（无参事件）。
+    /// 文件头 <c>id "事件ID"[(参数...)]</c> 声明（2 节，参数列表见 PEVT-E07）。不是 <see cref="StatementSyntax"/>：文档语法把它单独列在事件语句之外。
+    /// <see cref="Parameters"/> 为 null 表示旧语法（无参事件）。
     /// </summary>
     public sealed class IdDeclarationSyntax : SyntaxNode
     {

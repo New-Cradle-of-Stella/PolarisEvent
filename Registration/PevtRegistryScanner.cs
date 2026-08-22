@@ -87,7 +87,7 @@ namespace Polaris.Pevt.Registration
             }
         }
 
-        /// <summary>不经过反射，直接登记一个注册器。宿主与测试用。</summary>
+        /// <summary>不经过反射，直接登记一个注册器；宿主用。</summary>
         public void Register(IPevtRegistrar registrar, string owner, string displayName = null, CancellationToken cancellationToken = default)
         {
             if (registrar == null)
@@ -96,7 +96,7 @@ namespace Polaris.Pevt.Registration
             RegisterEvents(registrar, owner, displayName, cancellationToken);
         }
 
-        /// <summary>不经过反射，直接登记一个人物目录注册器。宿主与测试用。</summary>
+        /// <summary>不经过反射，直接登记一个人物目录注册器；宿主用。</summary>
         public void Register(IPevtActorRegistrar registrar, string owner, string displayName = null)
         {
             if (registrar == null)

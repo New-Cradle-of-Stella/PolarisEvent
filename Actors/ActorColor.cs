@@ -3,8 +3,7 @@ using System;
 namespace Polaris.Pevt.Actors
 {
     /// <summary>
-    /// `.pactor` 的对话名颜色。只接受 <c>#RRGGBB</c> 或 <c>#RRGGBBAA</c>（见 PEVT-人物目录与原版别名规范.md
-    /// 第 3 节）；不接受颜色名、<c>rgb()</c> 函数或三位简写，避免把表达式能力带进纯数据文件。
+    /// `.pactor` 的对话名颜色，只接受 <c>#RRGGBB</c> 或 <c>#RRGGBBAA</c>；不接受颜色名、<c>rgb()</c> 函数或三位简写，避免把表达式能力带进纯数据文件。
     /// </summary>
     public readonly struct ActorColor : IEquatable<ActorColor>
     {

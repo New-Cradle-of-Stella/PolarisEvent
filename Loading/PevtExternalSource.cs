@@ -10,14 +10,8 @@ using Polaris.Pevt.Text;
 namespace Polaris.Pevt.Loading
 {
     /// <summary>
-    /// 一份外部导入的 PEVT 源文本：没有经过 PolarisTools 生成器、没有压缩载荷、也没有内容哈希声明，
-    /// 直接以磁盘上（或热重载通道推来）的原始 UTF-8 字节为真相。
-    /// <para>
-    /// 与 <see cref="PevtEmbeddedSource"/> 的差别只有"信封"：嵌入包要校验格式版本、压缩算法、
-    /// 声明长度与声明哈希，因为那些字段是别人写进程序集的、可能与载荷不符；外部源没有任何声明字段，
-    /// 因此那几道门无从谈起。解码之后的路径完全相同——同一个 <see cref="PevtSourceCompiler"/>、
-    /// 同一批 PEVTxxxx，绝不因为"这是作者本机的文件"而放宽任何一条静态检查。
-    /// </para>
+    /// 一份外部导入的 PEVT 源文本：没有经过 PolarisTools 生成器、没有压缩载荷、也没有内容哈希声明，直接以磁盘上（或热重载通道推来）的原始 UTF-8 字节为真相。
+    /// 与 <see cref="PevtEmbeddedSource"/> 的差别只有"信封"：嵌入包要校验格式版本、长度与哈希声明，外部源没有这些字段，但解码后走的是完全相同的 <see cref="PevtSourceCompiler"/> 静态校验，不因"本机文件"而放宽检查。
     /// </summary>
     public sealed class PevtExternalSource
     {
@@ -119,11 +113,7 @@ namespace Polaris.Pevt.Loading
 
     /// <summary>
     /// 外部源加载器：大小上限 → 严格 UTF-8 → 完整静态校验。
-    /// <para>
-    /// 没有"声明 ID 一致性"这一步，因为外部源没有声明 ID；事件 ID 只可能来自源码里的 <c>id</c>。
-    /// 静态校验走的是与嵌入源、与 PolarisTools 编辑器完全相同的 <see cref="PevtSourceCompiler"/>，
-    /// 因此同一份源码在三处得到同一批 PEVTxxxx。
-    /// </para>
+    /// 没有"声明 ID 一致性"这一步（外部源没有声明 ID，事件 ID 只来自源码里的 <c>id</c>），但静态校验走的是与嵌入源、与 PolarisTools 编辑器完全相同的 <see cref="PevtSourceCompiler"/>，因此同一份源码在三处得到同一批 PEVTxxxx。
     /// </summary>
     public static class PevtExternalSourceLoader
     {

@@ -137,7 +137,7 @@ namespace Polaris.Event.Game
             if (drawer == null)
                 return new PevtFrameWait(0);
 
-            // 原版图层只有一个各向同性的缩放系数；两轴不同时取 x，并按规范不静默拉伸另一轴。
+            // 原版图层只有一个各向同性的缩放系数；两轴不同时取 x，不静默拉伸另一轴。
             float target = x;
             float from = drawer.pz;
             return Tween(frames, easing, t =>
@@ -180,9 +180,8 @@ namespace Polaris.Event.Game
             PevtGameHost.Guard("ImageFlip", () => Layer(layerId, true)?.flip(horizontal, vertical, string.Empty));
 
         /// <summary>
-        /// 层次。符号决定原版的背景/前景大层，完整数值写入 <see cref="EvDrawer.id_in_layer_"/>
-        /// 作为层内顺序。图层键仍使用 9100 起的保留编号避免与 raw CMD 的 #1、#2 等键冲突，
-        /// 但排序不能沿用该保留编号，否则 PEVT 背景会盖住原版生成的剪影。
+        /// 层次。符号决定原版的背景/前景大层，完整数值写入 <see cref="EvDrawer.id_in_layer_"/> 作为层内顺序。
+        /// 图层键仍使用 9100 起的保留编号避免与 raw CMD 键冲突，但排序不能沿用该保留编号，否则 PEVT 背景会盖住原版生成的剪影。
         /// </summary>
         public void SetOrder(string layerId, int order) =>
             PevtGameHost.Guard("ImageSetOrder", () =>

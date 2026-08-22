@@ -5,7 +5,7 @@ using System.Linq;
 namespace Polaris.Pevt.Diagnostics
 {
     /// <summary>
-    /// PEVTRxxxx 运行诊断编号的唯一集中目录，逐条对应 PEVT-运行诊断表.md。
+    /// PEVTRxxxx 运行诊断编号的唯一集中目录。
     /// </summary>
     public static class RuntimeDiagnosticCatalog
     {

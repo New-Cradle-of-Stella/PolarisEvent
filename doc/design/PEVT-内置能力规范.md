@@ -342,7 +342,7 @@ UI_GAMEOVER / UICOOKING / UIGM / SMNCREATOR
 
 ```text
 EXPORT_IMAGE / MAXFPS / PXL_PROGRESS / TXCHECK
-资源重载、地图素材导出、基准测试和调试入口
+资源重载、地图素材导出、性能基准和调试入口
 ```
 
 如确有需要，应放入仅开发环境启用的工具能力，不属于剧情运行时能力集。

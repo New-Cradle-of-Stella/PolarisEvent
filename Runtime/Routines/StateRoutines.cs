@@ -3,7 +3,7 @@ using System.Collections.Generic;
 namespace Polaris.Pevt.Runtime.Routines
 {
     /// <summary>
-    /// 持久状态、物品、能力、任务与存档组合，对应同步指令中间层规范第 12 节。
+    /// 持久状态、物品、能力、任务与存档组合。
     /// </summary>
     internal static class StateRoutines
     {

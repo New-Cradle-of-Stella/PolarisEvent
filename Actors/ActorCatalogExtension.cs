@@ -6,11 +6,9 @@ using Polaris.Pevt.Text;
 namespace Polaris.Pevt.Actors
 {
     /// <summary>
-    /// 一个已校验的人物目录增量扩展（PEVT-E06）：只往已登记人物上**追加** appearance。
-    ///
-    /// 它刻意不是"第二种 `.pactor`"：扩展不能声明命名空间、不能新建人物、不能改人物元数据，
-    /// 也不能覆盖已有 appearance。这样"扩展"永远只有一种效果——多出几个可用的 appearance ID——
-    /// 于是加载顺序不影响任何已有内容的含义，卸载也只是把那几个 ID 拿掉。
+    /// 一个已校验的人物目录增量扩展（PEVT-E06）：只往已登记人物上**追加** appearance，
+    /// 不能声明命名空间、新建人物、改人物元数据或覆盖已有 appearance。
+    /// 这样加载顺序不影响已有内容的含义，卸载也只是把追加的 appearance ID 拿掉。
     /// </summary>
     public sealed class ActorCatalogExtension
     {

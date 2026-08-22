@@ -8,11 +8,7 @@ namespace Polaris.Event.Game.Live
 {
     /// <summary>
     /// 外部导入与热重载的开关与生命周期。
-    /// <para>
-    /// 状态不靠设置项的 <c>OnChanged</c> 回调驱动，而是每帧和设置项对一次账：设置项的扫描注册与
-    /// 组件的 Start 都在插件 Start 阶段，谁先谁后没有保证，靠回调启动就会依赖那个顺序。
-    /// 对账只比较几个字段，代价可以忽略，而且顺带把"作者在设置界面里改了导入目录"这件事也覆盖了。
-    /// </para>
+    /// 状态不靠设置项的 <c>OnChanged</c> 回调驱动，而是每帧和设置项对一次账：设置项扫描与组件 Start 谁先谁后没有保证，回调启动就会依赖那个顺序，对账代价可忽略且顺带覆盖了改动检测。
     /// </summary>
     internal static class PevtLiveRuntime
     {

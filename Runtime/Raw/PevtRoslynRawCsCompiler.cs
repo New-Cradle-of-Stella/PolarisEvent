@@ -72,12 +72,12 @@ namespace Polaris.Pevt.Runtime.Raw
             CacheScope = "roslyn/" + _languageVersion.ToString() + "/" + HashPaths(paths);
         }
 
-        /// <summary>实际参与编译的引用文件路径，按序排列。只读诊断与测试用。</summary>
+        /// <summary>实际参与编译的引用文件路径，按序排列，供只读诊断使用。</summary>
         public IReadOnlyList<string> ReferencePaths { get; }
 
         public string CacheScope { get; }
 
-        /// <summary>用当前 AppDomain 里已加载的程序集作为引用集合。游戏侧与测试侧都用这一条。</summary>
+        /// <summary>用当前 AppDomain 里已加载的程序集作为引用集合。</summary>
         public static PevtRoslynRawCsCompiler FromLoadedAssemblies(LanguageVersion? languageVersion = null) =>
             new PevtRoslynRawCsCompiler(AppDomain.CurrentDomain.GetAssemblies(), languageVersion);
 

@@ -45,7 +45,7 @@ namespace Polaris.Pevt.Runtime.Raw
 
         private PevtRawCommandWait _active;
 
-        /// <summary>已经启动过的会话总数，供只读诊断与测试断言使用。</summary>
+        /// <summary>已经启动过的会话总数，供只读诊断使用。</summary>
         public int StartedSessionCount { get; private set; }
 
         public PevtRawCommandChannel(IPevtRawCommandBridge bridge)

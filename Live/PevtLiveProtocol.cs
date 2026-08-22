@@ -1,11 +1,7 @@
 namespace Polaris.Pevt.Live
 {
     /// <summary>
-    /// PEVT 热重载线协议：PolarisTools 与游戏进程共用的唯一契约。
-    /// <para>
-    /// 与 PUI 的线协议不同，这里没有操作码——载荷就是一批 `.pevt` 源文本。游戏侧收到之后走的是
-    /// 与嵌入源相同的静态校验，因此工具侧不需要（也不允许）替它做任何解析或降级。
-    /// </para>
+    /// PEVT 热重载线协议：PolarisTools 与游戏进程共用的唯一契约，没有操作码——载荷就是一批 `.pevt` 源文本，游戏侧收到后走与嵌入源相同的静态校验。
     /// 帧格式（<c>BinaryWriter</c>/<c>BinaryReader</c>，UTF-8 长度前缀字符串）：
     /// <code>
     /// int    Version

@@ -26,14 +26,8 @@ namespace Polaris.Event
         }
 
         /// <summary>
-        /// 注册：先建注册表（构造时就登记了内置 <c>aic</c> 人物目录），
-        /// 再扫描插件与组件程序集里的事件与人物 registrar，最后封闭注册。
-        /// <para>
-        /// 必须在 Start 而不是 Awake：组件的 Awake 跑在 PolarisCore 插件自己的 Awake 里，
-        /// 此时 BepInEx 还没加载排在 Polaris 之后的模组程序集（依赖 Polaris 的模组必然排在后面），
-        /// 在那里扫描只看得到 Polaris 自己，模组的事件一个都进不来。Start 阶段全部插件已完成 Awake，
-        /// 名单才是完整的——Res / Lang / UI 的扫描同理都在 Start。
-        /// </para>
+        /// 注册：建注册表、扫描插件与组件程序集里的事件与人物 registrar，然后封闭注册。
+        /// 必须在 Start 而不是 Awake：Awake 阶段 BepInEx 还没加载排在 Polaris 之后的模组程序集，扫描会漏掉它们的事件。
         /// </summary>
         public override void Start()
         {

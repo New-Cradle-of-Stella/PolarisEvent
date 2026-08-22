@@ -119,8 +119,7 @@ namespace Polaris.Event.Game
 
                 EvPerson person = CurrentPerson();
 
-                // 原版 MSG 会在气泡出现前就把 T/THINK 之类的类型交给 getByDrawer。
-                // PEVT 的样式写在文本首标签中，若等文本渲染器逐字解析，会先闪过一帧普通气泡。
+                // 原版 MSG 会在气泡出现前就把 T/THINK 之类的类型交给 getByDrawer，若等文本渲染器逐字解析样式标签会先闪过一帧普通气泡。
                 // 所以在创建/复用气泡时先预取首个样式标签，标签本身仍交给原版渲染器处理。
                 NelMSG.HKDSTYPE initialType = InitialBubbleType(text);
                 NelMSG drawer = container.getByDrawer(_personKey, false, initialType, false, -1);

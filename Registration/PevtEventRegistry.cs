@@ -7,9 +7,8 @@ using Polaris.Pevt.Loading;
 namespace Polaris.Pevt.Registration
 {
     /// <summary>
-    /// 一个候选定义的来源层级。层级决定"谁盖谁"：外部导入的源永远压过随程序集分发的嵌入源，
-    /// 否则作者一旦把事件打进程序集，就再也没法在游戏里迭代同一个 ID 了。
-    /// 层级之内的冲突规则不受影响，仍按 PEVT-嵌入注册与ID冲突规范 第 6 节判定。
+    /// 一个候选定义的来源层级。层级决定"谁盖谁"：外部导入的源永远压过随程序集分发的嵌入源，否则作者一旦把事件打进程序集就再也没法在游戏里迭代同一个 ID。
+    /// 层级之内的冲突规则不受影响。
     /// </summary>
     public enum PevtEventOrigin
     {
@@ -101,8 +100,7 @@ namespace Polaris.Pevt.Registration
     }
 
     /// <summary>
-    /// 一条"外部源盖住了嵌入源"的记录。它不是冲突：外部导入压过嵌入包是设计意图，
-    /// 因此既不进 <see cref="PevtEventRegistry.Conflicts"/>，也不让 `callevt` 判成歧义目标。
+    /// 一条"外部源盖住了嵌入源"的记录。它不是冲突：外部导入压过嵌入包是设计意图，因此既不进 <see cref="PevtEventRegistry.Conflicts"/>，也不让 `callevt` 判成歧义目标。
     /// 单独列出来只是为了让作者一眼看到"现在跑的是哪一份"。
     /// </summary>
     public sealed class PevtEventOverride
@@ -257,7 +255,7 @@ namespace Polaris.Pevt.Registration
         }
 
         /// <summary>
-        /// 扫描封闭之后新加入的注册。规范要求这种情况"立即单独上报"，因此本方法只返回本次新增的冲突，
+        /// 扫描封闭之后新加入的注册需要立即单独上报，因此本方法只返回本次新增的冲突，
         /// 不重复报告 Seal 时已经汇总过的那些。
         /// </summary>
         public IReadOnlyList<PevtEventConflict> RegisterLate(
@@ -292,11 +290,7 @@ namespace Polaris.Pevt.Registration
 
         /// <summary>
         /// 整批替换某个 owner 名下的外部候选：先撤销它此前登记的全部候选，再登记这一批，最后重新派生一次。
-        /// <para>
-        /// 必须是"整批替换"而不是"逐个追加"。热重载的语义是"磁盘上现在有这些文件"，作者删掉一个
-        /// `.pevt` 之后它就该从 `/event` 里消失；逐个追加做不到这件事，只会让上一轮的事件一直赖在表里。
-        /// 同理也只 Rebuild 一次，避免中间态被别人看见。
-        /// </para>
+        /// 必须是"整批替换"而不是"逐个追加"：热重载语义是"磁盘上现在有这些文件"，逐个追加会让已删除的事件一直赖在表里，且只 Rebuild 一次以避免中间态被看见。
         /// </summary>
         public IReadOnlyList<PevtEventCandidate> ReplaceExternal(
             string owner,
@@ -325,12 +319,8 @@ namespace Polaris.Pevt.Registration
         }
 
         /// <summary>
-        /// 派生生效集合。分两层：先在嵌入层内部按规范第 6 节定胜负，再让外部导入层整体压上去。
-        /// <para>
-        /// 分层而不是把所有候选放在一起排序，是为了让"外部导入"不污染发布路径的判定：
-        /// 两个模组抢同一个 ID 仍然是致命冲突，不会因为作者本机恰好导入了同名事件而被悄悄和解掉；
-        /// 反过来外部源盖住嵌入源也不算冲突，只记一条 <see cref="PevtEventOverride"/>。
-        /// </para>
+        /// 派生生效集合。分两层：先在嵌入层内部定胜负，再让外部导入层整体压上去。
+        /// 分层而不是整体排序，是为了让"外部导入"不污染发布路径的判定——两个模组抢同一个 ID 仍是致命冲突，而外部源盖住嵌入源不算冲突，只记一条 <see cref="PevtEventOverride"/>。
         /// </summary>
         private void Rebuild()
         {

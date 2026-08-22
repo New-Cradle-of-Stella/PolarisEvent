@@ -5,18 +5,9 @@ using Polaris.Pevt.Commands;
 namespace Polaris.Pevt.Runtime
 {
     /// <summary>
-    /// 实参进入处理器之前的显示文案解析。
-    ///
-    /// 放在这里而不是各处理器里，是因为"哪些形参是给玩家看的文案"已经在
-    /// <see cref="BuiltinCommandDescriptors"/> 里用 <see cref="ParameterDomain.Text"/> 声明过一次了；
-    /// 让 <c>@say</c>、<c>@narrate</c>、<c>@choose</c>…各自记得调一次解析，等于把同一份清单抄第二遍，
-    /// 而漏抄的那一条不会报错，只会在游戏里显示成一串 <c>&amp;key</c>。
-    ///
-    /// <para>
-    /// 解析发生在参数求值之后、组合协程开始之前，因此对处理器完全透明：它们看到的 <c>args.String(i)</c>
-    /// 一律是最终文案。<c>_start</c> 异步变体与同步条目共用同一批 <see cref="CommandParameter"/> 实例，
-    /// 两条调用路径因此不可能得到不同的判定。
-    /// </para>
+    /// 实参进入处理器之前的显示文案解析。放在这里而不是各处理器里，是因为"哪些形参是给玩家看的文案"已经在
+    /// <see cref="BuiltinCommandDescriptors"/> 里用 <see cref="ParameterDomain.Text"/> 声明过一次了，不必让每个处理器各自再解析一遍。
+    /// 解析发生在参数求值之后、组合协程开始之前，处理器看到的 <c>args.String(i)</c> 一律已是最终文案，<c>_start</c> 异步变体与同步条目共用同一批判定。
     /// </summary>
     internal static class PevtTextArguments
     {

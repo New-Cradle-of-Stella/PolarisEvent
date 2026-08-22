@@ -55,7 +55,7 @@ namespace Polaris.Pevt.Actors
             return ReadExtension(loaded.Text, cancellationToken);
         }
 
-        /// <summary>测试与编辑器用的便捷入口。</summary>
+        /// <summary>编辑器用的便捷入口。</summary>
         public static ActorCatalogExtensionReadResult ReadExtensionText(
             string xml,
             string sourcePath,

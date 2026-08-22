@@ -23,13 +23,8 @@ namespace Polaris.Event.Game.Live
     }
 
     /// <summary>
-    /// 外部导入的唯一落地点：磁盘扫描与 PolarisTools 热重载推送最终都走到这里。
-    /// <para>
-    /// 两条入口共用同一段逻辑是刻意的——"从目录导入"和"从工具推送"只有取字节的方式不同，
-    /// 校验、登记、覆盖判定和重启策略必须完全一致，否则作者在两条路上会看到不同的行为。
-    /// </para>
-    /// 只能在 Unity 主线程调用：它会改注册表并可能重启当前事件。管道线程要经
-    /// <see cref="PevtLivePump"/> 排队。
+    /// 外部导入的唯一落地点：磁盘扫描与 PolarisTools 热重载推送最终都走到这里，两条入口共用同一段校验、登记、覆盖判定与重启策略。
+    /// 只能在 Unity 主线程调用：它会改注册表并可能重启当前事件，管道线程要经 <see cref="PevtLivePump"/> 排队。
     /// </summary>
     internal static class PevtLiveImport
     {
@@ -175,11 +170,7 @@ namespace Polaris.Event.Game.Live
 
         /// <summary>
         /// 当前根事件刚被重新导入时把它从头重启，返回重启的事件 ID；没有重启则返回 null。
-        /// <para>
-        /// 不做"就地换掉指令流"：正在跑的事件已经建立了等待、协程和一整棵所有权树，把它们接到
-        /// 另一份指令流上无法保证语义，只会得到一个既不是旧版也不是新版的状态。从头重启是唯一
-        /// 能说清楚的语义——代价是作者会看到事件回到开头，这是可预期的。
-        /// </para>
+        /// 不做"就地换掉指令流"：正在跑的事件已经建立了等待、协程和所有权树，接到新指令流上无法保证语义，从头重启才是唯一能说清楚的语义。
         /// </summary>
         private static string RestartIfRunning(PevtExternalApplyReport report)
         {

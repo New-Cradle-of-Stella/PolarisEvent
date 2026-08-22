@@ -278,7 +278,7 @@ namespace Polaris.Pevt.Runtime
         public IReadOnlyList<PevtBlockInfo> Blocks { get; }
 
         /// <summary>
-        /// PEVT-E07：事件头声明的参数，按声明顺序。空列表表示旧语法（无参事件）。
+        /// PEVT-E07：事件头声明的参数，按声明顺序，空列表表示旧语法（无参事件）。
         /// <c>callevt</c> 的晚绑定阶段用它核对调用方实参的数量与类型（PEVTR4305）。
         /// </summary>
         public IReadOnlyList<PevtParameterInfo> Parameters { get; }

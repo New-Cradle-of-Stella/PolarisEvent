@@ -4,7 +4,7 @@ using Polaris.Pevt.Actors;
 
 namespace Polaris.Pevt.Runtime
 {
-    // 本文件定义同步指令中间层规范第 5 节的中立原子服务边界。
+    // 本文件定义中立原子服务边界。
 
     /// <summary>帧等待、输入等待和受管动作聚合等待。</summary>
     public interface IPevtClock
@@ -297,7 +297,7 @@ namespace Polaris.Pevt.Runtime
 
         void ClearTutorials();
 
-        // ---- 持久状态变更提示（同步指令中间层规范第 12 节的 notify 分支）----
+        // ---- 持久状态变更提示 ----
         // 提示归 UI、改数量归 Inventory：放在 UI 服务而不是 Inventory 上，"静默改数量"才不必绕过一个硬编码的通知。
 
         void NotifyItemChange(string itemId, int delta, int count);
@@ -320,12 +320,8 @@ namespace Polaris.Pevt.Runtime
     }
 
     /// <summary>
-    /// 把"显示用字符串"解析成最终文案。
-    ///
-    /// Core 不认识 <c>&amp;</c> 这个约定，也不该认识：本地化键的判定、查表顺序与兜底策略全部属于
-    /// 宿主（游戏侧接的是 <c>PolarisAPI.Localization.Text</c>，它同时服务于设置文案、<c>.pui</c> 与
-    /// <c>.plang</c>）。Core 只负责一件事——凡是带 <see cref="Binding.ParameterDomain.Text"/> 的实参，
-    /// 在交给处理器之前都要经过这里，因此"哪些参数是给玩家看的文案"只在描述目录里声明一次。
+    /// 把"显示用字符串"解析成最终文案。Core 不认识 <c>&amp;</c> 这个约定，也不该认识：本地化键的判定、查表顺序与兜底策略全部属于宿主。
+    /// Core 只负责一件事——凡是带 <see cref="Binding.ParameterDomain.Text"/> 的实参，在交给处理器之前都要经过这里，因此"哪些参数是给玩家看的文案"只在描述目录里声明一次。
     /// </summary>
     public interface IPevtLocalization
     {

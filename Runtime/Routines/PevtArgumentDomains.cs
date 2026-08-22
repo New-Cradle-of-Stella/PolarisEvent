@@ -51,7 +51,7 @@ namespace Polaris.Pevt.Runtime.Routines
             return value;
         }
 
-        /// <summary><c>easing</c> 第一版只接受规范固定的四个取值。</summary>
+        /// <summary><c>easing</c> 第一版只接受固定的四个取值。</summary>
         public static string RequireEasing(string easing)
         {
             IReadOnlyList<string> allowed = ParameterDomain.Easing.ClosedValues;

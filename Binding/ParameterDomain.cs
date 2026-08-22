@@ -23,7 +23,7 @@ namespace Polaris.Pevt.Binding
         public bool RejectsUnknownValues { get; }
 
         /// <summary>
-        /// 规范已经固定死的封闭取值集；null 表示取值集由处理器在运行期登记，静态侧看不全。
+        /// 已经固定死的封闭取值集；null 表示取值集由处理器在运行期登记，静态侧看不全。
         /// 即使是封闭集，未登记值也只是运行时参数错误，不是静态诊断——见 <see cref="RejectsUnknownValues"/>。
         /// </summary>
         public IReadOnlyList<string> ClosedValues { get; }
@@ -65,11 +65,8 @@ namespace Polaris.Pevt.Binding
         public static ParameterDomain ActorEmote { get; } = new ParameterDomain("actor-emote", PevtType.String, false);
 
         /// <summary>
-        /// 缓动曲线。第一版取值集由规范固定（内置事件语句表「参数域」一节）。
-        /// <c>zpow</c>（PEVT-E04）数值上与 <c>ease_in</c> 相同（均为 clamp01(t)²，对照原版
-        /// <c>XX.X.ZPOW</c> 核对过），但按规范要求独立登记，不当作 <c>ease_in</c> 的别名。
-        /// 其余全部是 <c>easings.net</c> 标准缓动函数全集：sine/quad/cubic/quart/quint/expo/circ/back/elastic/bounce
-        /// 十个族各三种（in/out/in-out），曲线实现见 <c>Game/PevtStandardEasing.cs</c>。
+        /// 缓动曲线：<c>zpow</c>（PEVT-E04）数值上与 <c>ease_in</c> 相同，但独立登记，不当作其别名。
+        /// 其余全部是 <c>easings.net</c> 标准缓动函数全集，曲线实现见 <c>Game/PevtStandardEasing.cs</c>。
         /// </summary>
         public static ParameterDomain Easing { get; } = new ParameterDomain("easing", PevtType.String, false, new[]
         {
@@ -97,9 +94,8 @@ namespace Polaris.Pevt.Binding
         public static ParameterDomain AssetId { get; } = new ParameterDomain("asset-id", PevtType.String, false);
 
         /// <summary>
-        /// 直接显示给玩家看的文本。凡是带这个域的实参都会在进入处理器之前过一遍
-        /// <see cref="Runtime.IPevtLocalization"/>：<c>&amp;</c> 开头按本地化键查表，<c>&amp;&amp;</c> 开头脱转义，
-        /// 其余原样。取值不可能"未知"（任何字符串都是合法文案），因此永远不产生静态诊断。
+        /// 直接显示给玩家看的文本，在进入处理器前经 <see cref="Runtime.IPevtLocalization"/> 解析：<c>&amp;</c> 开头按本地化键查表，<c>&amp;&amp;</c> 开头脱转义，其余原样。
+        /// 取值不可能"未知"，因此永远不产生静态诊断。
         /// </summary>
         public static ParameterDomain Text { get; } = new ParameterDomain("text", PevtType.String, false);
 

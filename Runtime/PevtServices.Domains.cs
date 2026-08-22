@@ -1,8 +1,8 @@
 namespace Polaris.Pevt.Runtime
 {
-    // 本文件补齐同步指令中间层规范第 5 节剩下的四行原子服务边界：World/Entity、State/Inventory/Quest、Player/Battle。
-    // 规则与 P0 那批接口完全一致——只使用 PEVT 自己的类型和 PevtWait，不出现游戏内部对象；方法刻意保持"先查再写"的
-    // 粒度，好让组合处理器在第一个持久写入之前把该拒绝的全拒绝掉。
+    // 本文件补齐剩下的原子服务边界：World/Entity、State/Inventory/Quest、Player/Battle。
+    // 规则与其余接口一致：只使用 PEVT 自己的类型和 PevtWait，方法刻意保持"先查再写"的粒度，
+    // 好让组合处理器在第一个持久写入之前把该拒绝的全拒绝掉。
 
     /// <summary>地图、天气、地图元素与地图层。</summary>
     public interface IPevtWorld
@@ -18,7 +18,7 @@ namespace Polaris.Pevt.Runtime
 
         /// <summary>
         /// 进入地图转场。成功后组合必须立刻登记 <see cref="AbortTransition"/> 作为临时清理，
-        /// 只有 <see cref="EndTransition"/> 成功时才撤销（规范第 11 节末尾）。
+        /// 只有 <see cref="EndTransition"/> 成功时才撤销。
         /// </summary>
         void BeginTransition();
 
@@ -233,7 +233,7 @@ namespace Polaris.Pevt.Runtime
             Quest = quest;
         }
 
-        /// <summary>一个都没有接的空包。语言与 P0 测试用它，避免到处写 null 判断。</summary>
+        /// <summary>一个都没有接的空包，避免到处写 null 判断。</summary>
         public static PevtDomainServices Empty { get; } = new PevtDomainServices();
     }
 }

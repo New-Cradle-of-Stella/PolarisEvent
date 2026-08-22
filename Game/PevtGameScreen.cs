@@ -267,7 +267,7 @@ namespace Polaris.Event.Game
 
         /// <summary>
         /// 镜头目标（PEVT-E02）。写法由 <see cref="PevtCameraTarget"/> 判定，这里只回答"在当前地图上存不存在"：
-        /// <c>entity:</c> 查地图 mover 表，<c>anchor:</c> 与旧的裸写法查标签点。两条查询都不产生副作用。
+        /// <c>entity:</c> 查地图 mover 表，<c>anchor:</c> 与旧的裸写法查标签点，两条查询都不产生副作用。
         /// </summary>
         public bool ResolveTarget(string targetId)
         {
@@ -394,11 +394,8 @@ namespace Polaris.Event.Game
         }
 
         /// <summary>
-        /// 跟随目标消失的看守。
-        ///
-        /// <c>@camera_move("entity:...")</c> 的等待在 <c>frames</c> 帧后就结束了，但跟随本身会一直持续到
-        /// 事件结束，所以实体可能在动作完成之后才消失。那时不能把已经继续往下演的事件反向掀掉，
-        /// 但也绝不能让 <see cref="M2Camera.MvCenter"/> 停在一个已销毁的对象上——于是把镜头交回事件开始时的快照基准。
+        /// 跟随目标消失的看守：跟随会持续到事件结束，所以实体可能在动作完成之后才消失，那时既不能把已经继续往下演的事件反向掀掉，
+        /// 也不能让 <see cref="M2Camera.MvCenter"/> 停在一个已销毁的对象上，于是把镜头交回事件开始时的快照基准。
         /// 动作进行中消失是另一回事：那由 <see cref="PevtGameCameraWait"/> 以 false 结束，组合报 PEVTR4602。
         /// </summary>
         private void WatchFollowTarget()

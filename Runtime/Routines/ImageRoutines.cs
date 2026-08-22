@@ -3,8 +3,8 @@ using System.Collections.Generic;
 namespace Polaris.Pevt.Runtime.Routines
 {
     /// <summary>
-    /// 通用演出图层组合，对应同步指令中间层规范第 7 节的 <c>@image_*</c>、<c>@cg_show</c>
-    /// 与 <c>@silhouette_show</c>。坐标、透明度、帧数和 easing 都在产生副作用之前完成域验证。
+    /// 通用演出图层组合：<c>@image_*</c>、<c>@cg_show</c> 与 <c>@silhouette_show</c>。
+    /// 坐标、透明度、帧数和 easing 都在产生副作用之前完成域验证。
     /// </summary>
     internal static class ImageRoutines
     {

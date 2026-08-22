@@ -4,7 +4,7 @@ using Polaris.Pevt.Actors;
 namespace Polaris.Pevt.Runtime.Routines
 {
     /// <summary>
-    /// 角色立绘与演出图层组合，对应同步指令中间层规范第 7 节。
+    /// 角色立绘与演出图层组合。
     /// </summary>
     internal static class ActorRoutines
     {

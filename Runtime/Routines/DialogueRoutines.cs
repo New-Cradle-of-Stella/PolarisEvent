@@ -4,7 +4,7 @@ using Polaris.Pevt.Actors;
 namespace Polaris.Pevt.Runtime.Routines
 {
     /// <summary>
-    /// 对话与选择组合，逐条对应同步指令中间层规范第 6 节的原子方法顺序。
+    /// 对话与选择组合。
     /// </summary>
     internal static class DialogueRoutines
     {
@@ -114,7 +114,7 @@ namespace Polaris.Pevt.Runtime.Routines
             yield break;
         }
 
-        /// <summary>`@skip_enabled` 走的是输入能力，不是对话服务（规范第 6 节最后一行）。</summary>
+        /// <summary>`@skip_enabled` 走的是输入能力，不是对话服务。</summary>
         public static IEnumerator<PevtWait> SkipEnabled(PevtRoutineContext context, PevtArguments args)
         {
             IPevtInput input = PevtArgumentDomains.RequireService(context.Services.Input, "Input");

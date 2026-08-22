@@ -15,8 +15,7 @@ namespace Polaris.Event.Game
     /// 结果写进 <see cref="TX.value_inputted"/>。</item>
     /// </list>
     ///
-    /// 这里刻意**不**调用原版的表达式求值入口（<c>TX.Nm</c> / <c>&amp;{...}</c> 展开）：那条路会解析
-    /// 运算符、条件与嵌套调用，等于把任意原版表达式文本重新交给原版解释器执行。本适配器只做
+    /// 这里刻意**不**调用原版的表达式求值入口（<c>TX.Nm</c> / <c>&amp;{...}</c> 展开），只做
     /// "一个键 + 一串参数 → 一个值"，没有赋值、反射、方法调用或对象引用的通道。
     /// </summary>
     internal sealed class PevtGameQueryTable : IPevtGameQuery

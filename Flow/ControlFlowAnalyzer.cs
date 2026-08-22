@@ -332,8 +332,7 @@ namespace Polaris.Pevt.Flow
             return true;
         }
 
-        /// <summary>6.2 节重复 case 检测（阶段 6）用的同一种"忽略空白比较 token 序列"近似实现，
-        /// 这里复用给 6.5 节的 <c>goto</c> 表达式匹配。</summary>
+        /// <summary>重复 case 检测用的同一种"忽略空白比较 token 序列"近似实现，这里复用给 <c>goto</c> 表达式匹配。</summary>
         private string Canonicalize(TextSpan span)
         {
             string text = _source.GetText(span);

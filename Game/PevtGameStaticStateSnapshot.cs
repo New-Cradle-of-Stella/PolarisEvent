@@ -6,11 +6,8 @@ using XX;
 namespace Polaris.Event.Game
 {
     /// <summary>
-    /// PEVT 根事件的进程级临时状态快照。
-    ///
-    /// 这里只保存 PEVT/原版 EV 演出会修改、且在事件结束后必须回滚的静态标量与 BGM 身份。
-    /// 不能反射深拷贝“所有 static 字段”：地图、Unity 对象、资源缓存和任务进度也都是静态对象，
-    /// 回写它们既会撤销脚本有意产生的持久结果，也会把已销毁的 Unity 引用重新塞回游戏。
+    /// PEVT 根事件的进程级临时状态快照，只保存 PEVT/原版 EV 演出会修改、且在事件结束后必须回滚的静态标量与 BGM 身份。
+    /// 不能反射深拷贝“所有 static 字段”：地图、Unity 对象等其他静态对象若被回写，既会撤销脚本有意产生的持久结果，也会把已销毁的 Unity 引用重新塞回游戏。
     /// </summary>
     internal sealed class PevtGameStaticStateSnapshot
     {

@@ -4,7 +4,7 @@ using Polaris.Pevt.Actors;
 namespace Polaris.Pevt.Runtime.Routines
 {
     /// <summary>
-    /// 音频组合，对应同步指令中间层规范第 9 节。
+    /// 音频组合。
     /// </summary>
     internal static class AudioRoutines
     {

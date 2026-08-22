@@ -63,7 +63,7 @@ namespace Polaris.Event.Game
                 case "ease_in_out":
                     return t => t < 0.5f ? 2f * t * t : 1f - 2f * (1f - t) * (1f - t);
                 case "zpow":
-                    // 与 ease_in 同值（原版 XX.X.ZPOW(t) = clamp01(t)²），但按规范独立登记。
+                    // 与 ease_in 同值（原版 XX.X.ZPOW(t) = clamp01(t)²），但独立登记。
                     return t => t * t;
 
                 case "ease_in_sine": return PevtStandardEasing.InSine;

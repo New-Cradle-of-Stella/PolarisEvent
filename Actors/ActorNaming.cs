@@ -3,8 +3,7 @@ using System;
 namespace Polaris.Pevt.Actors
 {
     /// <summary>
-    /// 人物目录的命名规则集中处。人物 ID 与事件 ID 不共用字符规则（见 PEVT-嵌入注册与ID冲突规范.md 第 10 节），
-    /// 因此这里独立定义，不复用 <c>SyntaxFacts</c> 的 PEVT 标识符判定。
+    /// 人物目录的命名规则集中处：人物 ID 与事件 ID 不共用字符规则，因此这里独立定义，不复用 <c>SyntaxFacts</c> 的 PEVT 标识符判定。
     /// </summary>
     public static class ActorNaming
     {

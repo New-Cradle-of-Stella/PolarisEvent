@@ -4,8 +4,7 @@ using Polaris.Pevt.Binding;
 namespace Polaris.Pevt.Commands
 {
     /// <summary>
-    /// 第一版 <c>@</c> API 的权威登记数据，逐条对应 PEVT-内置事件语句表.md，<c>Capability</c> 列对应 PEVT-内置能力规范.md。
-    /// 优先级按功能阶段划分（P0 演出，P1 地图实体与持久状态）；<c>_start</c> 异步变体由
+    /// 第一版 <c>@</c> API 的权威登记数据。优先级按功能阶段划分（P0 演出，P1 地图实体与持久状态）；<c>_start</c> 异步变体由
     /// <see cref="CommandWaitKind.WaitParallel"/> 条目自动派生，不在本表出现。
     /// </summary>
     public static class BuiltinCommandDescriptors
@@ -54,8 +53,7 @@ namespace Polaris.Pevt.Commands
 
         /// <summary>
         /// PEVT-E01：任意已登记游戏值的只读查询。键名不是白名单，所以这一族只按"实参数量"分重载——
-        /// <c>key</c> 之后是 0–<see cref="MaxQueryArguments"/> 个纯查询参数。重载仍然由参数数量与类型唯一确定，
-        /// 因此这里登记的是一族固定签名，而不是一条可变参数签名。
+        /// <c>key</c> 之后是 0–<see cref="MaxQueryArguments"/> 个纯查询参数，登记的是一族固定签名，而不是一条可变参数签名。
         /// </summary>
         private static void AddGameQueries(List<CommandDescriptor> descriptors)
         {
